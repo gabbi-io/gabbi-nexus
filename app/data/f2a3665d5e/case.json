@@ -1,0 +1,283 @@
+{
+  "id": "f2a3665d5e",
+  "name": "Discovery Wizard Demo",
+  "description": "",
+  "documents": [
+    {
+      "id": "2cea50bdab7f",
+      "filename": "2.1 - DIGITAL-0001 - Contrato Master (1).pdf",
+      "path": "C:\\Users\\bruno.santos\\Desktop\\gabbi_enterprise_v7_wizard_complete\\gabbi_enterprise_v7_wizard\\app\\data\\f2a3665d5e\\files\\2.1 - DIGITAL-0001 - Contrato Master (1).pdf",
+      "content_type": "application/pdf",
+      "parsed": {
+        "text": "[Página 1]\nCONTRATO DE PRESTAÇÃO DE SERVIÇOS PARA DESENVOLVIMENTO DE SITE DE \nE-COMMERCE - MARKETPLACE \nPelo presente instrumento particular de contrato de prestação de serviços, as \npartes identificadas abaixo resolvem firmar o presente contrato, conforme as \ncláusulas e condições a seguir: \n \n1. IDENTIFICAÇÃO DAS PARTES \nContratante: Nome/Razão Social: Horus S/A \nCPF/CNPJ: 12345678910 \nEndereço Completo: Rua do Bob, 123 \nContato: horus@gmail.com \nContratado: Sites e Cia \nNome/Razão Social: Sites e Cia \nCPF/CNPJ: 01.001.001/0001-10 \nEndereço Completo: Av Topzera, 123 \nContato: site@gmail.com \n \n2. OBJETO DO CONTRATO \n2.1. Descrição do Serviço: \nO presente contrato tem como objeto a prestação de serviços para o \ndesenvolvimento de um site de e-commerce do tipo marketplace, com as \nseguintes funcionalidades: \n• Cadastro de vendedores e gerenciamento de produtos; \n• Carrinho de compras e sistema de checkout integrado; \n• Sistema de pagamentos com suporte a cartão de crédito, boleto e PIX; \n• Área de administração para controle de pedidos, estoque e comissões; \n• Funcionalidades de SEO e integração com redes sociais; \n• Sistema de avaliações e notificações por e-mail. \n2.2. Escopo do Projeto: \nO escopo do projeto incluirá: \n• Número de Páginas do Site: 10 \n• Layout Responsivo: Compatível com dispositivos móveis (smartphones e \ntablets); \n\n[Página 2]\n• Integrações com APIs de Pagamento: Integrações com [Ex: PagSeguro, \nMercadoPago, PayPal]; \n• Tecnologias Utilizadas: React, Node.js, MySQL \n \n3. PRAZOS E ENTREGAS \n3.1. Cronograma Detalhado: \n• Protótipo e Design UX/UI: 60 dias; \n• Desenvolvimento Back-end e Front-end: 120 dias; \n• Testes e Correções: 30 dias; \n• Entrega Final e Lançamento: 30 dias. \n3.2. Revisões e Aprovações: \nCada fase incluirá um período de feedback e ajustes, conforme acordado entre as \npartes, com prazo máximo de 15 dias para revisão e aprovação. \n3.3. Penalidades por Atraso: \nEm caso de atraso na entrega de qualquer marco do projeto, será aplicada uma \nmulta de 10% do valor do marco correspondente, salvo motivos de força maior \ndevidamente justificados. \n3.4. Garantia de Conformidade: \nO contratado deverá garantir que todas as entregas estejam em conformidade \ncom as especificações técnicas e funcionais descritas no escopo do projeto. \nCaso sejam identificadas não conformidades, o contratado deverá corrigi-las sem \ncustos adicionais. \n3.5. Aprovações Parciais: \nAprovações parciais poderão ser concedidas para cada fase, permitindo que o \nprojeto avance conforme o cronograma planejado, mesmo com ajustes em \naberto. \n3.6. Comunicação Constante: \nO contratado deverá fornecer relatórios semanais sobre o progresso do projeto, \nincluindo detalhes sobre tarefas concluídas, em andamento e pendentes, bem \ncomo possíveis riscos e desafios identificados. \n3.7. Limitação de Responsabilidade: \nO contratado não será responsável por atrasos causados por problemas em \ninfraestrutura de terceiros, como provedores de hospedagem, APIs de pagamento \nou serviços externos integrados ao marketplace. \n\n[Página 3]\n3.8. Despesas Adicionais: \nCaso haja necessidade de licenciamento de software, plugins ou serviços \nterceirizados para a implementação do projeto, os custos serão repassados ao \ncontratante, mediante prévia aprovação formal. \n \n4. VALOR E CONDIÇÕES DE PAGAMENTO \n4.1. Valor Total do Contrato: \nO valor total do presente contrato será de R$ 250.000,00 (duzentos e cinquenta \nmil reais), abrangendo todos os serviços descritos no escopo do projeto. Este \nvalor poderá ser ajustado caso ocorram solicitações de alterações ou adições ao \nescopo inicialmente acordado. \n4.2. Condições de Pagamento: \nO pagamento será realizado conforme as fases de entrega, em marcos definidos \nno cronograma: \n• 20% na aprovação do Protótipo e Design UX/UI; \n• 40% na conclusão do Desenvolvimento Back-end e Front-end; \n• 20% após Testes e Correções; \n• 20% na Entrega Final e Lançamento. \n4.3. Reajuste: \nPara contratos com duração superior a 12 meses, será aplicado um reajuste anual \ncom base no IPCA acumulado no período, para garantir a atualização do valor \nconforme a inflação. \n4.4. Aprovação Formal: \nCada pagamento será realizado mediante aprovação formal da respectiva fase, \natravés de um termo de aceite assinado pelo contratante. \n4.5. Multa por Atraso no Pagamento: \nEm caso de atraso no pagamento, será aplicada uma multa de 2% sobre o valor da \nparcela em atraso, acrescida de juros de mora de 1% ao mês. \n4.6. Despesas Não Incluídas: \nDespesas relacionadas a licenciamento de software, hospedagem, serviços de \nterceiros e outras não especificadas no escopo serão cobradas à parte, mediante \naprovação prévia do contratante. \n4.7. Ajustes e Alterações: \nCaso sejam solicitadas alterações ou ajustes no escopo do projeto após a \nassinatura do contrato, as partes deverão negociar os prazos e custos adicionais. \n\n[Página 4]\nAs alterações só serão implementadas mediante aprovação formal e assinatura \nde um termo aditivo ao contrato. \n4.8. Revisões Extraordinárias: \nCaso o contratante solicite revisões além das previstas no cronograma, será \ncobrado um valor adicional conforme orçamento apresentado pelo contratado, \ncom base na complexidade e no tempo necessário para as alterações. \n\"4.9. Cobrança de Hora Extra: Caso sejam solicitadas alterações ou ajustes fora \ndo escopo originalmente acordado, as horas adicionais serão cobradas com um \nadicional de 150% sobre o valor da hora padrão praticado pelo contratado. O \ncontratante será previamente informado sobre o impacto financeiro e deverá \naprovar formalmente antes da execução das horas extras. \" \n \n5. OBRIGAÇÕES E RESPONSABILIDADES \n5.1. Do Prestador de Serviço: \n• Garantia de funcionamento por 6 meses após a entrega final; \n• Suporte técnico durante o período de garantia para correção de bugs; \n• Cumprimento do cronograma conforme especificado neste contrato; \n• Comunicação constante sobre o progresso do projeto; \n• Sigilo e confidencialidade sobre as informações do contratante. \n5.2. Do Contratante: \n• Fornecimento de conteúdos (textos, imagens) necessários para o site; \n• Feedback em tempo hábil conforme as fases do projeto; \n• Pagamento conforme as condições acordadas; \n• Aprovação formal de cada fase do projeto. \n5.3. Exclusão de Responsabilidade: \nO contratado não se responsabiliza por falhas decorrentes de: \n• Infraestrutura de terceiros, como provedores de hospedagem; \n• Má utilização do sistema pelo contratante ou seus usuários finais. \n \n6. PROPRIEDADE INTELECTUAL E DIREITOS AUTORAIS \n\n[Página 5]\n6.1. Transferência de Propriedade Intelectual: \nA propriedade intelectual do código-fonte, design, layout e demais elementos \ndesenvolvidos será transferida ao contratante após o pagamento integral do \ncontrato. \n6.2. Componentes Reutilizáveis: \nO contratado mantém os direitos sobre componentes reutilizáveis, bibliotecas e \nframeworks utilizados na construção do site, podendo reaproveitá-los em outros \nprojetos. \n6.3. Direitos Autorais: \nO contratante terá plenos direitos autorais sobre o site desenvolvido, incluindo a \nliberdade para modificá-lo, atualizá-lo ou transferi-lo a terceiros. \n6.4. Garantia de Originalidade: \nO contratado garante que todo o código desenvolvido é original e não infringe \ndireitos autorais de terceiros. \n \n7. PROTEÇÃO DE DADOS E PRIVACIDADE (LGPD) \n7.1. Conformidade com a LGPD: \nO desenvolvimento do site será realizado em conformidade com a Lei Geral de \nProteção de Dados (LGPD), garantindo a segurança e privacidade dos dados \npessoais coletados. \n7.2. Responsabilidades do Contratado: \n• Implementar medidas de segurança para proteção de dados; \n• Garantir o consentimento explícito do usuário para coleta de dados; \n• Fornecer funcionalidades para gerenciamento de cookies e políticas de \nprivacidade. \n7.3. Responsabilidades do Contratante: \n• Garantir o cumprimento da LGPD na gestão de dados após o lançamento \ndo site; \n• Nomear um encarregado de dados, conforme exigências da LGPD. \n \n8. SUPORTE E MANUTENÇÃO \n8.1. Suporte Técnico Gratuito: \nO contratado fornecerá suporte técnico gratuito por um período de 6 meses após \n\n[Página 6]\na entrega final, cobrindo a correção de bugs e problemas técnicos identificados \ndurante o uso regular do site. \n8.2. Manutenção Corretiva: \nDurante o período de garantia, o contratado se compromete a corrigir falhas e \nerros identificados, garantindo o pleno funcionamento do site conforme \nespecificações acordadas. \n8.3. Manutenção Evolutiva: \nQualquer alteração ou adição de novas funcionalidades, solicitada pelo \ncontratante, será considerada manutenção evolutiva e será cobrada à parte, \nconforme orçamento pré-aprovado. \n8.4. Prazo de Atendimento: \nO prazo máximo para resposta inicial a chamados de suporte será de 48 horas \núteis. Correções críticas deverão ser implementadas em até 5 dias úteis. \n \n9. CONFIDENCIALIDADE \n9.1. Compromisso de Confidencialidade: \nAmbas as partes comprometem-se a manter sigilo absoluto sobre todas as \ninformações estratégicas, financeiras, técnicas e comerciais relacionadas ao \nprojeto, não as divulgando a terceiros sem prévia autorização por escrito. \n9.2. Vigência da Confidencialidade: \nA obrigação de confidencialidade permanecerá vigente durante o período do \ncontrato e por 2 anos após o término deste. \n9.3. Exceções à Confidencialidade: \nNão serão consideradas confidenciais as informações que: \n• Se tornem de domínio público sem violação deste contrato; \n• Sejam comprovadamente conhecidas pela parte receptora antes da \ndivulgação pela parte divulgadora; \n• Sejam legalmente exigidas por autoridades governamentais, mediante \nnotificação à outra parte. \n \n10. EXCLUSIVIDADE E NÃO CONCORRÊNCIA \n10.1. Exclusividade: \nO contratado não poderá desenvolver, direta ou indiretamente, plataformas \n\n[Página 7]\nsemelhantes para concorrentes diretos do contratante durante o período deste \ncontrato. \n10.2. Não Concorrência: \nO contratado compromete-se a não oferecer serviços semelhantes para \nconcorrentes diretos do contratante por um período de 1 ano após o término \ndeste contrato. \n10.3. Penalidades: \nEm caso de violação das cláusulas de exclusividade ou não concorrência, será \naplicada uma multa equivalente a 20% do valor total do contrato. \n \n11. ALTERAÇÕES E AJUSTES \n11.1. Solicitações de Alterações: \nTodas as solicitações de alterações durante o desenvolvimento deverão ser \nformalizadas por escrito e estarão sujeitas à análise de viabilidade técnica. \n11.2. Impacto nos Prazos e Custos: \nAs alterações solicitadas poderão resultar em prazos adicionais e custos extras, \nconforme negociação e aprovação prévia do contratante. \n11.3. Termo Aditivo: \nCaso haja alterações significativas no escopo do projeto, um termo aditivo ao \ncontrato será formalizado, especificando as novas condições acordadas. \n \n12. RESCISÃO DO CONTRATO \n12.1. Condições de Rescisão: \n• Inadimplência de qualquer das partes; \n• Quebra de cláusulas de confidencialidade ou exclusividade; \n• Solicitação de rescisão com aviso prévio de 60 dias. \n12.2. Penalidades: \nSerá aplicada uma multa de 10% do valor total do contrato em caso de rescisão \ninjustificada por qualquer das partes. \n12.3. Pagamento Proporcional: \nEm caso de rescisão, o contratante pagará ao contratado pelos serviços \nconcluídos até a data de término do contrato, proporcionalmente ao trabalho \nrealizado. \n\n[Página 8]\n \n13. REAJUSTE E RENOVAÇÃO \n13.1. Reajuste Anual: \nO contrato poderá ser reajustado anualmente com base no IPCA acumulado no \nperíodo, visando a atualização monetária conforme a inflação. \n13.2. Renovação Automática: \nO contrato será renovado automaticamente por iguais períodos, salvo \nmanifestação contrária de qualquer das partes, com antecedência mínima de 60 \ndias do término do contrato vigente. \n13.3. Condições de Renovação: \nCaso haja necessidade de alterações nas condições contratuais para a \nrenovação, as partes deverão negociar e formalizar um termo aditivo. \n \n14. FORO COMPETENTE \nAs partes elegem o foro da cidade do contratante como competente para dirimir \nquaisquer dúvidas ou litígios oriundos deste contrato, renunciando a qualquer \noutro, por mais privilegiado que seja. \n \n15. ASSINATURAS \nE por estarem de pleno acordo com as cláusulas deste contrato, as partes o \nassinam em duas vias de igual teor e forma, juntamente com duas testemunhas. \n[Cidade], [Data] \nContratante: ___________________________ \nNome: [Nome Completo] \nCPF/CNPJ: [Número] \nContratado: ___________________________ \nNome: [Nome Completo] \nCPF/CNPJ: [Número] \nTestemunhas: \n1. ___________________________ CPF: [Número] \n2. ___________________________ CPF: [Número] \n ",
+        "tables": [],
+        "metadata": {
+          "pages": 8
+        }
+      }
+    }
+  ],
+  "analysis": {
+    "documents_count": 1,
+    "file_types": {
+      "pdf": 1
+    },
+    "total_text_chars": 12611,
+    "total_tables": 0,
+    "summary": "Foram analisados 1 documento(s), com 12611 caracteres de conteúdo e 0 tabela(s) detectada(s). As principais entidades percebidas foram: cliente, incidente, contrato, data, valor.",
+    "possible_entities": [
+      "cliente",
+      "incidente",
+      "contrato",
+      "data",
+      "valor"
+    ],
+    "rules_detected": [
+      "Cada fase incluirá um período de feedback e ajustes, conforme acordado entre as",
+      "com base no IPCA acumulado no período, para garantir a atualização do valor",
+      "com base na complexidade e no tempo necessário para as alterações.",
+      "• Aprovação formal de cada fase do projeto.",
+      "O contratado não se responsabiliza por falhas decorrentes de:",
+      "Durante o período de garantia, o contratado se compromete a corrigir falhas e",
+      "Ambas as partes comprometem-se a manter sigilo absoluto sobre todas as",
+      "• Se tornem de domínio público sem violação deste contrato;",
+      "O contratado compromete-se a não oferecer serviços semelhantes para",
+      "formalizadas por escrito e estarão sujeitas à análise de viabilidade técnica.",
+      "O contrato poderá ser reajustado anualmente com base no IPCA acumulado no"
+    ],
+    "exceptions_detected": [
+      "incluindo detalhes sobre tarefas concluídas, em andamento e pendentes, bem",
+      "O contratado não se responsabiliza por falhas decorrentes de:",
+      "Durante o período de garantia, o contratado se compromete a corrigir falhas e",
+      "erros identificados, garantindo o pleno funcionamento do site conforme"
+    ],
+    "findings": [
+      "2.1 - DIGITAL-0001 - Contrato Master (1).pdf: 12000 caracteres processados"
+    ],
+    "warnings": [],
+    "automation_readiness_score": 70,
+    "priority_recommendations": [
+      {
+        "name": "Base RAG com documentos e regras",
+        "impact": "Alto",
+        "effort": "Médio",
+        "priority": "Alta"
+      },
+      {
+        "name": "Classificação e entendimento de documentos",
+        "impact": "Alto",
+        "effort": "Baixo",
+        "priority": "Alta"
+      },
+      {
+        "name": "Extração estruturada de campos-chave",
+        "impact": "Médio",
+        "effort": "Médio",
+        "priority": "Média"
+      }
+    ]
+  },
+  "diagnostic": null,
+  "chat_history": [
+    {
+      "id": "30bdc530e594",
+      "question": "Quero entender do que se trata esse material e que tipo de análise faz mais sentido.",
+      "mode": "executive",
+      "route": "discovery",
+      "query_type": "context_alignment",
+      "answer_text": "## Vamos alinhar o contexto antes de responder como especialista\n\n### Para eu fechar o entendimento\n- **Se houver uma área mais adequada para conduzir a análise, qual seria?** Ex.: operações, jurídico, finanças, RH, saúde, compras. Se quiser, eu posso inferir isso para você.",
+      "evidence_files": [],
+      "specialist_state": {
+        "status": "discovering",
+        "domain": null,
+        "user_goal": "entender o teor do material e seus principais pontos",
+        "decision_need": "entendimento do contexto antes de definir a próxima ação",
+        "output_preference": "visão orientada a decisão com linguagem clara",
+        "specialist_role": null,
+        "understanding_summary": null,
+        "pending_request": "Quero entender do que se trata esse material e que tipo de análise faz mais sentido.",
+        "missing_fields": [
+          "domain",
+          "specialist_role"
+        ],
+        "confidence": 0.55
+      }
+    },
+    {
+      "id": "8b2c423ddd88",
+      "question": "Me ajude a entender esse material e descobrir qual especialista deve assumir este caso.",
+      "mode": "executive",
+      "route": "discovery",
+      "query_type": "context_alignment",
+      "answer_text": "## Vamos alinhar o contexto antes de responder como especialista\n\n### Para eu fechar o entendimento\n- **Se houver uma área mais adequada para conduzir a análise, qual seria?** Ex.: operações, jurídico, finanças, RH, saúde, compras. Se quiser, eu posso inferir isso para você.",
+      "evidence_files": [],
+      "specialist_state": {
+        "status": "discovering",
+        "domain": null,
+        "user_goal": "entender o teor do material e seus principais pontos",
+        "decision_need": "entendimento do contexto antes de definir a próxima ação",
+        "output_preference": "visão orientada a decisão com linguagem clara",
+        "specialist_role": null,
+        "understanding_summary": null,
+        "pending_request": "Quero entender do que se trata esse material e que tipo de análise faz mais sentido.",
+        "missing_fields": [
+          "domain",
+          "specialist_role"
+        ],
+        "confidence": 0.55
+      }
+    },
+    {
+      "id": "c888ce0db31e",
+      "question": "jURIDICO",
+      "mode": "executive",
+      "route": "discovery",
+      "query_type": "context_alignment",
+      "answer_text": "## Validação do entendimento\n\nVou atuar como **especialista em contratos, cláusulas e risco jurídico**. Entendi que o contexto é **Jurídico e contratos**, que seu objetivo é **entender o teor do material e seus principais pontos**, e que a resposta deve apoiar **entendimento do contexto antes de definir a próxima ação**, com saída em **visão orientada a decisão com linguagem clara**.\n\nSe estiver correto, responda algo como **'sim, pode seguir'**. Se quiser ajustar, responda em linguagem natural, por exemplo: **'não é bem jurídico, é mais operação e risco'**.",
+      "evidence_files": [],
+      "specialist_state": {
+        "status": "awaiting_confirmation",
+        "domain": "Jurídico e contratos",
+        "user_goal": "entender o teor do material e seus principais pontos",
+        "decision_need": "entendimento do contexto antes de definir a próxima ação",
+        "output_preference": "visão orientada a decisão com linguagem clara",
+        "specialist_role": "especialista em contratos, cláusulas e risco jurídico",
+        "understanding_summary": "Vou atuar como **especialista em contratos, cláusulas e risco jurídico**. Entendi que o contexto é **Jurídico e contratos**, que seu objetivo é **entender o teor do material e seus principais pontos**, e que a resposta deve apoiar **entendimento do contexto antes de definir a próxima ação**, com saída em **visão orientada a decisão com linguagem clara**.",
+        "pending_request": "Quero entender do que se trata esse material e que tipo de análise faz mais sentido.",
+        "missing_fields": [],
+        "confidence": 0.72
+      }
+    },
+    {
+      "id": "c4f8e66d4998",
+      "question": "Me ajude a entender esse material e descobrir qual especialista deve assumir este caso.",
+      "mode": "executive",
+      "route": "discovery",
+      "query_type": "context_alignment",
+      "answer_text": "## Validação do entendimento\n\nVou atuar como **especialista em contratos, cláusulas e risco jurídico**. Entendi que o contexto é **Jurídico e contratos**, que seu objetivo é **entender o teor do material e seus principais pontos**, e que a resposta deve apoiar **entendimento do contexto antes de definir a próxima ação**, com saída em **visão orientada a decisão com linguagem clara**.\n\nSe estiver correto, responda algo como **'sim, pode seguir'**. Se quiser ajustar, responda em linguagem natural, por exemplo: **'não é bem jurídico, é mais operação e risco'**.",
+      "evidence_files": [],
+      "specialist_state": {
+        "status": "awaiting_confirmation",
+        "domain": "Jurídico e contratos",
+        "user_goal": "entender o teor do material e seus principais pontos",
+        "decision_need": "entendimento do contexto antes de definir a próxima ação",
+        "output_preference": "visão orientada a decisão com linguagem clara",
+        "specialist_role": "especialista em contratos, cláusulas e risco jurídico",
+        "understanding_summary": "Vou atuar como **especialista em contratos, cláusulas e risco jurídico**. Entendi que o contexto é **Jurídico e contratos**, que seu objetivo é **entender o teor do material e seus principais pontos**, e que a resposta deve apoiar **entendimento do contexto antes de definir a próxima ação**, com saída em **visão orientada a decisão com linguagem clara**.",
+        "pending_request": "Quero entender do que se trata esse material e que tipo de análise faz mais sentido.",
+        "missing_fields": [],
+        "confidence": 0.72
+      }
+    },
+    {
+      "id": "b73988bb3ec8",
+      "question": "SIM PODE SEGUIR",
+      "mode": "executive",
+      "route": "document",
+      "query_type": "document_qa",
+      "answer_text": "> **Especialista ativo:** especialista em contratos, cláusulas e risco jurídico\n> **Objetivo alinhado:** entender o teor do material e seus principais pontos\n\n## Resumo executivo\n\nCom base no material analisado, a pergunta **\"Quero entender do que se trata esse material e que tipo de análise faz mais sentido.\"** aponta para um cenário com entidades como **cliente, incidente, contrato, data**.\n\n### Evidências encontradas\n- **2.1 - DIGITAL-0001 - Contrato Master (1).pdf**: o sobre o impacto financeiro e deverá aprovar formalmente antes da execução das horas extras. \" 5. OBRIGAÇÕES E RESPONSABILIDADES 5.1. Do Prestador de Serviço: • Garantia de funcionamento por 6 meses após a entrega final; • Suporte técnico durante o período de\n- **2.1 - DIGITAL-0001 - Contrato Master (1).pdf**: multa de 10% do valor total do contrato em caso de rescisão injustificada por qualquer das partes. 12.3. Pagamento Proporcional: Em caso de rescisão, o contratante pagará ao contratado pelos serviços concluídos até a data de término do contrato, proporcionalme\n- **2.1 - DIGITAL-0001 - Contrato Master (1).pdf**: [Página 1] CONTRATO DE PRESTAÇÃO DE SERVIÇOS PARA DESENVOLVIMENTO DE SITE DE E-COMMERCE - MARKETPLACE Pelo presente instrumento particular de contrato de prestação de serviços, as partes identificadas abaixo resolvem firmar o presente contrato, conforme as clá\n- **2.1 - DIGITAL-0001 - Contrato Master (1).pdf**: s. 9. CONFIDENCIALIDADE 9.1. Compromisso de Confidencialidade: Ambas as partes comprometem-se a manter sigilo absoluto sobre todas as informações estratégicas, financeiras, técnicas e comerciais relacionadas ao projeto, não as divulgando a terceiros sem prévia\n\n### Próximo passo recomendado\n- Consolidar regras, exceções e oportunidades de automação a partir dessas evidências.",
+      "evidence_files": [
+        "2.1 - DIGITAL-0001 - Contrato Master (1).pdf"
+      ],
+      "specialist_state": {
+        "status": "confirmed",
+        "domain": "Jurídico e contratos",
+        "user_goal": "entender o teor do material e seus principais pontos",
+        "decision_need": "entendimento do contexto antes de definir a próxima ação",
+        "output_preference": "visão orientada a decisão com linguagem clara",
+        "specialist_role": "especialista em contratos, cláusulas e risco jurídico",
+        "understanding_summary": "Vou atuar como **especialista em contratos, cláusulas e risco jurídico**. Entendi que o contexto é **Jurídico e contratos**, que seu objetivo é **entender o teor do material e seus principais pontos**, e que a resposta deve apoiar **entendimento do contexto antes de definir a próxima ação**, com saída em **visão orientada a decisão com linguagem clara**.",
+        "pending_request": "Quero entender do que se trata esse material e que tipo de análise faz mais sentido.",
+        "missing_fields": [],
+        "confidence": 0.9
+      }
+    },
+    {
+      "id": "7b92b084d9a5",
+      "question": "Existe algum risco de compliance ou algo que eu como empresa possa me prejudicar conforme contrato?",
+      "mode": "executive",
+      "route": "discovery",
+      "query_type": "context_alignment",
+      "answer_text": "## Validação do entendimento\n\nVou atuar como **especialista em contratos, cláusulas e risco jurídico**. Entendi que o contexto é **Jurídico e contratos**, que seu objetivo é **entender o teor do material e seus principais pontos**, e que a resposta deve apoiar **entendimento do contexto antes de definir a próxima ação**, com saída em **visão orientada a decisão com linguagem clara**.\n\nSe estiver correto, responda algo como **'sim, pode seguir'**. Se quiser ajustar, responda em linguagem natural, por exemplo: **'não é bem jurídico, é mais operação e risco'**.",
+      "evidence_files": [],
+      "specialist_state": {
+        "status": "awaiting_confirmation",
+        "domain": "Jurídico e contratos",
+        "user_goal": "entender o teor do material e seus principais pontos",
+        "decision_need": "entendimento do contexto antes de definir a próxima ação",
+        "output_preference": "visão orientada a decisão com linguagem clara",
+        "specialist_role": "especialista em contratos, cláusulas e risco jurídico",
+        "understanding_summary": "Vou atuar como **especialista em contratos, cláusulas e risco jurídico**. Entendi que o contexto é **Jurídico e contratos**, que seu objetivo é **entender o teor do material e seus principais pontos**, e que a resposta deve apoiar **entendimento do contexto antes de definir a próxima ação**, com saída em **visão orientada a decisão com linguagem clara**.",
+        "pending_request": "Quero entender do que se trata esse material e que tipo de análise faz mais sentido.",
+        "missing_fields": [],
+        "confidence": 0.72
+      }
+    },
+    {
+      "id": "7692d1eae91d",
+      "question": "sim",
+      "mode": "executive",
+      "route": "discovery",
+      "query_type": "context_alignment",
+      "answer_text": "## Validação do entendimento\n\nVou atuar como **especialista em contratos, cláusulas e risco jurídico**. Entendi que o contexto é **Jurídico e contratos**, que seu objetivo é **entender o teor do material e seus principais pontos**, e que a resposta deve apoiar **entendimento do contexto antes de definir a próxima ação**, com saída em **visão orientada a decisão com linguagem clara**.\n\nSe estiver correto, responda algo como **'sim, pode seguir'**. Se quiser ajustar, responda em linguagem natural, por exemplo: **'não é bem jurídico, é mais operação e risco'**.",
+      "evidence_files": [],
+      "specialist_state": {
+        "status": "awaiting_confirmation",
+        "domain": "Jurídico e contratos",
+        "user_goal": "entender o teor do material e seus principais pontos",
+        "decision_need": "entendimento do contexto antes de definir a próxima ação",
+        "output_preference": "visão orientada a decisão com linguagem clara",
+        "specialist_role": "especialista em contratos, cláusulas e risco jurídico",
+        "understanding_summary": "Vou atuar como **especialista em contratos, cláusulas e risco jurídico**. Entendi que o contexto é **Jurídico e contratos**, que seu objetivo é **entender o teor do material e seus principais pontos**, e que a resposta deve apoiar **entendimento do contexto antes de definir a próxima ação**, com saída em **visão orientada a decisão com linguagem clara**.",
+        "pending_request": "Quero entender do que se trata esse material e que tipo de análise faz mais sentido.",
+        "missing_fields": [],
+        "confidence": 0.72
+      }
+    },
+    {
+      "id": "d39130e50aa9",
+      "question": "Não é bem isso. Quero revisar o entendimento do caso.",
+      "mode": "executive",
+      "route": "discovery",
+      "query_type": "context_alignment",
+      "answer_text": "## Entendi, vamos ajustar o entendimento\n\nObrigado pela correção. Vou recalibrar o contexto antes de seguir.\n\n### O que já entendi\n- Domínio percebido até agora: **Jurídico e contratos**\n- Especialista mais provável: **especialista em contratos, cláusulas e risco jurídico**\n\n### Para eu fechar o entendimento\n",
+      "evidence_files": [],
+      "specialist_state": {
+        "status": "discovering",
+        "domain": "Jurídico e contratos",
+        "user_goal": "entender o teor do material e seus principais pontos",
+        "decision_need": "entendimento do contexto antes de definir a próxima ação",
+        "output_preference": "visão orientada a decisão com linguagem clara",
+        "specialist_role": "especialista em contratos, cláusulas e risco jurídico",
+        "understanding_summary": "Vou atuar como **especialista em contratos, cláusulas e risco jurídico**. Entendi que o contexto é **Jurídico e contratos**, que seu objetivo é **entender o teor do material e seus principais pontos**, e que a resposta deve apoiar **entendimento do contexto antes de definir a próxima ação**, com saída em **visão orientada a decisão com linguagem clara**.",
+        "pending_request": "Quero entender do que se trata esse material e que tipo de análise faz mais sentido.",
+        "missing_fields": [],
+        "confidence": 0.72
+      }
+    }
+  ],
+  "vector_publication": {
+    "published": false,
+    "backend": "local",
+    "chunks": 12
+  },
+  "blueprint": null,
+  "workflow_export": null,
+  "agent_config": null,
+  "tabular_catalog": {
+    "tables": [],
+    "tables_count": 0
+  },
+  "specialist_state": {
+    "status": "discovering",
+    "domain": "Jurídico e contratos",
+    "user_goal": "entender o teor do material e seus principais pontos",
+    "decision_need": "entendimento do contexto antes de definir a próxima ação",
+    "output_preference": "visão orientada a decisão com linguagem clara",
+    "specialist_role": "especialista em contratos, cláusulas e risco jurídico",
+    "understanding_summary": "Vou atuar como **especialista em contratos, cláusulas e risco jurídico**. Entendi que o contexto é **Jurídico e contratos**, que seu objetivo é **entender o teor do material e seus principais pontos**, e que a resposta deve apoiar **entendimento do contexto antes de definir a próxima ação**, com saída em **visão orientada a decisão com linguagem clara**.",
+    "pending_request": "Quero entender do que se trata esse material e que tipo de análise faz mais sentido.",
+    "missing_fields": [],
+    "confidence": 0.72
+  }
+}
