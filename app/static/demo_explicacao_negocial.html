@@ -1,1 +1,54 @@
-<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>GABBI Enterprise V5 — Explicação Negocial</title><style>body{font-family:Inter,Segoe UI,Arial,sans-serif;margin:0;background:#f5f7fb;color:#1d2b3a}.wrap{max-width:1180px;margin:0 auto;padding:28px}.card{background:#fff;border:1px solid #dde5ef;border-radius:20px;padding:24px;box-shadow:0 10px 30px rgba(16,24,40,.08);margin-bottom:18px}h1,h2,h3{margin:0 0 10px}.muted{color:#66768a;line-height:1.7}.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}.pill{display:inline-block;padding:6px 10px;border-radius:999px;background:#eaf2ff;color:#1d4ed8;font-weight:700;font-size:12px}.step{padding:18px;border:1px solid #dde5ef;border-radius:18px;background:#fff}.step h3{font-size:18px}ul{line-height:1.8}@media(max-width:900px){.grid{grid-template-columns:1fr}}</style></head><body><div class="wrap"><div class="card"><div class="pill">Explicação negocial da demo</div><h1>Como o GABBI V5 entende documentos, responde perguntas e sugere automação</h1><p class="muted">Esta página foi criada para apresentação executiva. O objetivo é explicar, sem linguagem técnica, por que cada funcionalidade existe, que problema resolve e como ela ajuda a sair de um cenário de leitura manual para uma jornada orientada por inteligência.</p></div><div class="card"><h2>O que muda na V5</h2><p class="muted">A V5 adiciona uma camada importante: quando a pergunta é sobre planilha, quantidade, filtros ou agrupamentos, a solução deixa de responder só com trechos de texto e passa a consultar a tabela inteira. Isso aproxima o comportamento do GABBI do que se espera de um analista conversacional robusto.</p></div><div class="grid"><div class="step"><h3>1. Upload e centralização</h3><p class="muted">O usuário envia PDFs, planilhas, apresentações e textos. O GABBI centraliza o material no mesmo caso.</p></div><div class="step"><h3>2. Entendimento inicial</h3><p class="muted">A plataforma gera uma leitura inicial do que foi recebido, destacando entidades, tabelas, regras e sinais de risco.</p></div><div class="step"><h3>3. Conversa com os dados</h3><p class="muted">O usuário pode perguntar em linguagem natural e receber respostas humanizadas, com base em evidências.</p></div><div class="step"><h3>4. Consulta tabular dinâmica</h3><p class="muted">Perguntas como “quantos P5”, “quais incidentes do AURA” ou “quantos por canal” passam a ser respondidas por consulta estruturada, e não apenas por busca textual.</p></div><div class="step"><h3>5. Diagnóstico</h3><p class="muted">O conhecimento é consolidado em visão de negócio: objetivo, riscos, gargalos e sugestões de automação.</p></div><div class="step"><h3>6. Conversão para automação</h3><p class="muted">A análise pode virar blueprint, base de conhecimento, configuração inicial de agente e workflow n8n importável.</p></div></div><div class="card"><h2>Onde entram LangChain e LangGraph</h2><ul><li><strong>LangChain</strong> conecta modelo, recuperação de informação, prompts e ferramentas da solução.</li><li><strong>LangGraph</strong> organiza a jornada da análise, mantendo estado e decidindo se a pergunta vai para RAG documental ou consulta tabular.</li><li><strong>Resultado para o negócio</strong>: o GABBI consegue ler em escala, guardar contexto, responder com evidência e preparar a automação seguinte.</li></ul></div></div></body></html>
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GABBI Nexus — Explicação Negocial</title>
+<style>
+:root{--purple:#5F259F;--purple2:#7A3CC2;--orange:#FF7A00;--gold:#F5C542;--ink:#24212D;--muted:#6E6682;--bg:#F8F5FC;--line:#E6DFF2;--panel:#fff;--shadow:0 22px 55px rgba(95,37,159,.12)}*{box-sizing:border-box}body{font-family:Inter,Segoe UI,Arial,sans-serif;margin:0;background:radial-gradient(circle at top left,rgba(255,122,0,.14),transparent 28%),linear-gradient(135deg,#FCFAFF,#F6F1FB 55%,#FFF9F2);color:var(--ink)}.wrap{max-width:1220px;margin:0 auto;padding:30px}.hero{background:linear-gradient(135deg,var(--purple),#3B205E 72%,#24143B);color:#fff;border-radius:30px;padding:34px;box-shadow:var(--shadow);position:relative;overflow:hidden}.hero:after{content:"";position:absolute;right:-70px;top:-90px;width:240px;height:240px;border-radius:50%;background:rgba(255,122,0,.25)}.brand{display:flex;gap:14px;align-items:center;position:relative;z-index:1}.mark{width:52px;height:52px;border-radius:17px;background:linear-gradient(135deg,var(--gold),var(--orange));display:grid;place-items:center;color:#3B205E;font-size:24px;font-weight:950}.pill{display:inline-flex;margin-top:24px;padding:8px 12px;border-radius:999px;background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.2);font-weight:850;font-size:12px;text-transform:uppercase;letter-spacing:.05em;position:relative;z-index:1}.hero h1{position:relative;z-index:1;font-size:40px;line-height:1.06;letter-spacing:-.055em;max-width:900px;margin:16px 0 10px}.hero p{position:relative;z-index:1;color:rgba(255,255,255,.82);line-height:1.7;max-width:860px;margin:0}.section{margin-top:18px;background:rgba(255,255,255,.9);border:1px solid var(--line);border-radius:24px;padding:24px;box-shadow:0 12px 30px rgba(46,33,61,.07)}h2,h3{margin:0 0 10px;letter-spacing:-.025em}.muted{color:var(--muted);line-height:1.72}.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}.step{padding:19px;border:1px solid var(--line);border-radius:20px;background:linear-gradient(180deg,#fff,#FCFAFF);position:relative;overflow:hidden}.step:before{content:"";position:absolute;top:0;left:0;right:0;height:4px;background:linear-gradient(90deg,var(--purple),var(--orange))}.num{width:34px;height:34px;border-radius:12px;background:#F4ECFF;color:var(--purple);display:grid;place-items:center;font-weight:950;margin-bottom:12px}.tech{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}.tech-card{padding:18px;border-radius:20px;background:#fff;border:1px solid var(--line)}.tech-card strong{color:var(--purple)}.callout{background:linear-gradient(135deg,#FFF3E6,#fff);border-color:#FFE0B8}.footer{display:flex;justify-content:space-between;gap:12px;color:var(--muted);font-size:12px;margin-top:18px}@media(max-width:900px){.grid,.tech{grid-template-columns:1fr}.hero h1{font-size:31px}.wrap{padding:18px}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <section class="hero">
+    <div class="brand"><div class="mark">S</div><div><strong>SPREAD</strong><br><span style="opacity:.72;font-size:12px">Soluções Corporativas</span></div></div>
+    <div class="pill">Explicação negocial da demo</div>
+    <h1>Como o GABBI Nexus entende documentos, conversa com dados e prepara automações confiáveis</h1>
+    <p>Uma visão executiva, sem excesso técnico, sobre a evolução do GABBI para uma experiência mais confiável, rastreável e orientada por evidências.</p>
+  </section>
+
+  <section class="section callout">
+    <h2>O que muda na nova UX</h2>
+    <p class="muted">A experiência deixa de parecer apenas uma tela operacional e passa a se comportar como um cockpit executivo de IA: o usuário cria um caso, envia documentos, acompanha indicadores, conversa com o material, valida evidências e transforma o entendimento em automação.</p>
+  </section>
+
+  <section class="section">
+    <h2>Jornada de uso</h2>
+    <div class="grid">
+      <div class="step"><div class="num">1</div><h3>Upload e centralização</h3><p class="muted">PDFs, planilhas, apresentações e textos são reunidos em um único caso de análise.</p></div>
+      <div class="step"><div class="num">2</div><h3>Entendimento inicial</h3><p class="muted">A plataforma identifica temas, entidades, tabelas, regras, exceções e possíveis riscos.</p></div>
+      <div class="step"><div class="num">3</div><h3>Conversa com evidência</h3><p class="muted">O usuário pergunta em linguagem natural e recebe respostas baseadas em contexto validado.</p></div>
+      <div class="step"><div class="num">4</div><h3>Consulta tabular dinâmica</h3><p class="muted">Perguntas quantitativas deixam de depender apenas de texto e passam a consultar a tabela inteira.</p></div>
+      <div class="step"><div class="num">5</div><h3>Diagnóstico executivo</h3><p class="muted">A IA consolida objetivo, riscos, gargalos, oportunidades e recomendações de automação.</p></div>
+      <div class="step"><div class="num">6</div><h3>Conversão para automação</h3><p class="muted">A análise pode virar blueprint, configuração de agente e workflow n8n importável.</p></div>
+    </div>
+  </section>
+
+  <section class="section">
+    <h2>Onde entram LangChain, LangGraph, ML e Banco Vetorial</h2>
+    <div class="tech">
+      <div class="tech-card"><strong>LangChain</strong><p class="muted">Conecta LLM, recuperação de informação, prompts e ferramentas para construir RAG corporativo.</p></div>
+      <div class="tech-card"><strong>LangGraph</strong><p class="muted">Organiza a jornada em estados, decidindo quando usar RAG documental, consulta tabular ou diagnóstico.</p></div>
+      <div class="tech-card"><strong>Machine Learning</strong><p class="muted">Permite classificar documentos, medir riscos, priorizar casos e apoiar decisões com modelos como Random Forest.</p></div>
+      <div class="tech-card"><strong>Banco Vetorial</strong><p class="muted">Guarda embeddings e permite busca semântica com fontes, reduzindo alucinações e inconsistências.</p></div>
+    </div>
+  </section>
+
+  <section class="section callout">
+    <h2>Complemento ao GABBI atual</h2>
+    <p class="muted">O GABBI Nexus complementa o GABBI atual ao adicionar uma camada de evidência, orquestração e governança. Em vez de depender apenas da resposta direta do modelo, a solução recupera contexto, consulta dados estruturados, mantém estado da análise e apresenta evidências para que o usuário consiga confiar, validar e evoluir a automação.</p>
+  </section>
+
+  <div class="footer"><span>GABBI Nexus • Spread UX Premium</span><span>Inteligência que conecta dados, pessoas e decisões.</span></div>
+</div>
+</body>
+</html>
