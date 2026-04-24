@@ -47,7 +47,7 @@ class ParserService:
             df = xl.parse(sheet, dtype=str).fillna("")
             texts.append(self._df_to_text(df, f"{path.name}:{sheet}"))
             tables.append({"sheet": sheet, "columns": df.columns.tolist(), "rows_preview": df.head(20).to_dict(orient="records")})
-        return {"text": "\n\n".join(texts), "tables": tables, "metadata": {"sheets": xl.sheet_names}}
+        return {"text": "".join(texts), "tables": tables, "metadata": {"sheets": xl.sheet_names}}
 
     def _parse_pdf(self, path: Path) -> dict[str, Any]:
         reader = PdfReader(str(path))
@@ -57,12 +57,12 @@ class ParserService:
                 pages.append(f"[Página {i}]\n{page.extract_text() or ''}")
             except Exception:
                 pages.append(f"[Página {i}]\n")
-        return {"text": "\n\n".join(pages), "tables": [], "metadata": {"pages": len(reader.pages)}}
+        return {"text": "".join(pages), "tables": [], "metadata": {"pages": len(reader.pages)}}
 
     def _parse_docx(self, path: Path) -> dict[str, Any]:
         doc = Document(str(path))
         texts = [p.text for p in doc.paragraphs if p.text.strip()]
-        return {"text": "\n".join(texts), "tables": [], "metadata": {"paragraphs": len(texts)}}
+        return {"text": "".join(texts), "tables": [], "metadata": {"paragraphs": len(texts)}}
 
     def _parse_pptx(self, path: Path) -> dict[str, Any]:
         prs = Presentation(str(path))
@@ -72,8 +72,8 @@ class ParserService:
             for shape in slide.shapes:
                 if hasattr(shape, "text") and shape.text:
                     texts.append(shape.text)
-            slides.append(f"[Slide {i}]\n" + "\n".join(texts))
-        return {"text": "\n\n".join(slides), "tables": [], "metadata": {"slides": len(prs.slides)}}
+            slides.append(f"[Slide {i}]\n" + "".join(texts))
+        return {"text": "".join(slides), "tables": [], "metadata": {"slides": len(prs.slides)}}
 
     def _df_to_text(self, df: pd.DataFrame, source_name: str) -> str:
         columns = ", ".join(map(str, df.columns.tolist()))

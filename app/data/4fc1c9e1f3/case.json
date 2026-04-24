@@ -1,0 +1,277 @@
+{
+  "id": "4fc1c9e1f3",
+  "name": "Caso de teste",
+  "description": "Teste de entendimento híbrido entre documentos e planilhas.",
+  "documents": [
+    {
+      "id": "daa13f8c0032",
+      "filename": "Conferencia Repsol 02.xlsx",
+      "path": "C:\\Users\\bruno.santos\\Desktop\\gabbi_poc_LangGhap\\gabbi_poc\\app\\data\\4fc1c9e1f3\\files\\Conferencia Repsol 02.xlsx",
+      "content_type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      "parsed": {
+        "text": "[Tabela: Conferencia Repsol 02.xlsx:Planilha1]\nColunas: COLABORADOR, FOLHA, COMPROVANTE, DEMONSTROTIVO, PONTO, FGTS, SEGURO DE VIDA, VA/VR, PLANO DE SAÚDE, PLANO ODONTOLÓGICO, VT, OPTANTE, ADMISSÃO, FÉRIAS, DEMISSÃO\nPrévia:\nCOLABORADOR,FOLHA,COMPROVANTE,DEMONSTROTIVO,PONTO,FGTS,SEGURO DE VIDA,VA/VR,PLANO DE SAÚDE,PLANO ODONTOLÓGICO,VT,OPTANTE,ADMISSÃO,FÉRIAS,DEMISSÃO\r\nADRIANO PEREIRA DE LIMA,NORMAL,OK,OK,OK,,,OK,OK,OK,,,,,\r\nALLAN BARBOSA ELIAS DE SOUSA,NORMAL,OK,OK,OK,,,OK,OK,OK,,,,,\r\nBRUNO MOREIRA DE ARAUJO,NORMAL,OK,OK,OK,,,OK,OK,OK,,,,,\r\nFRANCISCO JEFFERSON BARROS,NORMAL,OK,OK,OK,,,OK,OK,OK,,,,,\r\nMARINA EIRAS CAMPOS,NORMAL,OK,OK,OK,,,OK,OK,OK,,,OK,,\r\nREINALDO RODRIGUES LOPES,DEMITIDO,OK,OK,OK,,,OK,OK,OK,,,,,NOK\r\nROMULO CESAR MAXIMIANO DE SOUSA,NORMAL,OK,OK,OK,,,OK,OK,OK,,,,,\r\nVICTOR HENRIQUE C DA SILVA,NORMAL,OK,OK,OK,,,OK,OK,OK,,,,,\r\n",
+        "tables": [
+          {
+            "sheet": "Planilha1",
+            "columns": [
+              "COLABORADOR",
+              "FOLHA",
+              "COMPROVANTE",
+              "DEMONSTROTIVO",
+              "PONTO",
+              "FGTS",
+              "SEGURO DE VIDA",
+              "VA/VR",
+              "PLANO DE SAÚDE",
+              "PLANO ODONTOLÓGICO",
+              "VT",
+              "OPTANTE",
+              "ADMISSÃO",
+              "FÉRIAS",
+              "DEMISSÃO"
+            ],
+            "rows_preview": [
+              {
+                "COLABORADOR": "ADRIANO PEREIRA DE LIMA",
+                "FOLHA": "NORMAL",
+                "COMPROVANTE": "OK",
+                "DEMONSTROTIVO": "OK",
+                "PONTO": "OK",
+                "FGTS": "",
+                "SEGURO DE VIDA": "",
+                "VA/VR": "OK",
+                "PLANO DE SAÚDE": "OK",
+                "PLANO ODONTOLÓGICO": "OK",
+                "VT": "",
+                "OPTANTE": "",
+                "ADMISSÃO": "",
+                "FÉRIAS": "",
+                "DEMISSÃO": ""
+              },
+              {
+                "COLABORADOR": "ALLAN BARBOSA ELIAS DE SOUSA",
+                "FOLHA": "NORMAL",
+                "COMPROVANTE": "OK",
+                "DEMONSTROTIVO": "OK",
+                "PONTO": "OK",
+                "FGTS": "",
+                "SEGURO DE VIDA": "",
+                "VA/VR": "OK",
+                "PLANO DE SAÚDE": "OK",
+                "PLANO ODONTOLÓGICO": "OK",
+                "VT": "",
+                "OPTANTE": "",
+                "ADMISSÃO": "",
+                "FÉRIAS": "",
+                "DEMISSÃO": ""
+              },
+              {
+                "COLABORADOR": "BRUNO MOREIRA DE ARAUJO",
+                "FOLHA": "NORMAL",
+                "COMPROVANTE": "OK",
+                "DEMONSTROTIVO": "OK",
+                "PONTO": "OK",
+                "FGTS": "",
+                "SEGURO DE VIDA": "",
+                "VA/VR": "OK",
+                "PLANO DE SAÚDE": "OK",
+                "PLANO ODONTOLÓGICO": "OK",
+                "VT": "",
+                "OPTANTE": "",
+                "ADMISSÃO": "",
+                "FÉRIAS": "",
+                "DEMISSÃO": ""
+              },
+              {
+                "COLABORADOR": "FRANCISCO JEFFERSON BARROS",
+                "FOLHA": "NORMAL",
+                "COMPROVANTE": "OK",
+                "DEMONSTROTIVO": "OK",
+                "PONTO": "OK",
+                "FGTS": "",
+                "SEGURO DE VIDA": "",
+                "VA/VR": "OK",
+                "PLANO DE SAÚDE": "OK",
+                "PLANO ODONTOLÓGICO": "OK",
+                "VT": "",
+                "OPTANTE": "",
+                "ADMISSÃO": "",
+                "FÉRIAS": "",
+                "DEMISSÃO": ""
+              },
+              {
+                "COLABORADOR": "MARINA EIRAS CAMPOS",
+                "FOLHA": "NORMAL",
+                "COMPROVANTE": "OK",
+                "DEMONSTROTIVO": "OK",
+                "PONTO": "OK",
+                "FGTS": "",
+                "SEGURO DE VIDA": "",
+                "VA/VR": "OK",
+                "PLANO DE SAÚDE": "OK",
+                "PLANO ODONTOLÓGICO": "OK",
+                "VT": "",
+                "OPTANTE": "",
+                "ADMISSÃO": "OK",
+                "FÉRIAS": "",
+                "DEMISSÃO": ""
+              },
+              {
+                "COLABORADOR": "REINALDO RODRIGUES LOPES",
+                "FOLHA": "DEMITIDO",
+                "COMPROVANTE": "OK",
+                "DEMONSTROTIVO": "OK",
+                "PONTO": "OK",
+                "FGTS": "",
+                "SEGURO DE VIDA": "",
+                "VA/VR": "OK",
+                "PLANO DE SAÚDE": "OK",
+                "PLANO ODONTOLÓGICO": "OK",
+                "VT": "",
+                "OPTANTE": "",
+                "ADMISSÃO": "",
+                "FÉRIAS": "",
+                "DEMISSÃO": "NOK"
+              },
+              {
+                "COLABORADOR": "ROMULO CESAR MAXIMIANO DE SOUSA",
+                "FOLHA": "NORMAL",
+                "COMPROVANTE": "OK",
+                "DEMONSTROTIVO": "OK",
+                "PONTO": "OK",
+                "FGTS": "",
+                "SEGURO DE VIDA": "",
+                "VA/VR": "OK",
+                "PLANO DE SAÚDE": "OK",
+                "PLANO ODONTOLÓGICO": "OK",
+                "VT": "",
+                "OPTANTE": "",
+                "ADMISSÃO": "",
+                "FÉRIAS": "",
+                "DEMISSÃO": ""
+              },
+              {
+                "COLABORADOR": "VICTOR HENRIQUE C DA SILVA",
+                "FOLHA": "NORMAL",
+                "COMPROVANTE": "OK",
+                "DEMONSTROTIVO": "OK",
+                "PONTO": "OK",
+                "FGTS": "",
+                "SEGURO DE VIDA": "",
+                "VA/VR": "OK",
+                "PLANO DE SAÚDE": "OK",
+                "PLANO ODONTOLÓGICO": "OK",
+                "VT": "",
+                "OPTANTE": "",
+                "ADMISSÃO": "",
+                "FÉRIAS": "",
+                "DEMISSÃO": ""
+              }
+            ]
+          }
+        ],
+        "metadata": {
+          "sheets": [
+            "Planilha1"
+          ]
+        }
+      }
+    }
+  ],
+  "analysis": {
+    "summary": "Foram analisados 1 arquivo(s) com foco em entendimento pré-automação. O material sugere oportunidade de organizar conhecimento, classificar documentos e extrair campos antes da automação.",
+    "documents_count": 1,
+    "filenames": [
+      "Conferencia Repsol 02.xlsx"
+    ],
+    "total_text_chars": 850,
+    "total_tables": 1,
+    "possible_entities": [
+      "contrato"
+    ],
+    "findings": [
+      "Total de tabelas identificadas: 1",
+      "Volume total de texto extraído: 850 caracteres",
+      "Entidades mais prováveis: contrato"
+    ],
+    "rules_detected": [],
+    "exceptions_detected": [],
+    "warnings": [],
+    "automation_readiness_score": 65,
+    "priority_recommendations": [
+      {
+        "name": "Base RAG",
+        "impact": "alto",
+        "effort": "baixo",
+        "priority": "alta"
+      },
+      {
+        "name": "Classificação de documentos",
+        "impact": "alto",
+        "effort": "médio",
+        "priority": "alta"
+      },
+      {
+        "name": "Checklist de validação humana",
+        "impact": "médio",
+        "effort": "baixo",
+        "priority": "alta"
+      },
+      {
+        "name": "Extração estruturada de campos",
+        "impact": "alto",
+        "effort": "médio",
+        "priority": "alta"
+      }
+    ]
+  },
+  "diagnostic": null,
+  "chat_history": [
+    {
+      "id": "e10eca80a2a8",
+      "question": "quero que analise o documento",
+      "mode": "executive",
+      "route": "tabular",
+      "query_type": "list",
+      "answer_text": "## 1. Resposta direta\n\nO documento “Conferencia Repsol 02.xlsx” (Planilha1) apresenta 8 colaboradores analisados.  \nDe forma geral:\n\n- Todos os colaboradores têm:\n  - **Comprovante**: OK  \n  - **Demonstrativo**: OK  \n  - **Ponto**: OK  \n  - **VA/VR**: OK  \n  - **Plano de Saúde**: OK  \n  - **Plano Odontológico**: OK  \n\n- Situações específicas:\n  - **Admissão**: apenas **MARINA EIRAS CAMPOS** está marcada como **OK**.  \n  - **Demissão**:  \n    - **REINALDO RODRIGUES LOPES** está com **FOLHA = DEMITIDO** e campo **DEMISSÃO = NOK** (pendência clara).  \n    - Os demais não possuem informação de demissão preenchida.  \n  - Campos **FGTS, Seguro de Vida, VT, Optante, Férias** estão todos em branco para todos os colaboradores.\n\nEm resumo: a conferência de folha, comprovantes, ponto e benefícios principais está consistente, mas há **lacunas relevantes em FGTS, Seguro de Vida, VT, Férias e Demissão**, com destaque para uma **não conformidade explícita na demissão de REINALDO RODRIGUES LOPES (NOK)**.\n\n---\n\n## 2. Cobertura da consulta\n\nA análise considerou:\n\n- **Arquivo**: `Conferencia Repsol 02.xlsx`  \n- **Aba**: `Planilha1`  \n- **Linhas consideradas**: 8  \n- **Colunas analisadas** (15):  \n  - COLABORADOR  \n  - FOLHA  \n  - COMPROVANTE  \n  - DEMONSTROTIVO  \n  - PONTO  \n  - FGTS  \n  - SEGURO DE VIDA  \n  - VA/VR  \n  - PLANO DE SAÚDE  \n  - PLANO ODONTOLÓGICO  \n  - VT  \n  - OPTANTE  \n  - ADMISSÃO  \n  - FÉRIAS  \n  - DEMISSÃO  \n\n### Visão linha a linha (resumo objetivo)\n\n1. **ADRIANO PEREIRA DE LIMA**  \n   - FOLHA: NORMAL  \n   - COMPROVANTE / DEMONSTROTIVO / PONTO: OK  \n   - VA/VR / PLANO DE SAÚDE / PLANO ODONTOLÓGICO: OK  \n   - FGTS, SEGURO DE VIDA, VT, OPTANTE, ADMISSÃO, FÉRIAS, DEMISSÃO: em branco  \n\n2. **ALLAN BARBOSA ELIAS DE SOUSA**  \n   - Igual ao perfil de Adriano: folha normal, todos os controles e benefícios principais OK, demais campos em branco.  \n\n3. **BRUNO MOREIRA DE ARAUJO**  \n   - Mesmo padrão: folha normal, comprovante/demonstrativo/ponto OK, VA/VR, saúde e odontológico OK, demais campos em branco.  \n\n4. **FRANCISCO JEFFERSON BARROS**  \n   - Mesmo padrão dos anteriores (NORMAL, tudo OK nos controles e benefícios principais, demais campos em branco).  \n\n5. **MARINA EIRAS CAMPOS**  \n   - FOLHA: NORMAL  \n   - COMPROVANTE / DEMONSTROTIVO / PONTO: OK  \n   - VA/VR / PLANO DE SAÚDE / PLANO ODONTOLÓGICO: OK  \n   - **ADMISSÃO: OK**  \n   - FGTS, SEGURO DE VIDA, VT, OPTANTE, FÉRIAS, DEMISSÃO: em branco  \n\n6. **REINALDO RODRIGUES LOPES**  \n   - **FOLHA: DEMITIDO**  \n   - COMPROVANTE / DEMONSTROTIVO / PONTO: OK  \n   - VA/VR / PLANO DE SAÚDE / PLANO ODONTOLÓGICO: OK  \n   - **DEMISSÃO: NOK** (indica pendência ou não conformidade)  \n   - FGTS, SEGURO DE VIDA, VT, OPTANTE, ADMISSÃO, FÉRIAS: em branco  \n\n7. **ROMULO CESAR MAXIMIANO DE SOUSA**  \n   - FOLHA: NORMAL  \n   - COMPROVANTE / DEMONSTROTIVO / PONTO: OK  \n   - VA/VR / PLANO DE SAÚDE / PLANO ODONTOLÓGICO: OK  \n   - Demais campos em branco.  \n\n8. **VICTOR HENRIQUE C DA SILVA**  \n   - Mesmo padrão de Romulo: folha normal, controles e benefícios principais OK, demais campos em branco.  \n\n---\n\n## 3. Filtros aplicados\n\n- **Nenhum filtro foi aplicado** na consulta.  \n- Todos os 8 registros da aba `Planilha1` foram considerados (**rows_considered = 8**, **rows_filtered = 8**).\n\n---\n\n## 4. Observações úteis e pontos de atenção\n\n1. **Pendência crítica – Demissão**  \n   - **REINALDO RODRIGUES LOPES**:  \n     - Está marcado como **DEMITIDO** na coluna FOLHA.  \n     - A coluna **DEMISSÃO = NOK** indica que a conferência da rescisão não está OK.  \n   - Ação recomendada: revisar documentação rescisória (TRCT, homologação, cálculo de verbas, prazos legais, FGTS rescisório, seguro-desemprego, etc.) e atualizar o status para OK após regularização.\n\n2. **Campos obrigatórios potencialmente não preenchidos**  \n   Em todos os colaboradores, os seguintes campos estão **em branco**:\n   - **FGTS**  \n   - **SEGURO DE VIDA**  \n   - **VT**  \n   - **OPTANTE**  \n   - **FÉRIAS** (inclusive para o demitido)  \n   - **ADMISSÃO** (exceto para MARINA EIRAS CAMPOS)  \n\n   Isso pode significar:\n   - Ou não foram conferidos ainda;  \n   - Ou a planilha não está sendo usada para registrar essas validações;  \n   - Ou há falha de preenchimento.\n\n   Ação recomendada:  \n   - Definir claramente o uso da planilha como checklist de conferência.  \n   - Padronizar o preenchimento (OK/NOK ou similar) para todos os campos relevantes, especialmente FGTS, Seguro de Vida, VT, Férias e Admissão/Demissão.\n\n3. **Conformidade dos controles mensais e benefícios principais**  \n   - Para todos os 8 colaboradores, há consistência em:\n     - **COMPROVANTE, DEMONSTROTIVO, PONTO: todos OK**  \n     - **VA/VR, PLANO DE SAÚDE, PLANO ODONTOLÓGICO: todos OK**  \n   - Isso indica boa aderência operacional na parte de folha mensal e benefícios principais.\n\n4. **Admissão**  \n   - Apenas **MARINA EIRAS CAMPOS** tem **ADMISSÃO = OK**.  \n   - Para os demais, o campo está vazio, o que pode indicar:\n     - Falta de conferência de documentação de admissão; ou  \n     - Ausência de registro na planilha.  \n   - Ação recomendada: revisar dossiês de admissão e registrar o status (OK/NOK) para todos.\n\nSe quiser, posso montar um quadro-resumo com indicadores (por exemplo, % de campos OK por tipo de conferência) usando exatamente esses 8 registros.",
+      "evidence_files": [
+        "Conferencia Repsol 02.xlsx"
+      ]
+    }
+  ],
+  "vector_publication": {
+    "published": false,
+    "backend": "local",
+    "chunks": 1
+  },
+  "blueprint": null,
+  "workflow_export": null,
+  "agent_config": null,
+  "tabular_catalog": {
+    "tables": [
+      {
+        "filename": "Conferencia Repsol 02.xlsx",
+        "sheet_name": "Planilha1",
+        "row_count": 8,
+        "columns": [
+          "COLABORADOR",
+          "FOLHA",
+          "COMPROVANTE",
+          "DEMONSTROTIVO",
+          "PONTO",
+          "FGTS",
+          "SEGURO DE VIDA",
+          "VA/VR",
+          "PLANO DE SAÚDE",
+          "PLANO ODONTOLÓGICO",
+          "VT",
+          "OPTANTE",
+          "ADMISSÃO",
+          "FÉRIAS",
+          "DEMISSÃO"
+        ]
+      }
+    ],
+    "tables_count": 1
+  }
+}

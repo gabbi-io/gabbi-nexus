@@ -24,7 +24,7 @@ BASE_DIR = Path(__file__).resolve().parent
 STATIC_DIR = BASE_DIR / "static"
 DATA_DIR = BASE_DIR / "data"
 
-app = FastAPI(title="GABBI Enterprise V7 Wizard", version="7.0.0", description="Discovery + entendimento + automação assistida com analytics tabular")
+app = FastAPI(title="GABBI Enterprise V5", version="5.0.0", description="Discovery + entendimento + automação assistida com analytics tabular")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
 if STATIC_DIR.exists():
     app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
@@ -52,7 +52,7 @@ async def root():
     index_file = STATIC_DIR / "index.html"
     if index_file.exists():
         return FileResponse(index_file)
-    return {"name": "GABBI Enterprise V7 Wizard", "status": "ok", "message": "Frontend não encontrado."}
+    return {"name": "GABBI Enterprise V5", "status": "ok", "message": "Frontend não encontrado."}
 
 
 @app.get("/health")
@@ -86,7 +86,6 @@ async def create_case(payload: CreateCaseRequest):
         "workflow_export": None,
         "agent_config": None,
         "tabular_catalog": None,
-        "specialist_state": None,
     }
     repo.create_case(case_id, case_data)
     return {"case_id": case_id, "message": "Caso criado com sucesso"}
@@ -175,10 +174,7 @@ async def ask_case(case_id: str, payload: AskRequest):
         documents=documents,
         chat_history=case.get("chat_history", []),
         mode=payload.mode,
-        specialist_state=case.get("specialist_state"),
     )
-    if result.get("specialist_state") is not None:
-        repo.update_case(case_id, {"specialist_state": result.get("specialist_state")})
     chat_item = {
         "id": uuid4().hex[:12],
         "question": payload.question,
@@ -187,29 +183,9 @@ async def ask_case(case_id: str, payload: AskRequest):
         "query_type": result.get("query_type"),
         "answer_text": result.get("answer_text") or result.get("summary", ""),
         "evidence_files": result.get("evidence_files", []),
-        "specialist_state": result.get("specialist_state"),
     }
     repo.append_chat_history(case_id, chat_item)
     return {"case_id": case_id, **result}
-
-
-
-
-
-
-@app.post("/cases/{case_id}/specialist-state/reset")
-async def reset_specialist_state(case_id: str):
-    case = repo.get_case(case_id)
-    if not case:
-        raise HTTPException(status_code=404, detail="Case not found")
-    repo.update_case(case_id, {"specialist_state": None})
-    return {"case_id": case_id, "message": "Estado do especialista resetado."}
-@app.get("/cases/{case_id}/specialist-state")
-async def get_specialist_state(case_id: str):
-    case = repo.get_case(case_id)
-    if not case:
-        raise HTTPException(status_code=404, detail="Case not found")
-    return {"case_id": case_id, "specialist_state": case.get("specialist_state")}
 
 
 @app.post("/cases/{case_id}/diagnostic")

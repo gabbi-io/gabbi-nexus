@@ -15,5 +15,3 @@ psycopg[binary]>=3.2.3
 pgvector>=0.3.6
 openai>=1.58.1
 langchain-openai>=0.2.14
-
-duckdb>=1.1.3

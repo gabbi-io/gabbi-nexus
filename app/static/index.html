@@ -3,379 +3,331 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>GABBI Enterprise V7 — Discovery Wizard</title>
+  <title>GABBI Enterprise V5</title>
   <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js"></script>
   <style>
-    :root{--bg:#f5f7fb;--card:#fff;--text:#162033;--muted:#607085;--line:#dfe6f2;--primary:#2d5bff;--primary2:#6d3df2;--accent:#08a88a;--warn:#ffb84d;--ok:#1daa66;--shadow:0 16px 40px rgba(24,32,56,.09);--radius:22px;--max:1380px}
-    *{box-sizing:border-box} body{margin:0;font-family:Inter,Segoe UI,Arial,sans-serif;color:var(--text);background:radial-gradient(circle at top right, rgba(109,61,242,.12), transparent 28%),radial-gradient(circle at top left, rgba(45,91,255,.10), transparent 24%),linear-gradient(180deg,#f7f9ff 0%, #f3f6fb 100%)}
-    .wrap{width:min(calc(100% - 26px),var(--max));margin:18px auto 34px}
-    .hero{background:linear-gradient(135deg, rgba(45,91,255,.96), rgba(109,61,242,.94));color:#fff;border-radius:30px;padding:28px 30px;box-shadow:var(--shadow);position:relative;overflow:hidden}
-    .hero:after{content:'';position:absolute;right:-60px;bottom:-60px;width:220px;height:220px;border-radius:50%;background:radial-gradient(circle, rgba(255,255,255,.18), transparent 65%)}
-    .hero-top{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;flex-wrap:wrap}
-    .brand{display:flex;gap:14px;align-items:center}.logo{width:48px;height:48px;border-radius:16px;background:rgba(255,255,255,.14);display:grid;place-items:center;font-size:22px;font-weight:900;border:1px solid rgba(255,255,255,.18)}
-    .hero h1{margin:0 0 10px;font-size:clamp(28px,4vw,48px);line-height:1.04;letter-spacing:-.03em}.hero p{margin:0;max-width:880px;color:rgba(255,255,255,.92);line-height:1.65}
-    .badges{display:flex;gap:10px;flex-wrap:wrap;margin-top:16px}.badge{padding:9px 12px;border-radius:999px;background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.2);font-size:13px;font-weight:800}.badge.ok{background:rgba(29,178,98,.18)}.badge.warn{background:rgba(255,184,77,.18)}
-    .status{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
-    .layout{display:grid;grid-template-columns:320px 1fr;gap:18px;margin-top:18px}
-    .card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:20px;box-shadow:var(--shadow)}
-    .side .card+.card,.main .card+.card{margin-top:16px}
-    .title{margin:0 0 8px;font-size:22px;letter-spacing:-.02em}.muted{color:var(--muted);line-height:1.65}
-    .wizard{display:grid;gap:12px}
-    .wstep{position:relative;padding:14px 14px 14px 52px;border:1px solid var(--line);border-radius:18px;background:#fbfcff;cursor:pointer;transition:.2s}
-    .wstep:hover{transform:translateY(-1px)} .wstep.active{border-color:#bfd1ff;background:#eef3ff} .wstep.done{border-color:#cdeedd;background:#f2fcf8}
-    .wstep .num{position:absolute;left:14px;top:14px;width:28px;height:28px;border-radius:50%;display:grid;place-items:center;font-weight:900;background:#e9efff;color:var(--primary)}
-    .wstep.done .num{background:#d9f5e8;color:#0b8f57}
-    .wstep strong{display:block;margin-bottom:4px}.wstep span{font-size:13px;color:var(--muted);line-height:1.45}
-    .mini-kpis{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}.kpi{padding:14px;border-radius:18px;background:#fbfcff;border:1px solid var(--line)}.kpi .n{font-size:30px;font-weight:900}.kpi .l{font-size:13px;color:var(--muted);line-height:1.4}
-    .row{display:flex;gap:12px;align-items:center;flex-wrap:wrap}.row>*{min-width:0}
-    input,textarea,select{width:100%;padding:13px 14px;border-radius:14px;border:1px solid var(--line);font:inherit;background:#fff;color:var(--text)}
-    textarea{min-height:108px;resize:vertical}
-    button{border:none;background:linear-gradient(135deg,var(--primary),var(--primary2));color:#fff;padding:12px 16px;border-radius:14px;font-weight:800;cursor:pointer;box-shadow:var(--shadow)} button.secondary{background:#fff;color:var(--text);border:1px solid var(--line);box-shadow:none} button.ghost{background:#f6f8ff;color:#3151d8;border:1px solid #dbe4ff;box-shadow:none}
-    .toolbar{display:flex;gap:12px;justify-content:space-between;align-items:center;flex-wrap:wrap;margin-bottom:16px}.pill{display:inline-block;padding:7px 11px;border-radius:999px;background:#eef3ff;color:#3151d8;font-size:12px;font-weight:800;margin-bottom:10px}
-    .tabs{display:flex;gap:10px;flex-wrap:wrap}.tab{padding:11px 14px;border-radius:999px;background:#fff;border:1px solid var(--line);font-weight:800;color:var(--muted);cursor:pointer}.tab.active{background:linear-gradient(135deg,var(--primary),var(--primary2));color:#fff;border-color:transparent}
-    .tab-pane{display:none}.tab-pane.active{display:block}
-    .understanding{display:grid;grid-template-columns:1.1fr .9fr;gap:16px}
-    .state-box,.list-box{background:#fbfcff;border:1px solid var(--line);border-radius:18px;padding:16px}.item{padding:12px 14px;border:1px solid var(--line);border-radius:14px;background:#fff}.item+.item{margin-top:10px}
-    .chat-shell{display:grid;grid-template-rows:auto 1fr auto;gap:14px;min-height:74vh}.chat-header{display:flex;justify-content:space-between;gap:12px;align-items:flex-start;flex-wrap:wrap}
-    .chat-box{border:1px solid var(--line);border-radius:22px;background:linear-gradient(180deg,#ffffff,#fbfcff);padding:18px;overflow-y:auto;min-height:360px;max-height:66vh}
-    .chat{display:grid;gap:14px}.msg{padding:16px;border-radius:18px;border:1px solid var(--line);background:#fff}.msg.user{background:#f7f9ff}.msg .head{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;font-weight:800;margin-bottom:8px}.msg .head span:last-child{color:var(--muted);font-size:13px}.chat-markdown{line-height:1.68;color:#263247;font-size:15px}.chat-markdown h1,.chat-markdown h2,.chat-markdown h3{margin:12px 0 8px;line-height:1.25}.chat-markdown p{margin:10px 0}.chat-markdown ul,.chat-markdown ol{margin:10px 0 10px 22px}.chat-markdown code{background:#f3f5f7;padding:2px 6px;border-radius:6px}.chat-markdown pre{background:#121a26;color:#ecf2ff;padding:14px;border-radius:14px;overflow:auto}.chat-markdown blockquote{padding:10px 14px;border-left:4px solid var(--primary);background:#f6f9fd;border-radius:8px}.evidence{margin-top:10px;padding:12px;border-radius:12px;background:#fbfcff;border:1px dashed #c8d6eb}
-    .ask-panel{position:sticky;bottom:0;background:linear-gradient(180deg,rgba(245,247,251,0),rgba(245,247,251,1) 20%, rgba(245,247,251,1) 100%);padding-top:4px}
-    .ask-card{background:#fff;border:1px solid var(--line);border-radius:22px;padding:16px;box-shadow:var(--shadow)}
-    .quick-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}.quick{padding:12px 13px;border-radius:14px;background:#fff;border:1px solid var(--line);cursor:pointer;font-weight:700;color:var(--text);text-align:left}
-    .wizard-note{padding:14px 16px;border-radius:16px;background:#eef8f5;border:1px solid #cfeee4;color:#195a49;line-height:1.6}
-    .hidden{display:none}
-    @media (max-width:1150px){.layout{grid-template-columns:1fr}.understanding{grid-template-columns:1fr}.quick-grid{grid-template-columns:1fr 1fr}}
-    @media (max-width:760px){.mini-kpis{grid-template-columns:1fr 1fr}.quick-grid{grid-template-columns:1fr}.chat-shell{min-height:auto}.chat-box{max-height:52vh}}
+    :root{--bg:#f4f7fb;--panel:#fff;--line:#dbe3ee;--text:#1d2b3a;--muted:#66768a;--brand:#0f766e;--brand-2:#115e59;--soft:#ecfdf5;--blue:#eaf2ff;--shadow:0 10px 30px rgba(16,24,40,.08);--radius:18px}
+    *{box-sizing:border-box}body{margin:0;font-family:Inter,Segoe UI,Arial,sans-serif;background:linear-gradient(180deg,#f8fbff,#eef4fb);color:var(--text)}
+    .wrap{max-width:1400px;margin:0 auto;padding:22px}.grid{display:grid;grid-template-columns:360px 1fr;gap:18px}.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow)}
+    .side{padding:18px;position:sticky;top:16px;height:calc(100vh - 32px);overflow:auto}.main{padding:18px}.title{font-size:28px;font-weight:800;margin:0 0 8px}.muted{color:var(--muted);line-height:1.6}
+    input,textarea,select{width:100%;padding:12px 14px;border:1px solid var(--line);border-radius:12px;background:#fff;font:inherit}textarea{min-height:82px;resize:vertical}
+    button{border:none;background:var(--brand);color:#fff;padding:12px 14px;border-radius:12px;font-weight:700;cursor:pointer}.secondary{background:#fff;color:var(--brand);border:1px solid #bde4de}.ghost{background:#f8fafc;color:#344054;border:1px solid var(--line)}
+    .stack{display:grid;gap:12px}.row{display:flex;gap:10px;flex-wrap:wrap}.row>*{flex:1}.badge{display:inline-block;padding:6px 10px;border-radius:999px;font-size:12px;font-weight:800}.ok{background:#dcfce7;color:#166534}.warn{background:#fff7ed;color:#9a3412}.info{background:#eaf2ff;color:#1d4ed8}.soft{background:var(--soft);color:var(--brand-2)}
+    .tabs{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px}.tab{padding:10px 14px;border-radius:999px;border:1px solid var(--line);background:#fff;cursor:pointer;font-weight:700}.tab.active{background:var(--brand);color:#fff;border-color:var(--brand)}
+    .tab-content{display:none}.tab-content.active{display:block}
+    .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}.stat{padding:16px;border:1px solid var(--line);border-radius:16px;background:#fff}.stat .v{font-size:26px;font-weight:800}.stat .l{color:var(--muted);font-size:13px}
+    .two{display:grid;grid-template-columns:1fr 1fr;gap:14px}.three{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}.list-box{padding:16px;border:1px solid var(--line);border-radius:16px;background:#fff}
+    .list-box h3{margin:0 0 10px}.list{display:grid;gap:8px}.item{padding:10px 12px;border:1px solid var(--line);border-radius:12px;background:#fcfdff}.chat{display:grid;gap:12px}.msg{padding:16px;border:1px solid var(--line);border-radius:16px;background:#fff}.msg.user{background:var(--blue)}.msg .head{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;font-size:13px;font-weight:800;color:#334155}
+    .chat-markdown{line-height:1.68}.chat-markdown h1,.chat-markdown h2,.chat-markdown h3{margin:16px 0 8px}.chat-markdown p{margin:10px 0}.chat-markdown ul,.chat-markdown ol{margin:10px 0 10px 20px}.chat-markdown table{width:100%;border-collapse:collapse;margin:12px 0}.chat-markdown th,.chat-markdown td{border:1px solid var(--line);padding:8px 10px;text-align:left;vertical-align:top}.chat-markdown th{background:#f8fafc}.chat-markdown pre{background:#0f172a;color:#e2e8f0;padding:14px;border-radius:12px;overflow:auto}.chat-markdown code{background:#f3f5f7;padding:2px 6px;border-radius:6px}.chat-markdown pre code{background:transparent;padding:0}.evidence{margin-top:10px;padding:12px;border-radius:12px;background:#f8fafc;border:1px solid var(--line)}
+    pre.raw{white-space:pre-wrap;word-break:break-word;background:#0f172a;color:#e2e8f0;padding:14px;border-radius:12px;overflow:auto}
+    .catalog-table{width:100%;border-collapse:collapse}.catalog-table th,.catalog-table td{padding:10px;border-bottom:1px solid var(--line);text-align:left}.catalog-table th{font-size:12px;color:#64748b;text-transform:uppercase}
+    @media(max-width:1100px){.grid{grid-template-columns:1fr}.side{position:relative;height:auto}.stats,.two,.three{grid-template-columns:1fr 1fr}}
+    @media(max-width:760px){.stats,.two,.three{grid-template-columns:1fr}}
   </style>
 </head>
 <body>
-  <div class="wrap">
-    <header class="hero">
-      <div class="hero-top">
+  <div class="wrap grid">
+    <aside class="card side">
+      <div class="title">GABBI Enterprise V5</div>
+      <div class="muted">Discovery + entendimento + automação assistida, agora com <strong>analytics tabular dinâmico</strong> para perguntas quantitativas e filtradas sobre planilhas.</div>
+      <div style="height:16px"></div>
+      <div class="stack">
         <div>
-          <div class="brand"><div class="logo">G</div><div><strong>GABBI Discovery Wizard</strong><div style="opacity:.86;font-size:14px">Consultor inteligente multiárea para entendimento, refinamento e geração de conhecimento</div></div></div>
-          <h1>Do arquivo bruto ao especialista certo, com entendimento progressivo e revisão guiada</h1>
-          <p>Esta versão transforma o produto em uma jornada de consultoria interativa: após o upload, a IA faz um primeiro entendimento, aprofunda com perguntas por domínio, ajusta percepções incorretas com o usuário e só depois entra no modo de conversa especializada.</p>
-          <div class="badges"><span class="badge">Wizard consultivo</span><span class="badge">Especialização por domínio</span><span class="badge">Revisão de entendimento</span><span class="badge">Chat final com memória</span></div>
-        </div>
-        <div class="status">
-          <span id="llmStatus" class="badge warn">LLM</span>
-          <span class="badge">Modelo: <strong id="llmModel">-</strong></span>
-          <span class="badge">Vetores: <strong id="vectorStatus">-</strong></span>
-          <span class="badge">Caso: <strong id="currentCase">nenhum</strong></span>
-        </div>
-      </div>
-    </header>
-
-    <div class="layout">
-      <aside class="side">
-        <div class="card">
-          <div class="pill">Wizard</div>
-          <h2 class="title">Etapas da jornada</h2>
-          <div class="wizard" id="wizardNav">
-            <div class="wstep active" data-step="1"><div class="num">1</div><strong>Preparar o caso</strong><span>Criar caso, carregar arquivos e iniciar a análise.</span></div>
-            <div class="wstep" data-step="2"><div class="num">2</div><strong>Primeiro entendimento</strong><span>A IA interpreta o material e propõe um enquadramento inicial.</span></div>
-            <div class="wstep" data-step="3"><div class="num">3</div><strong>Refinar e corrigir</strong><span>O usuário ajusta qualquer leitura incorreta até chegar ao foco certo.</span></div>
-            <div class="wstep" data-step="4"><div class="num">4</div><strong>Confirmar especialista</strong><span>O sistema consolida a área, o objetivo e a forma de atuação.</span></div>
-            <div class="wstep" data-step="5"><div class="num">5</div><strong>Conversar e agregar</strong><span>O especialista passa a responder com contexto consolidado.</span></div>
-          </div>
-        </div>
-
-        <div class="card">
-          <div class="pill">Preparação</div>
-          <h2 class="title">Configurar o caso</h2>
           <label>Nome do caso</label>
-          <input id="caseName" value="Discovery Wizard Demo" />
-          <div style="height:10px"></div>
-          <label>Contexto inicial opcional</label>
-          <textarea id="caseDescription" placeholder="Ex.: Quero entender um arquivo operacional para descobrir riscos, padrões e o melhor caminho de decisão."></textarea>
-          <div style="height:10px"></div>
-          <div class="row">
-            <button onclick="createCase()">Criar caso</button>
-            <button class="secondary" onclick="resetSpecialist()">Resetar especialista</button>
-          </div>
-          <div style="height:14px"></div>
+          <input id="caseName" value="Caso de teste" />
+        </div>
+        <div>
+          <label>Descrição</label>
+          <textarea id="caseDescription">Teste de entendimento híbrido entre documentos e planilhas.</textarea>
+        </div>
+        <div class="row">
+          <button onclick="createCase()">Criar caso</button>
+          <button class="secondary" onclick="refreshStatus()">Atualizar status</button>
+        </div>
+        <div class="item"><strong>Case ID:</strong> <span id="currentCase">-</span></div>
+        <div class="row">
+          <div class="item"><strong>LLM</strong><br><span id="llmStatus" class="badge warn">-</span></div>
+          <div class="item"><strong>Modelo</strong><br><span id="llmModel">-</span></div>
+        </div>
+        <div class="item"><strong>Vetorial</strong><br><span id="vectorStatus">-</span></div>
+        <div>
           <label>Arquivos</label>
           <input id="filesInput" type="file" multiple />
-          <div style="height:10px"></div>
-          <div class="row">
-            <button onclick="uploadFiles()">Enviar arquivos</button>
-            <button class="ghost" onclick="loadAnalysis()">Atualizar visão</button>
-          </div>
-          <div id="uploadInfo" class="muted" style="margin-top:10px">Nenhum arquivo enviado ainda.</div>
         </div>
-
-        <div class="card">
-          <div class="pill">Indicadores</div>
-          <h2 class="title">Visão rápida</h2>
-          <div class="mini-kpis">
-            <div class="kpi"><div id="ovDocs" class="n">0</div><div class="l">documentos</div></div>
-            <div class="kpi"><div id="ovTables" class="n">0</div><div class="l">tabelas</div></div>
-            <div class="kpi"><div id="ovChars" class="n">0</div><div class="l">caracteres</div></div>
-            <div class="kpi"><div id="ovReady" class="n">-</div><div class="l">score de automação</div></div>
-          </div>
+        <div class="row">
+          <button onclick="uploadFiles()">Enviar arquivos</button>
+          <button class="ghost" onclick="loadCatalog()">Atualizar catálogo</button>
         </div>
-      </aside>
+        <div id="uploadInfo" class="muted">Nenhum arquivo enviado.</div>
+        <div class="row">
+          <button class="ghost" onclick="loadAnalysis()">Recarregar análise</button>
+          <button class="ghost" onclick="generateDiagnostic()">Gerar diagnóstico</button>
+        </div>
+        <div class="row">
+          <button class="ghost" onclick="publishVector()">Publicar vetorial</button>
+          <button class="ghost" onclick="exportBlueprint()">Exportar blueprint</button>
+        </div>
+      </div>
+    </aside>
 
-      <section class="main">
-        <div class="card">
-          <div class="toolbar">
-            <div>
-              <div class="pill">Modo de apresentação</div>
-              <h2 class="title" style="margin-bottom:0">Consultor especialista multiárea</h2>
-            </div>
-            <div class="tabs">
-              <button class="tab active" data-tab="wizard">Wizard</button>
-              <button class="tab" data-tab="analysis">Análise</button>
-              <button class="tab" data-tab="catalog">Catálogo</button>
-              <button class="tab" data-tab="chat">Chat especializado</button>
-              <button class="tab" data-tab="diagnostic">Diagnóstico</button>
-              <button class="tab" data-tab="raw">Payload</button>
-            </div>
-          </div>
+    <main class="card main">
+      <div class="tabs">
+        <button class="tab active" data-tab="overview">Visão geral</button>
+        <button class="tab" data-tab="analysis">Análise</button>
+        <button class="tab" data-tab="catalog">Catálogo tabular</button>
+        <button class="tab" data-tab="chat">Chat</button>
+        <button class="tab" data-tab="diagnostic">Diagnóstico</button>
+        <button class="tab" data-tab="automation">Automação</button>
+        <button class="tab" data-tab="raw">Técnico</button>
+      </div>
 
-          <section id="tab-wizard" class="tab-pane active">
-            <div class="wizard-note">A dinâmica desta tela é simples: após o upload, a IA faz uma leitura inicial e começa uma conversa orientada para descobrir sobre o que é o material, qual especialista deve assumir o caso e qual decisão o usuário precisa tomar. Se algo estiver errado, o usuário corrige até o entendimento final ser confirmado.</div>
-            <div style="height:16px"></div>
-            <div class="understanding">
-              <div class="state-box">
-                <h3 style="margin-top:0">Entendimento atual do caso</h3>
-                <div id="specialistStateBox" class="item">Nenhum entendimento consolidado ainda.</div>
-                <div style="height:12px"></div>
-                <div class="row">
-                  <button class="ghost" onclick="sendPreset('Me ajude a entender esse material e descobrir qual especialista deve assumir este caso.')">Iniciar descoberta</button>
-                  <button class="ghost" onclick="sendPreset('Não é bem isso. Quero revisar o entendimento do caso.')">Revisar entendimento</button>
-                  <button onclick="sendPreset('Sim, pode seguir com esse entendimento e responder como especialista.')">Confirmar entendimento</button>
-                </div>
-              </div>
-              <div class="list-box">
-                <h3 style="margin-top:0">Perguntas que a IA pode usar para refinar</h3>
-                <div id="refinementPrompts" class="muted">Após o upload e a primeira pergunta, as sugestões aparecem aqui.</div>
-                <div style="height:12px"></div>
-                <div class="quick-grid" id="quickActions">
-                  <button class="quick" onclick="fillSuggested('Quero entender do que se trata esse material e que tipo de análise faz mais sentido.')">Entender o material</button>
-                  <button class="quick" onclick="fillSuggested('Meu foco é descobrir qual decisão esse arquivo ajuda a tomar.')">Descobrir a decisão</button>
-                  <button class="quick" onclick="fillSuggested('Quero que você identifique qual especialista deve analisar isso.')">Escolher especialista</button>
-                </div>
-              </div>
-            </div>
-          </section>
-
-          <section id="tab-analysis" class="tab-pane">
-            <div class="understanding">
-              <div class="list-box"><h3 style="margin-top:0">Resumo inicial</h3><div id="executiveSummary" class="muted">Carregue os arquivos para gerar a análise.</div></div>
-              <div class="list-box"><h3 style="margin-top:0">Prioridades sugeridas</h3><div id="priorityList" class="muted">Sem dados.</div></div>
-            </div>
-            <div style="height:16px"></div>
-            <div class="understanding">
-              <div class="list-box"><h3 style="margin-top:0">Entidades</h3><div id="entitiesList"></div></div>
-              <div class="list-box"><h3 style="margin-top:0">Regras e exceções</h3><div id="rulesList"></div><div style="height:10px"></div><div id="exceptionsList"></div></div>
-            </div>
-          </section>
-
-          <section id="tab-catalog" class="tab-pane">
-            <div class="list-box"><h3 style="margin-top:0">Catálogo de tabelas</h3><div class="muted">Esta visão mostra as planilhas/abas que podem ser usadas em perguntas quantitativas, filtros, agrupamentos e consultas estruturadas.</div><div style="height:12px"></div><div id="catalogWrap" class="muted">Nenhuma tabela carregada.</div></div>
-          </section>
-
-          <section id="tab-chat" class="tab-pane">
-            <div class="chat-shell">
-              <div class="chat-header">
-                <div>
-                  <div class="pill">Fase final</div>
-                  <h2 class="title" style="margin-bottom:4px">Conversa e agregação do conhecimento</h2>
-                  <div class="muted">Quando o entendimento estiver bom o suficiente, o chat passa a responder como o especialista ideal para aquele caso.</div>
-                </div>
-                <div class="row">
-                  <button class="ghost" onclick="sendPreset('Resuma o entendimento consolidado do caso antes de responder.')">Ver resumo consolidado</button>
-                  <button class="ghost" onclick="sendPreset('Quero ajustar o entendimento antes de continuar.')">Voltar para revisão</button>
-                </div>
-              </div>
-              <div id="chatBox" class="chat-box"><div class="chat"></div></div>
-              <div class="ask-panel">
-                <div class="ask-card">
-                  <div class="row" style="align-items:flex-start">
-                    <div style="flex:1.7">
-                      <label>Pergunta / orientação</label>
-                      <textarea id="questionInput" placeholder="Digite sua mensagem. Pressione Enter para enviar e Shift+Enter para quebrar linha.">Me ajude a entender esse material e descobrir qual especialista deve analisar isso.</textarea>
-                    </div>
-                    <div style="width:220px">
-                      <label>Modo de resposta</label>
-                      <select id="chatMode"><option value="executive">Executivo</option><option value="analytical">Analítico</option><option value="technical">Técnico</option></select>
-                    </div>
-                  </div>
-                  <div style="height:10px"></div>
-                  <div class="row">
-                    <button onclick="ask()">Enviar</button>
-                    <button class="ghost" onclick="fillSuggested('Não é bem isso. O foco real é operacional e precisamos revisar o entendimento.')">Exemplo de correção</button>
-                    <button class="ghost" onclick="fillSuggested('Agora que o entendimento está certo, responda como um cientista de dados experiente.')">Exemplo de especialização</button>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </section>
-
-          <section id="tab-diagnostic" class="tab-pane">
-            <div class="understanding">
-              <div class="list-box"><h3 style="margin-top:0">Diagnóstico executivo</h3><div id="diagSummary" class="muted">Gere o diagnóstico.</div></div>
-              <div class="list-box"><h3 style="margin-top:0">Riscos e gargalos</h3><div id="diagRisks"></div></div>
-            </div>
-            <div style="height:16px"></div>
-            <div class="understanding">
-              <div class="list-box"><h3 style="margin-top:0">Recomendações</h3><div id="diagRecommendations"></div></div>
-              <div class="list-box"><h3 style="margin-top:0">Capacidades recomendadas</h3><div id="diagCapabilities"></div></div>
-            </div>
-          </section>
-
-          <section id="tab-raw" class="tab-pane">
-            <div class="list-box"><h3 style="margin-top:0">Payload técnico</h3><pre id="rawBox" style="white-space:pre-wrap;overflow:auto;max-height:60vh"></pre></div>
-          </section>
+      <section id="tab-overview" class="tab-content active">
+        <div class="stats">
+          <div class="stat"><div class="v" id="ovDocs">0</div><div class="l">Documentos</div></div>
+          <div class="stat"><div class="v" id="ovChars">0</div><div class="l">Caracteres analisados</div></div>
+          <div class="stat"><div class="v" id="ovTables">0</div><div class="l">Tabelas detectadas</div></div>
+          <div class="stat"><div class="v" id="ovReady">-</div><div class="l">Prontidão para automação</div></div>
+        </div>
+        <div style="height:14px"></div>
+        <div class="two">
+          <div class="list-box"><h3>Resumo executivo</h3><div id="executiveSummary" class="muted">Sem análise ainda.</div></div>
+          <div class="list-box"><h3>Prioridades iniciais</h3><div id="priorityList" class="list"></div></div>
         </div>
       </section>
-    </div>
+
+      <section id="tab-analysis" class="tab-content">
+        <div class="three">
+          <div class="list-box"><h3>Entidades</h3><div id="entitiesList" class="list"></div></div>
+          <div class="list-box"><h3>Regras detectadas</h3><div id="rulesList" class="list"></div></div>
+          <div class="list-box"><h3>Exceções e alertas</h3><div id="exceptionsList" class="list"></div></div>
+        </div>
+        <div style="height:14px"></div>
+        <div class="list-box"><h3>Achados</h3><div id="findingsList" class="list"></div></div>
+      </section>
+
+      <section id="tab-catalog" class="tab-content">
+        <div class="list-box">
+          <h3>Tabelas detectadas</h3>
+          <div class="muted">Este catálogo é o que permite responder perguntas como “quantos P5”, “quais incidentes no canal AURA” e outras análises de planilha com precisão.</div>
+          <div style="height:12px"></div>
+          <div id="catalogWrap" class="muted">Nenhuma tabela carregada.</div>
+        </div>
+      </section>
+
+      <section id="tab-chat" class="tab-content">
+        <div class="list-box">
+          <h3>Pergunte ao caso</h3>
+          <div class="row">
+            <div style="flex:2">
+              <textarea id="questionInput">Analise o material e me diga o que vale automatizar primeiro.</textarea>
+            </div>
+            <div>
+              <label>Modo</label>
+              <select id="chatMode">
+                <option value="executive">Executivo</option>
+                <option value="analytical">Analítico</option>
+                <option value="technical">Técnico</option>
+              </select>
+            </div>
+          </div>
+          <div style="height:10px"></div>
+          <div class="row">
+            <button onclick="ask()">Perguntar</button>
+            <button class="ghost" onclick="fillSuggested('Quantos incidentes nível P5 existem na base?')">Quantos P5 existem?</button>
+            <button class="ghost" onclick="fillSuggested('Quais incidentes nível P5 no canal AURA?')">Quais P5 no AURA?</button>
+            <button class="ghost" onclick="fillSuggested('Explique o teor do documento e o que faz sentido automatizar primeiro.')">Entender teor</button>
+          </div>
+        </div>
+        <div style="height:14px"></div>
+        <div id="chatBox" class="chat"></div>
+      </section>
+
+      <section id="tab-diagnostic" class="tab-content">
+        <div class="two">
+          <div class="list-box"><h3>Diagnóstico executivo</h3><div id="diagSummary" class="muted">Gere o diagnóstico.</div></div>
+          <div class="list-box"><h3>Riscos e gargalos</h3><div id="diagRisks" class="list"></div></div>
+        </div>
+        <div style="height:14px"></div>
+        <div class="two">
+          <div class="list-box"><h3>Recomendações</h3><div id="diagRecommendations" class="list"></div></div>
+          <div class="list-box"><h3>Capacidades recomendadas</h3><div id="diagCapabilities" class="list"></div></div>
+        </div>
+      </section>
+
+      <section id="tab-automation" class="tab-content">
+        <div class="two">
+          <div class="list-box"><h3>Blueprint</h3><div id="blueprintList" class="list"></div></div>
+          <div class="list-box"><h3>Workflow n8n</h3><div class="muted">Gere um JSON importável para o n8n.</div><div style="height:10px"></div><div class="row"><button onclick="exportN8N()">Gerar/exportar n8n</button><a id="n8nDownload" style="display:none" href="#" target="_blank"><button class="secondary">Baixar workflow</button></a></div></div>
+        </div>
+        <div style="height:14px"></div>
+        <div class="list-box"><h3>Configuração inicial de agente</h3><div id="agentConfig" class="list"></div></div>
+      </section>
+
+      <section id="tab-raw" class="tab-content">
+        <div class="list-box"><h3>Payload técnico</h3><pre id="rawBox" class="raw"></pre></div>
+      </section>
+    </main>
   </div>
 
   <script>
     marked.setOptions({breaks:true,gfm:true});
     let currentCaseId = null;
-    let lastSpecialistState = null;
-
-    function renderMarkdown(md){return DOMPurify.sanitize(marked.parse(md || ''));}
-    function escapeHtml(text){return (text||'').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));}
-    function raw(obj){document.getElementById('rawBox').textContent = JSON.stringify(obj, null, 2);}
-    function renderList(id, items){const el=document.getElementById(id); if(!el) return; el.innerHTML=''; if(!items||!items.length){el.innerHTML='<div class="muted">Sem dados.</div>'; return;} items.forEach(item=>{const div=document.createElement('div');div.className='item';div.textContent = typeof item==='string' ? item : JSON.stringify(item); el.appendChild(div);});}
-    function fillSuggested(text){document.getElementById('questionInput').value=text; document.getElementById('questionInput').focus(); document.querySelector('[data-tab="chat"]').click();}
-    function sendPreset(text){fillSuggested(text); ask();}
-
-    function updateWizard(step){
-      document.querySelectorAll('.wstep').forEach(el=>{
-        const n=Number(el.dataset.step);
-        el.classList.toggle('active', n===step);
-        el.classList.toggle('done', n<step);
-      });
-    }
-
-    function specialistStepFromState(state){
-      if(!state) return 1;
-      if(state.status==='discovering') return 3;
-      if(state.status==='awaiting_confirmation') return 4;
-      if(state.status==='confirmed') return 5;
-      return 2;
-    }
-
-    function renderStateSummary(state){
-      const el=document.getElementById('specialistStateBox');
-      if(!state){el.textContent='Nenhum entendimento consolidado ainda.'; document.getElementById('refinementPrompts').innerHTML='<div class="muted">Após o upload e a primeira pergunta, as sugestões aparecem aqui.</div>'; updateWizard(1); return;}
-      lastSpecialistState = state;
-      const statusMap={discovering:'Em descoberta',awaiting_confirmation:'Aguardando confirmação',confirmed:'Confirmado'};
-      el.innerHTML = `
-        <strong>Status:</strong> ${escapeHtml(statusMap[state.status]||'-')}<br>
-        <strong>Domínio percebido:</strong> ${escapeHtml(state.domain||'-')}<br>
-        <strong>Especialista proposto:</strong> ${escapeHtml(state.specialist_role||'-')}<br>
-        <strong>Objetivo do usuário:</strong> ${escapeHtml(state.user_goal||'-')}<br>
-        <strong>Decisão a apoiar:</strong> ${escapeHtml(state.decision_need||'-')}<br>
-        <strong>Formato preferido:</strong> ${escapeHtml(state.output_preference||'-')}<br>
-        <strong>Resumo do entendimento:</strong> ${escapeHtml(state.understanding_summary||'Ainda em construção')}
-      `;
-      const prompts=[];
-      if(state.missing_fields?.includes('user_goal')) prompts.push('Explique qual é o objetivo principal com este material.');
-      if(state.missing_fields?.includes('decision_need')) prompts.push('Diga que decisão você precisa tomar com apoio deste conteúdo.');
-      if(state.missing_fields?.includes('output_preference')) prompts.push('Escolha o formato desejado: executivo, técnico ou orientado à ação.');
-      if(state.status==='awaiting_confirmation') prompts.push('Confirme ou corrija o entendimento final antes de seguir.');
-      if(!prompts.length) prompts.push('O entendimento já está suficiente para iniciar a conversa especializada.');
-      document.getElementById('refinementPrompts').innerHTML = prompts.map(p=>`<div class="item">${escapeHtml(p)}</div>`).join('');
-      updateWizard(specialistStepFromState(state));
-      if(state.status==='confirmed') document.querySelector('[data-tab="chat"]').click();
-    }
-
     document.querySelectorAll('.tab').forEach(btn=>btn.addEventListener('click',()=>{
       document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
-      document.querySelectorAll('.tab-pane').forEach(x=>x.classList.remove('active'));
+      document.querySelectorAll('.tab-content').forEach(x=>x.classList.remove('active'));
       btn.classList.add('active');
-      document.getElementById('tab-'+btn.dataset.tab).classList.add('active');
+      document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
     }));
-    document.querySelectorAll('.wstep').forEach(step=>step.addEventListener('click',()=>{
-      const n=Number(step.dataset.step);
-      if(n<=2) document.querySelector('[data-tab="wizard"]').click();
-      else if(n===5) document.querySelector('[data-tab="chat"]').click();
-      else document.querySelector('[data-tab="wizard"]').click();
-    }));
-
-    document.addEventListener('keydown', e=>{
-      const q=document.getElementById('questionInput');
-      if(document.activeElement===q && e.key==='Enter' && !e.shiftKey){e.preventDefault(); ask();}
-    });
+    function renderMarkdown(md){return DOMPurify.sanitize(marked.parse(md || ''));}
+    function escapeHtml(text){return (text||'').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));}
+    function j(el,obj){document.getElementById(el).textContent = JSON.stringify(obj,null,2)}
+    function renderList(id, items){const el=document.getElementById(id);el.innerHTML=''; if(!items||!items.length){el.innerHTML='<div class="muted">Sem dados.</div>'; return;} items.forEach(item=>{const div=document.createElement('div');div.className='item';div.textContent = typeof item==='string' ? item : JSON.stringify(item); el.appendChild(div);});}
+    function fillSuggested(text){document.getElementById('questionInput').value = text;}
 
     async function refreshStatus(){
       const health = await fetch('/health').then(r=>r.json());
-      const llm=document.getElementById('llmStatus');
-      llm.textContent = health.llm.enabled ? 'LLM ativa' : 'Fallback local';
-      llm.className = 'badge ' + (health.llm.enabled ? 'ok' : 'warn');
+      document.getElementById('llmStatus').textContent = health.llm.enabled ? 'Ativa' : 'Fallback';
+      document.getElementById('llmStatus').className = 'badge ' + (health.llm.enabled ? 'ok' : 'warn');
       document.getElementById('llmModel').textContent = health.llm.model || '-';
       document.getElementById('vectorStatus').textContent = health.vector.backend + (health.vector.pgvector_ready ? ' ✓' : '');
     }
     refreshStatus();
 
     async function createCase(){
-      const payload = {name: document.getElementById('caseName').value || 'Caso Discovery', description: document.getElementById('caseDescription').value || ''};
-      const res = await fetch('/cases', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload)});
+      const name = document.getElementById('caseName').value || 'Caso de teste';
+      const description = document.getElementById('caseDescription').value || '';
+      const res = await fetch('/cases',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name,description})});
       const data = await res.json();
       currentCaseId = data.case_id;
       document.getElementById('currentCase').textContent = currentCaseId;
-      updateWizard(1);
-      renderStateSummary(null);
-      addChatMsg('ai', `## Caso criado\n\n**ID:** ${currentCaseId}\n\nAgora envie os arquivos. Depois disso, eu começo a descobrir sobre o que é o material e qual especialista deve assumir a análise.`, 'system', '-');
-    }
-
-    async function resetSpecialist(){
-      if(!currentCaseId){alert('Crie um caso primeiro.');return;}
-      await fetch(`/cases/${currentCaseId}/specialist-state/reset`, {method:'POST'});
-      renderStateSummary(null);
-      addChatMsg('ai', '## Estado resetado\n\nVamos reconstruir o entendimento do caso desde o início.', 'system', '-');
-      updateWizard(2);
+      addChatMsg('ai', `## Caso criado\n\n**ID:** ${currentCaseId}\n\nAgora você já pode enviar arquivos e começar a conversar com o material.`,'system','-');
     }
 
     async function uploadFiles(){
       if(!currentCaseId){alert('Crie um caso primeiro.');return;}
-      const input=document.getElementById('filesInput'); if(!input.files.length){alert('Selecione ao menos um arquivo.');return;}
-      const fd=new FormData(); [...input.files].forEach(f=>fd.append('files',f));
-      const res=await fetch(`/cases/${currentCaseId}/upload`,{method:'POST', body:fd});
-      const data=await res.json();
-      document.getElementById('uploadInfo').textContent='Arquivos enviados: '+data.uploaded.map(x=>x.filename).join(', ');
-      updateOverview(data.analysis); renderCatalog(data.tabular_catalog); raw(data); updateWizard(2);
-      addChatMsg('ai', '## Upload concluído\n\nFiz a leitura inicial do material. O próximo passo é eu entender melhor **qual é o seu objetivo** com esse conteúdo para definir o especialista mais adequado.\n\nVocê pode começar dizendo, por exemplo:\n- qual decisão precisa tomar\n- se quer visão executiva ou técnica\n- qual é a área principal do problema', 'system', '-');
-      document.querySelector('[data-tab="wizard"]').click();
+      const input = document.getElementById('filesInput');
+      if(!input.files.length){alert('Selecione ao menos um arquivo.');return;}
+      const fd = new FormData(); [...input.files].forEach(f=>fd.append('files',f));
+      const res = await fetch(`/cases/${currentCaseId}/upload`,{method:'POST',body:fd});
+      const data = await res.json();
+      document.getElementById('uploadInfo').textContent = `Arquivos enviados: ${data.uploaded.map(x=>x.filename).join(', ')}`;
+      updateOverview(data.analysis); renderCatalog(data.tabular_catalog); j('rawBox', data);
+      addChatMsg('ai', '## Upload concluído\n\nOs arquivos foram processados com sucesso.\n\n- A análise inicial já foi gerada\n- O catálogo tabular foi montado\n- A base vetorial foi atualizada para consultas documentais', 'system', '-');
     }
 
-    async function loadAnalysis(){ if(!currentCaseId){alert('Crie um caso primeiro.');return;} const data = await fetch(`/cases/${currentCaseId}/analysis`).then(r=>r.json()); updateOverview(data.analysis); raw(data); }
+    async function loadAnalysis(){
+      if(!currentCaseId){alert('Crie um caso primeiro.');return;}
+      const data = await fetch(`/cases/${currentCaseId}/analysis`).then(r=>r.json());
+      updateOverview(data.analysis); j('rawBox', data);
+    }
 
-    function updateOverview(analysis){ if(!analysis) return; document.getElementById('ovDocs').textContent=analysis.documents_count ?? 0; document.getElementById('ovTables').textContent=analysis.total_tables ?? 0; document.getElementById('ovChars').textContent=analysis.total_text_chars ?? 0; document.getElementById('ovReady').textContent=(analysis.automation_readiness_score ?? '-') + '%'; document.getElementById('executiveSummary').textContent=analysis.summary || '-'; renderList('entitiesList', analysis.possible_entities || []); renderList('rulesList', analysis.rules_detected || []); renderList('exceptionsList', [...(analysis.exceptions_detected||[]), ...(analysis.warnings||[])]); const priority=document.getElementById('priorityList'); priority.innerHTML=''; (analysis.priority_recommendations||[]).forEach(item=>{const row=document.createElement('div'); row.className='item'; row.innerHTML=`<strong>${escapeHtml(item.name)}</strong><br><span class="muted">Impacto: ${escapeHtml(item.impact)} | Esforço: ${escapeHtml(item.effort)} | Prioridade: ${escapeHtml(item.priority)}</span>`; priority.appendChild(row);}); }
+    async function loadCatalog(){
+      if(!currentCaseId){alert('Crie um caso primeiro.');return;}
+      const data = await fetch(`/cases/${currentCaseId}/tables/catalog`).then(r=>r.json());
+      renderCatalog(data.tabular_catalog); j('rawBox', data);
+      document.querySelector('[data-tab="catalog"]').click();
+    }
 
-    function renderCatalog(catalog){ const wrap=document.getElementById('catalogWrap'); if(!catalog || !catalog.tables_count){wrap.innerHTML='<div class="muted">Nenhuma tabela disponível.</div>'; return;} const rows=(catalog.tables||[]).map(t=>`<tr><td>${escapeHtml(t.filename)}</td><td>${escapeHtml(t.sheet_name)}</td><td>${escapeHtml(String(t.row_count))}</td><td>${escapeHtml((t.columns||[]).join(', '))}</td></tr>`).join(''); wrap.innerHTML=`<table style="width:100%;border-collapse:collapse"><thead><tr><th style="text-align:left;padding:10px;border-bottom:1px solid var(--line)">Arquivo</th><th style="text-align:left;padding:10px;border-bottom:1px solid var(--line)">Aba</th><th style="text-align:left;padding:10px;border-bottom:1px solid var(--line)">Linhas</th><th style="text-align:left;padding:10px;border-bottom:1px solid var(--line)">Colunas</th></tr></thead><tbody>${rows}</tbody></table>`; }
+    function updateOverview(analysis){
+      if(!analysis) return;
+      document.getElementById('ovDocs').textContent = analysis.documents_count ?? 0;
+      document.getElementById('ovChars').textContent = analysis.total_text_chars ?? 0;
+      document.getElementById('ovTables').textContent = analysis.total_tables ?? 0;
+      document.getElementById('ovReady').textContent = (analysis.automation_readiness_score ?? '-') + '%';
+      document.getElementById('executiveSummary').textContent = analysis.summary || '-';
+      const priority = document.getElementById('priorityList'); priority.innerHTML='';
+      (analysis.priority_recommendations || []).forEach(item=>{
+        const row=document.createElement('div'); row.className='item';
+        row.innerHTML=`<strong>${escapeHtml(item.name)}</strong><br><span class="muted">Impacto: ${escapeHtml(item.impact)} | Esforço: ${escapeHtml(item.effort)} | Prioridade: ${escapeHtml(item.priority)}</span>`;
+        priority.appendChild(row);
+      });
+      renderList('entitiesList', analysis.possible_entities || []);
+      renderList('rulesList', analysis.rules_detected || []);
+      renderList('exceptionsList', [...(analysis.exceptions_detected || []), ...(analysis.warnings || [])]);
+      renderList('findingsList', analysis.findings || []);
+    }
+
+    function renderCatalog(catalog){
+      const wrap = document.getElementById('catalogWrap');
+      if(!catalog || !catalog.tables_count){wrap.innerHTML='<div class="muted">Nenhuma tabela disponível.</div>'; return;}
+      const rows = (catalog.tables || []).map(t => `
+        <tr>
+          <td>${escapeHtml(t.filename)}</td>
+          <td>${escapeHtml(t.sheet_name)}</td>
+          <td>${escapeHtml(String(t.row_count))}</td>
+          <td>${escapeHtml((t.columns || []).join(', '))}</td>
+        </tr>`).join('');
+      wrap.innerHTML = `<table class="catalog-table"><thead><tr><th>Arquivo</th><th>Aba</th><th>Linhas</th><th>Colunas</th></tr></thead><tbody>${rows}</tbody></table>`;
+    }
 
     function addChatMsg(role, content, meta='', model=''){
-      const box=document.querySelector('#chatBox .chat'); const scroller=document.getElementById('chatBox');
-      const div=document.createElement('div'); div.className=`msg ${role==='user'?'user':'ai'}`;
-      div.innerHTML=`<div class="head"><span>${role==='user'?'Você':'GABBI'}</span><span>${meta ? escapeHtml(meta) : ''} ${model ? '· '+escapeHtml(model):''}</span></div><div class="chat-markdown">${renderMarkdown(content)}</div>`;
-      box.appendChild(div); requestAnimationFrame(()=>{ scroller.scrollTop = scroller.scrollHeight; });
+      const box = document.getElementById('chatBox');
+      const div = document.createElement('div');
+      div.className = `msg ${role === 'user' ? 'user' : 'ai'}`;
+      div.innerHTML = `
+        <div class="head">
+          <span>${role === 'user' ? 'Você' : 'GABBI'}</span>
+          <span>${meta ? escapeHtml(meta) : ''} ${model ? '· ' + escapeHtml(model) : ''}</span>
+        </div>
+        <div class="chat-markdown">${renderMarkdown(content)}</div>`;
+      box.appendChild(div);
+      box.scrollTop = box.scrollHeight;
     }
 
     async function ask(){
       if(!currentCaseId){alert('Crie um caso primeiro.');return;}
-      const question=document.getElementById('questionInput').value.trim(); const mode=document.getElementById('chatMode').value; if(!question){alert('Digite uma pergunta.');return;}
+      const question = document.getElementById('questionInput').value.trim();
+      const mode = document.getElementById('chatMode').value;
+      if(!question){alert('Digite uma pergunta.');return;}
       addChatMsg('user', question, mode, '');
-      const res=await fetch(`/cases/${currentCaseId}/ask`, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({question, mode})});
-      const data=await res.json();
-      document.getElementById('questionInput').value='';
-      renderStateSummary(data.specialist_state);
+      const res = await fetch(`/cases/${currentCaseId}/ask`, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({question, mode})});
+      const data = await res.json();
       addChatMsg('ai', data.answer_text || data.summary || 'Sem resposta.', `${data.route || '-'} / ${data.query_type || '-'}`, document.getElementById('llmModel').textContent);
-      if(data.evidences?.length){const ev=document.createElement('div'); ev.className='msg ai'; ev.innerHTML=`<div class="head"><span>Evidências</span><span>${escapeHtml((data.evidence_files || []).join(', '))}</span></div>` + data.evidences.map(e=>`<div class="evidence"><strong>${escapeHtml(e.filename || 'arquivo')}</strong>${e.sheet_name ? ' / '+escapeHtml(e.sheet_name):''}<div class="muted">${escapeHtml(e.excerpt || '')}</div></div>`).join(''); document.querySelector('#chatBox .chat').appendChild(ev); requestAnimationFrame(()=>{document.getElementById('chatBox').scrollTop=document.getElementById('chatBox').scrollHeight;});}
-      raw(data);
-      if(data.route==='discovery'){document.querySelector('[data-tab="wizard"]').click();}
-      else{document.querySelector('[data-tab="chat"]').click();}
+      if(data.evidences?.length){
+        const ev = document.createElement('div'); ev.className = 'msg ai';
+        ev.innerHTML = `<div class="head"><span>Evidências</span><span>${escapeHtml((data.evidence_files || []).join(', '))}</span></div>` +
+          data.evidences.map(e => `<div class="evidence"><strong>${escapeHtml(e.filename || 'arquivo')}</strong>${e.sheet_name ? ' / ' + escapeHtml(e.sheet_name) : ''}<div class="muted">${escapeHtml(e.excerpt || '')}</div></div>`).join('');
+        document.getElementById('chatBox').appendChild(ev);
+      }
+      j('rawBox', data);
+      document.querySelector('[data-tab="chat"]').click();
     }
 
-    async function generateDiagnostic(){ if(!currentCaseId){alert('Crie um caso primeiro.');return;} const data=await fetch(`/cases/${currentCaseId}/diagnostic`, {method:'POST'}).then(r=>r.json()); document.getElementById('diagSummary').textContent=data.diagnostic.executive_summary || '-'; renderList('diagRisks', [...(data.diagnostic.risks||[]), ...(data.diagnostic.bottlenecks||[])]); renderList('diagRecommendations', data.diagnostic.automation_suggestions || []); renderList('diagCapabilities', data.diagnostic.recommended_capabilities || []); raw(data); document.querySelector('[data-tab="diagnostic"]').click(); }
+    async function generateDiagnostic(){
+      if(!currentCaseId){alert('Crie um caso primeiro.');return;}
+      const data = await fetch(`/cases/${currentCaseId}/diagnostic`, {method:'POST'}).then(r=>r.json());
+      document.getElementById('diagSummary').textContent = data.diagnostic.executive_summary || '-';
+      renderList('diagRisks', [...(data.diagnostic.risks || []), ...(data.diagnostic.bottlenecks || [])]);
+      renderList('diagRecommendations', data.diagnostic.automation_suggestions || []);
+      renderList('diagCapabilities', data.diagnostic.recommended_capabilities || []);
+      const bp = document.getElementById('blueprintList'); bp.innerHTML='';
+      (data.blueprint.stages || []).forEach(s => { const row = document.createElement('div'); row.className='item'; row.innerHTML = `<strong>${s.order}. ${escapeHtml(s.name)}</strong><br><span class="muted">${escapeHtml(s.description)}</span>`; bp.appendChild(row);});
+      renderList('agentConfig', (data.agent_config.instructions || []).map(x=>'Instrução: ' + x).concat((data.agent_config.tools || []).map(x=>'Tool: ' + x)));
+      j('rawBox', data);
+      document.querySelector('[data-tab="diagnostic"]').click();
+    }
+
+    async function publishVector(){
+      if(!currentCaseId){alert('Crie um caso primeiro.');return;}
+      const data = await fetch(`/cases/${currentCaseId}/publish-vector`, {method:'POST'}).then(r=>r.json());
+      j('rawBox', data); refreshStatus();
+      alert(`Publicação vetorial: ${data.vector_publication.backend} | chunks: ${data.vector_publication.chunks}`);
+    }
+
+    async function exportN8N(){
+      if(!currentCaseId){alert('Crie um caso primeiro.');return;}
+      const data = await fetch(`/cases/${currentCaseId}/export/n8n`, {method:'POST'}).then(r=>r.json());
+      document.getElementById('n8nDownload').style.display = 'inline-block';
+      document.getElementById('n8nDownload').href = `/cases/${currentCaseId}/export/n8n`;
+      j('rawBox', data); document.querySelector('[data-tab="automation"]').click();
+    }
+
+    async function exportBlueprint(){
+      if(!currentCaseId){alert('Crie um caso primeiro.');return;}
+      const data = await fetch(`/cases/${currentCaseId}/export/blueprint`, {method:'POST'}).then(r=>r.json());
+      j('rawBox', data); window.open(`/cases/${currentCaseId}/export/blueprint`, '_blank');
+    }
   </script>
 </body>
 </html>

@@ -1,0 +1,1182 @@
+"id","refId","article","counter","published","topicId","createdOn","updatedOn","createdBy","updatedBy","deleted","document"
+"9d7b13fd-926b-4864-8e7b-75d7c8722868",1346,"Mês: 2025-12
+Número: INC3850075
+Prioridade: P3
+Estado: Encerrado
+Communication State: -
+Aberto: 2025-12-16T12:52:18
+Resolvido: 2025-12-16T14:12:34
+Encerrado: 2025-12-23T15:00:12
+Incidente Primário: -
+Incidentes secundários: 0
+Descrição resumida: APLICATIVO VIVO - FATURA - NEGOCIAR CONTAS
+Descrição: » Abrangência: Massivo
+» Frente: B2C
+» Plataforma: Android | IOS
+
+»Canal Impactado: App Vivo | Central de Faturas
+» Funcionalidade: Negociar Fatura
+
+» Solicitante: QD APPs Automação
+
+» Descrição:  Identificado falha ao tentar negociar fatura no App vivo
+
+» Detalhe da Falha: Identificado falha ao tentar negociar fatura no App vivo
+
+Ao tentar negociar fatura é retornada mensagem ''Algo deu errado com este serviço''
+
+ Passo a Passo: App Vivo > pra voce > acesso rápido > central de faturas > card fatura >negociar fatura > continuar > sel linha> falha apresentada
+
+
+» Observação: Evidências e passo a passo em anexo.
+...
+Canal impactado: APP Vivo
+Causa provável: Identificada lentidão no retorno da API Debit Negociation.
+Causa Origem: SISTEMAS - APLICAÇÃO
+Causado pela mudança: -
+Anotações de resolução: Causa Provável: Identificada lentidão no retorno da API Debit Negociation.
+Solução aplicada ao incidente: Após estabilização da API Debit Negotiation o fluxo passou a apresentar estabilidade.
+u_rpt_tempo_total_de_impacto: 1020
+Impacto nos negócios: APLICATIVO VIVO - FATURA - NEGOCIAR CONTAS
+Tempo de Impacto: 00:17:00
+Tipo: -
+Spread: Spread
+Mesa: -
+Justificativa: -
+Plano de Ação: -
+Front/Back: B2C","0.000000000000000000000000000000",True,"03a8b2bb-f50e-4d52-9b60-0a293c6365fd","2026-01-12 18:05:17.909","2026-01-12 18:05:17.909","ed705017-fafe-4cc5-9401-06d972dec3d8","ed705017-fafe-4cc5-9401-06d972dec3d8",False,"{""ID"": 19, ""Mesa"": null, ""Tipo"": null, ""Aberto"": ""2025-12-16T12:52:18"", ""Estado"": ""Encerrado"", ""Spread"": ""Spread"", ""Status"": null, ""is_app"": true, ""Número"": ""INC3850075"", ""Serviço"": ""Negociar Fatura"", ""is_ecomm"": false, ""Encerrado"": ""2025-12-23T15:00:12"", ""Resolvido"": ""2025-12-16T14:12:34"", ""Front/Back"": ""B2C"", ""Prioridade"": ""P3"", ""Descrição"": ""» Abrangência: Massivo\n» Frente: B2C\n» Plataforma: Android | IOS\n\n»Canal Impactado: App Vivo | Central de Faturas\n» Funcionalidade: Negociar Fatura\n\n» Solicitante: QD APPs Automação\n\n» Descrição:  Identificado falha ao tentar negociar fatura no App vivo\n\n» Detalhe da Falha: Identificado falha ao tentar negociar fatura no App vivo\n\nAo tentar negociar fatura é retornada mensagem ''Algo deu errado com este serviço''\n\n Passo a Passo: App Vivo > pra voce > acesso rápido > central de faturas > card fatura >negociar fatura > continuar > sel linha> falha apresentada\n\n\n» Observação: Evidências e passo a passo em anexo."", ""Causa Origem"": ""SISTEMAS - APLICAÇÃO"", ""Justificativa"": null, ""Canal impactado"": ""APP Vivo"", ""Causa provável"": ""Identificada lentidão no retorno da API Debit Negociation."", ""Plano de Ação"": null, ""Atendimento para"": null, ""Tempo de Impacto"": ""00:17:00"", ""Communication State"": null, ""Incidente Primário"": null, ""Descrição resumida"": ""APLICATIVO VIVO - FATURA - NEGOCIAR CONTAS"", ""Causado pela mudança"": null, ""Impacto nos negócios"": ""APLICATIVO VIVO - FATURA - NEGOCIAR CONTAS"", ""Incidentes secundários"": 0, ""Anotações de resolução"": ""Causa Provável: Identificada lentidão no retorno da API Debit Negociation.\nSolução aplicada ao incidente: Após estabilização da API Debit Negotiation o fluxo passou a apresentar estabilidade."", ""u_rpt_tempo_total_de_impacto"": 1020}"
+"ce660f65-77e0-40d3-9dc6-a4491a825204",1347,"Mês: 2025-12
+Número: INC3857751
+Prioridade: P3
+Estado: Encerrado
+Communication State: -
+Aberto: 2025-12-18T18:21:39
+Resolvido: 2025-12-18T19:53:46
+Encerrado: 2025-12-25T20:00:47
+Incidente Primário: -
+Incidentes secundários: 2
+Descrição resumida: APLICATIVO VIVO - AURA - INDISPONIBILIDADE TOTAL
+Descrição: APP Vivo não está direcionando os clientes para os atendimentos humano no APP.
+...
+Canal impactado: Atendimento Call Center B2B, Atendimento Call Center B2C, APP Vivo
+Causa provável: O incidente foi ocasionado por locks no banco de dados por processos da aplicação, que impactaram os fluxos de atendimento das aplicações Genesys (e-mail, chat e WhatsApp). Esses locks permaneceram ativos, restringindo a execução normal das transações e resultando na indisponibilidade parcial dos serviços.
+Causa Origem: SISTEMAS - APLICAÇÃO
+Causado pela mudança: -
+Anotações de resolução: Causa Provável: O incidente foi ocasionado por locks no banco de dados por processos da aplicação, que impactaram os fluxos de atendimento das aplicações Genesys (e-mail, chat e WhatsApp). Esses locks permaneceram ativos, restringindo a execução normal das transações e resultando na indisponibilidade parcial dos serviços.
+Solução aplicada ao incidente: Foi realizada análise detalhada do ambiente para identificar a causa raiz do incidente. Durante o período de impacto, a equipe de suporte monitorou os sistemas e validou a integridade das aplicações Genesys (e-mail, chat e WhatsApp). Após a liberação dos locks no banco de dados, o ambiente foi estabilizado e confirmado o restabelecimento dos fluxos de atendimento.
+u_rpt_tempo_total_de_impacto: 600
+Impacto nos negócios: APLICATIVO VIVO - AURA - INDISPONIBILIDADE TOTAL
+Tempo de Impacto: 00:10:00
+Tipo: -
+Spread: Spread
+Mesa: -
+Justificativa: -
+Plano de Ação: -
+Front/Back: B2C","0.000000000000000000000000000000",True,"03a8b2bb-f50e-4d52-9b60-0a293c6365fd","2026-01-12 18:05:17.909","2026-01-12 18:05:17.909","ed705017-fafe-4cc5-9401-06d972dec3d8","ed705017-fafe-4cc5-9401-06d972dec3d8",False,"{""ID"": 20, ""Mesa"": null, ""Tipo"": null, ""Aberto"": ""2025-12-18T18:21:39"", ""Estado"": ""Encerrado"", ""Spread"": ""Spread"", ""Status"": ""Análise de causa raiz"", ""is_app"": true, ""Número"": ""INC3857751"", ""Serviço"": ""Chat Aura"", ""is_ecomm"": false, ""Encerrado"": ""2025-12-25T20:00:47"", ""Resolvido"": ""2025-12-18T19:53:46"", ""Front/Back"": ""B2C"", ""Prioridade"": ""P3"", ""Descrição"": ""APP Vivo não está direcionando os clientes para os atendimentos humano no APP."", ""Causa Origem"": ""SISTEMAS - APLICAÇÃO"", ""Justificativa"": null, ""Canal impactado"": ""Atendimento Call Center B2B, Atendimento Call Center B2C, APP Vivo"", ""Causa provável"": ""O incidente foi ocasionado por locks no banco de dados por processos da aplicação, que impactaram os fluxos de atendimento das aplicações Genesys (e-mail, chat e WhatsApp). Esses locks permaneceram ativos, restringindo a execução normal das transações e resultando na indisponibilidade parcial dos serviços."", ""Plano de Ação"": null, ""Atendimento para"": null, ""Tempo de Impacto"": ""00:10:00"", ""Communication State"": null, ""Incidente Primário"": null, ""Descrição resumida"": ""APLICATIVO VIVO - AURA - INDISPONIBILIDADE TOTAL"", ""Causado pela mudança"": null, ""Impacto nos negócios"": ""APLICATIVO VIVO - AURA - INDISPONIBILIDADE TOTAL"", ""Incidentes secundários"": 2, ""Anotações de resolução"": ""Causa Provável: O incidente foi ocasionado por locks no banco de dados por processos da aplicação, que impactaram os fluxos de atendimento das aplicações Genesys (e-mail, chat e WhatsApp). Esses locks permaneceram ativos, restringindo a execução normal das transações e resultando na indisponibilidade parcial dos serviços.\nSolução aplicada ao incidente: Foi realizada análise detalhada do ambiente para identificar a causa raiz do incidente. Durante o período de impacto, a equipe de suporte monitorou os sistemas e validou a integridade das aplicações Genesys (e-mail, chat e WhatsApp). Após a liberação dos locks no banco de dados, o ambiente foi estabilizado e confirmado o restabelecimento dos fluxos de atendimento."", ""u_rpt_tempo_total_de_impacto"": 600}"
+"badb4f1c-65dd-42a1-a728-8da154233977",1350,"Mês: 2025-12
+Número: INC3862409
+Prioridade: P3
+Estado: Encerrado
+Communication State: -
+Aberto: 2025-12-21T17:30:32
+Resolvido: 2025-12-21T21:25:49
+Encerrado: 2025-12-28T22:01:54
+Incidente Primário: -
+Incidentes secundários: 0
+Descrição resumida: APLICATIVO VIVO - TROCA DE PLANO - APP
+Descrição: » Abrangência: Massivo
+» Frente: B2C
+» Plataforma: Android | IOS
+
+»Canal Impactado: App Vivo | Suporte Técnico
+» Funcionalidade: Suporte Técnico
+
+» Solicitante: QD APPs Sustentação
+
+» Descrição: Falha ao tentar abrir suporte técnico.
+
+» Detalhe da Falha: Identificada Falha ao tentar abrir suporte técnico.
+
+Ao acessar a Central de Ajuda e tentar abrir o Suporte Técnico, o cliente é redirecionado para uma tela em branco. 
+
+ Passo a Passo: App Vivo > Central de Ajuda > Suporte Técnico > Falha Apresentada
+
+
+» Observação: Evidências e passo a passo em anexo.
+...
+Canal impactado: APP Vivo
+Causa provável: Ocasionado devido a ausência das API's (fb-app-vivo-technical-support-home-v2-bff  e fb-app-vivo-technical-support-v2-bff) no ambiente de cloud (core-local-4p-conectividade-pro-apimg)
+Causa Origem: INTERVENÇÃO NÃO DOCUMENTADA
+Causado pela mudança: -
+Anotações de resolução: Causa Provável: Ocasionado devido a ausência das API's (fb-app-vivo-technical-support-home-v2-bff  e fb-app-vivo-technical-support-v2-bff) no ambiente de cloud (core-local-4p-conectividade-pro-apimg)
+Solução aplicada ao incidente: Realizado a publicação das apis no ambiente de cloud (core-local-4p-conectividade-pro-apimg), após a ação, o ambiente foi normalizado
+u_rpt_tempo_total_de_impacto: 11540
+Impacto nos negócios: APLICATIVO VIVO - TROCA DE PLANO - APP
+Tempo de Impacto: 03:12:20
+Tipo: -
+Spread: Spread
+Mesa: -
+Justificativa: -
+Plano de Ação: -
+Front/Back: B2C","0.000000000000000000000000000000",True,"03a8b2bb-f50e-4d52-9b60-0a293c6365fd","2026-01-12 18:05:17.909","2026-01-12 18:05:17.909","ed705017-fafe-4cc5-9401-06d972dec3d8","ed705017-fafe-4cc5-9401-06d972dec3d8",False,"{""ID"": 23, ""Mesa"": null, ""Tipo"": null, ""Aberto"": ""2025-12-21T17:30:32"", ""Estado"": ""Encerrado"", ""Spread"": ""Spread"", ""Status"": ""Análise de causa raiz"", ""is_app"": true, ""Número"": ""INC3862409"", ""Serviço"": ""Suporte Tecnico"", ""is_ecomm"": false, ""Encerrado"": ""2025-12-28T22:01:54"", ""Resolvido"": ""2025-12-21T21:25:49"", ""Front/Back"": ""B2C"", ""Prioridade"": ""P3"", ""Descrição"": ""» Abrangência: Massivo\n» Frente: B2C\n» Plataforma: Android | IOS\n\n»Canal Impactado: App Vivo | Suporte Técnico\n» Funcionalidade: Suporte Técnico\n\n» Solicitante: QD APPs Sustentação\n\n» Descrição: Falha ao tentar abrir suporte técnico.\n\n» Detalhe da Falha: Identificada Falha ao tentar abrir suporte técnico.\n\nAo acessar a Central de Ajuda e tentar abrir o Suporte Técnico, o cliente é redirecionado para uma tela em branco. \n\n Passo a Passo: App Vivo > Central de Ajuda > Suporte Técnico > Falha Apresentada\n\n\n» Observação: Evidências e passo a passo em anexo."", ""Causa Origem"": ""INTERVENÇÃO NÃO DOCUMENTADA"", ""Justificativa"": null, ""Canal impactado"": ""APP Vivo"", ""Causa provável"": ""Ocasionado devido a ausência das API's (fb-app-vivo-technical-support-home-v2-bff  e fb-app-vivo-technical-support-v2-bff) no ambiente de cloud (core-local-4p-conectividade-pro-apimg)"", ""Plano de Ação"": null, ""Atendimento para"": null, ""Tempo de Impacto"": ""03:12:20"", ""Communication State"": null, ""Incidente Primário"": null, ""Descrição resumida"": ""APLICATIVO VIVO - TROCA DE PLANO - APP"", ""Causado pela mudança"": null, ""Impacto nos negócios"": ""APLICATIVO VIVO - TROCA DE PLANO - APP"", ""Incidentes secundários"": 0, ""Anotações de resolução"": ""Causa Provável: Ocasionado devido a ausência das API's (fb-app-vivo-technical-support-home-v2-bff  e fb-app-vivo-technical-support-v2-bff) no ambiente de cloud (core-local-4p-conectividade-pro-apimg)\nSolução aplicada ao incidente: Realizado a publicação das apis no ambiente de cloud (core-local-4p-conectividade-pro-apimg), após a ação, o ambiente foi normalizado"", ""u_rpt_tempo_total_de_impacto"": 11540}"
+"ce76a17e-9a61-482b-a4e7-3894834f3bf7",1353,"Mês: 2025-12
+Número: INC3881387
+Prioridade: P3
+Estado: Resolvido
+Communication State: -
+Aberto: 2025-12-31T14:45:38
+Resolvido: 2025-12-31T16:22:47
+Encerrado: NaT
+Incidente Primário: -
+Incidentes secundários: 13
+Descrição resumida: APLICATIVO VIVO - JORNADA ELETRONICOS - ACESSAR
+Descrição: » Abrangência: Massivo
+» Frente: Consumer Eletronics
+» Plataforma: Android
+
+»Canal Impactado: App Vivo | Loja Online Aparelhos B2C
+» Funcionalidade: Loja
+
+» Solicitante: QD E-com Sustentação
+
+» Descrição: Falha ao acessar a aba loja
+
+» Detalhe da Falha: Ao tentar acessar a """"Loja"""" no aplicativo Vivo aparece a mensagem de erro """"Algo deu errado por aqui'.
+
+ Passo a Passo: Aplicativo vivo > Aba Loja > Falha
+
+
+» Observação: Evidências e passo a passo em anexo.
+...
+Canal impactado: APP Vivo, Loja Online Aparelhos B2C, Recarga Digital, Vivo Empresas, Portal Vivo B2C, Portal Vivo B2B
+Causa provável: Contenção e bloqueio internos do OAM, levando a falhas e lentidão nas instâncias do OAM externo e SDK.
+Causa Origem: SISTEMAS - APLICAÇÃO
+Causado pela mudança: -
+Anotações de resolução: Causa Provável: Contenção e bloqueio internos do OAM, levando a falhas e lentidão nas instâncias do OAM externo e SDK.
+Solução aplicada ao incidente: Realizado restart nas instâncias afetadas do OAM, tanto do ambiente externo quanto do SDK, para eliminar a contenção identificada nos servidores.
+u_rpt_tempo_total_de_impacto: 2760
+Impacto nos negócios: APLICATIVO VIVO - JORNADA ELETRONICOS - ACESSAR
+Tempo de Impacto: 00:46:00
+Tipo: -
+Spread: Spread
+Mesa: -
+Justificativa: -
+Plano de Ação: -
+Front/Back: B2C + B2B","0.000000000000000000000000000000",True,"03a8b2bb-f50e-4d52-9b60-0a293c6365fd","2026-01-12 18:05:17.909","2026-01-12 18:05:17.909","ed705017-fafe-4cc5-9401-06d972dec3d8","ed705017-fafe-4cc5-9401-06d972dec3d8",False,"{""ID"": 26, ""Mesa"": null, ""Tipo"": null, ""Aberto"": ""2025-12-31T14:45:38"", ""Estado"": ""Resolvido"", ""Spread"": ""Spread"", ""Status"": ""Avaliar"", ""is_app"": true, ""Número"": ""INC3881387"", ""Serviço"": ""Login"", ""is_ecomm"": false, ""Encerrado"": ""NaT"", ""Resolvido"": ""2025-12-31T16:22:47"", ""Front/Back"": ""B2C + B2B"", ""Prioridade"": ""P3"", ""Descrição"": ""» Abrangência: Massivo\n» Frente: Consumer Eletronics\n» Plataforma: Android\n\n»Canal Impactado: App Vivo | Loja Online Aparelhos B2C\n» Funcionalidade: Loja\n\n» Solicitante: QD E-com Sustentação\n\n» Descrição: Falha ao acessar a aba loja\n\n» Detalhe da Falha: Ao tentar acessar a \""\""Loja\""\"" no aplicativo Vivo aparece a mensagem de erro \""\""Algo deu errado por aqui'.\n\n Passo a Passo: Aplicativo vivo > Aba Loja > Falha\n\n\n» Observação: Evidências e passo a passo em anexo."", ""Causa Origem"": ""SISTEMAS - APLICAÇÃO"", ""Justificativa"": null, ""Canal impactado"": ""APP Vivo, Loja Online Aparelhos B2C, Recarga Digital, Vivo Empresas, Portal Vivo B2C, Portal Vivo B2B"", ""Causa provável"": ""Contenção e bloqueio internos do OAM, levando a falhas e lentidão nas instâncias do OAM externo e SDK."", ""Plano de Ação"": null, ""Atendimento para"": null, ""Tempo de Impacto"": ""00:46:00"", ""Communication State"": null, ""Incidente Primário"": null, ""Descrição resumida"": ""APLICATIVO VIVO - JORNADA ELETRONICOS - ACESSAR"", ""Causado pela mudança"": null, ""Impacto nos negócios"": ""APLICATIVO VIVO - JORNADA ELETRONICOS - ACESSAR"", ""Incidentes secundários"": 13, ""Anotações de resolução"": ""Causa Provável: Contenção e bloqueio internos do OAM, levando a falhas e lentidão nas instâncias do OAM externo e SDK.\nSolução aplicada ao incidente: Realizado restart nas instâncias afetadas do OAM, tanto do ambiente externo quanto do SDK, para eliminar a contenção identificada nos servidores."", ""u_rpt_tempo_total_de_impacto"": 2760}"
+"d0749cde-c326-4d12-b35a-78a76296c231",1348,"Mês: 2025-12
+Número: INC3859991
+Prioridade: P3
+Estado: Encerrado
+Communication State: -
+Aberto: 2025-12-19T16:00:08
+Resolvido: 2025-12-19T17:16:06
+Encerrado: 2025-12-26T18:01:47
+Incidente Primário: -
+Incidentes secundários: 0
+Descrição resumida: APLICATIVO VIVO - ENVIAR/PEDIR INTERNET - APP
+Descrição: » Abrangência: Massivo
+» Frente: B2C Móvel Pré, Controle e Pós
+» Plataforma: Android
+
+»Canal Impactado: App Vivo | Pedir Internet
+» Funcionalidade: Pedir Internet
+
+» Solicitante: QD APPs Automação
+
+» Descrição: Identificamos um direcionamento incorreto da opção Enviar internet no App Vivo.
+
+» Detalhe da Falha: Identificamos um direcionamento incorreto da opção Enviar internet dentro do menu Mais do App Vivo. Ao selecionar menu mais > Pedir Internet somos direcionados para a aba de recarga.
+
+ Passo a Passo: App Vivo > Menu Mais > Enviar Internet > Direcionamento incorreto.
+
+
+
+» Observação: Evidências e passo a passo em anexo.
+...
+Canal impactado: APP Vivo
+Causa provável: Uma alteração realizada pela equipe de Produtos  sem validação de ERT APP e QD, feita no entry point da funcionalidade ""Enviar Internet"" no App Vivo direcionou incorretamente os usuários para a tela de recarga, em vez do fluxo correto.
+Causa Origem: SHADOW IT - SUPORTE NEGÓCIO
+Causado pela mudança: -
+Anotações de resolução: Causa Provável: Uma alteração realizada pela equipe de Produtos  sem validação de ERT APP e QD, feita no entry point da funcionalidade ""Enviar Internet"" no App Vivo direcionou incorretamente os usuários para a tela de recarga, em vez do fluxo correto. 
+Solução aplicada ao incidente: Foi realizado um rollback da alteração, restaurando o link correto nos entry points afetados. Após a correção, os fluxos voltaram a funcionar normalmente, permitindo o envio de internet pelo caminho esperado.
+u_rpt_tempo_total_de_impacto: 1501
+Impacto nos negócios: APLICATIVO VIVO - ENVIAR/PEDIR INTERNET - APP
+Tempo de Impacto: 00:25:01
+Tipo: -
+Spread: Spread
+Mesa: -
+Justificativa: -
+Plano de Ação: -
+Front/Back: B2C","1.000000000000000000000000000000",True,"03a8b2bb-f50e-4d52-9b60-0a293c6365fd","2026-01-12 18:05:17.909","2026-01-12 18:05:17.909","ed705017-fafe-4cc5-9401-06d972dec3d8","ed705017-fafe-4cc5-9401-06d972dec3d8",False,"{""ID"": 21, ""Mesa"": null, ""Tipo"": null, ""Aberto"": ""2025-12-19T16:00:08"", ""Estado"": ""Encerrado"", ""Spread"": ""Spread"", ""Status"": ""Análise de causa raiz"", ""is_app"": true, ""Número"": ""INC3859991"", ""Serviço"": ""Enviar internet"", ""is_ecomm"": false, ""Encerrado"": ""2025-12-26T18:01:47"", ""Resolvido"": ""2025-12-19T17:16:06"", ""Front/Back"": ""B2C"", ""Prioridade"": ""P3"", ""Descrição"": ""» Abrangência: Massivo\n» Frente: B2C Móvel Pré, Controle e Pós\n» Plataforma: Android\n\n»Canal Impactado: App Vivo | Pedir Internet\n» Funcionalidade: Pedir Internet\n\n» Solicitante: QD APPs Automação\n\n» Descrição: Identificamos um direcionamento incorreto da opção Enviar internet no App Vivo.\n\n» Detalhe da Falha: Identificamos um direcionamento incorreto da opção Enviar internet dentro do menu Mais do App Vivo. Ao selecionar menu mais > Pedir Internet somos direcionados para a aba de recarga.\n\n Passo a Passo: App Vivo > Menu Mais > Enviar Internet > Direcionamento incorreto.\n\n\n\n» Observação: Evidências e passo a passo em anexo."", ""Causa Origem"": ""SHADOW IT - SUPORTE NEGÓCIO"", ""Justificativa"": null, ""Canal impactado"": ""APP Vivo"", ""Causa provável"": ""Uma alteração realizada pela equipe de Produtos  sem validação de ERT APP e QD, feita no entry point da funcionalidade \""Enviar Internet\"" no App Vivo direcionou incorretamente os usuários para a tela de recarga, em vez do fluxo correto. "", ""Plano de Ação"": null, ""Atendimento para"": null, ""Tempo de Impacto"": ""00:25:01"", ""Communication State"": null, ""Incidente Primário"": null, ""Descrição resumida"": ""APLICATIVO VIVO - ENVIAR/PEDIR INTERNET - APP"", ""Causado pela mudança"": null, ""Impacto nos negócios"": ""APLICATIVO VIVO - ENVIAR/PEDIR INTERNET - APP"", ""Incidentes secundários"": 0, ""Anotações de resolução"": ""Causa Provável: Uma alteração realizada pela equipe de Produtos  sem validação de ERT APP e QD, feita no entry point da funcionalidade \""Enviar Internet\"" no App Vivo direcionou incorretamente os usuários para a tela de recarga, em vez do fluxo correto. \nSolução aplicada ao incidente: Foi realizado um rollback da alteração, restaurando o link correto nos entry points afetados. Após a correção, os fluxos voltaram a funcionar normalmente, permitindo o envio de internet pelo caminho esperado."", ""u_rpt_tempo_total_de_impacto"": 1501}"
+"ccbdb86d-e3f5-46b2-b5b8-dea873505924",1334,"Mês: 2025-12
+Número: INC3824046
+Prioridade: P3
+Estado: Encerrado
+Communication State: -
+Aberto: 2025-12-05T11:17:00
+Resolvido: 2025-12-05T13:45:25
+Encerrado: 2025-12-12T14:01:54
+Incidente Primário: -
+Incidentes secundários: 0
+Descrição resumida: APLICATIVO VIVO - MINHAS SOLICITAÇÕES
+Descrição: » Abrangência: Massivo
+» Frente: B2C
+» Plataforma: Android | IOS
+
+»Canal Impactado: App Vivo | Minhas Solicitações
+» Funcionalidade: Minhas Solicitações
+
+» Solicitante: QD APPs Sustentação
+
+» Descrição:  Identificado intermitência ao tentar abrir solicitação no App Vivo.
+
+» Detalhe da Falha:  Identificado intermitência ao tentar abrir solicitação no App Vivo.
+
+Após selecionar linha é retornada tela em branco somente com a mensagem ''Como podemos te ajudar?''
+
+Caso fique voltando e acessando a pagina em algum momento aparece as opções.
+
+ Passo a Passo: App Vivo > pra voce > acesso rápido > central de ajuda > minhas solicitações > abrir solicitação > selecionar linha > Falha apresentada
+
+
+» Observação: Evidências e passo a passo em anexo.
+...
+Canal impactado: APP Vivo
+Causa provável: Durante o processo de build de uma nova versão da aplicação no Nexus, por algum motivo ela não foi versionada corretamente. Isso fez com que a atualização ocorresse sobre uma versão já utilizada pelo microserviço customer-request-br.
+
+Após o scale up, com o aumento da volumetria, a versão 1.0.101 foi implantada em produção junto com alguns pods da versão 1.0.100. Como resultado, ao acessar a funcionalidade Minhas Solicitações, dependendo do pod em que o usuário fosse direcionado, ocorria falta de informações na tela de seleção.
+Causa Origem: SISTEMAS - APLICAÇÃO
+Causado pela mudança: -
+Anotações de resolução: Causa Provável: Durante o processo de build de uma nova versão da aplicação no Nexus, por algum motivo ela não foi versionada corretamente. Isso fez com que a atualização ocorresse sobre uma versão já utilizada pelo microserviço customer-request-br.
+
+Após o scale up, com o aumento da volumetria, a versão 1.0.101 foi implantada em produção junto com alguns pods da versão 1.0.100. Como resultado, ao acessar a funcionalidade Minhas Solicitações, dependendo do pod em que o usuário fosse direcionado, ocorria falta de informações na tela de seleção.
+Solução aplicada ao incidente: Correção: CHG0174012 - Emergencial - Ajustado a versão dos pods De: 1.0.101 Para: 1.0.100.
+u_rpt_tempo_total_de_impacto: 4680
+Impacto nos negócios: APLICATIVO VIVO - MINHAS SOLICITAÇÕES
+Tempo de Impacto: 01:18:00
+Tipo: -
+Spread: Spread
+Mesa: -
+Justificativa: -
+Plano de Ação: -
+Front/Back: B2C","0.000000000000000000000000000000",True,"03a8b2bb-f50e-4d52-9b60-0a293c6365fd","2026-01-12 18:05:17.909","2026-01-12 18:05:17.909","ed705017-fafe-4cc5-9401-06d972dec3d8","ed705017-fafe-4cc5-9401-06d972dec3d8",False,"{""ID"": 7, ""Mesa"": null, ""Tipo"": null, ""Aberto"": ""2025-12-05T11:17:00"", ""Estado"": ""Encerrado"", ""Spread"": ""Spread"", ""Status"": ""Análise de causa raiz"", ""is_app"": true, ""Número"": ""INC3824046"", ""Serviço"": ""Minhas Solicitações"", ""is_ecomm"": false, ""Encerrado"": ""2025-12-12T14:01:54"", ""Resolvido"": ""2025-12-05T13:45:25"", ""Front/Back"": ""B2C"", ""Prioridade"": ""P3"", ""Descrição"": ""» Abrangência: Massivo\n» Frente: B2C\n» Plataforma: Android | IOS\n\n»Canal Impactado: App Vivo | Minhas Solicitações\n» Funcionalidade: Minhas Solicitações\n\n» Solicitante: QD APPs Sustentação\n\n» Descrição:  Identificado intermitência ao tentar abrir solicitação no App Vivo.\n\n» Detalhe da Falha:  Identificado intermitência ao tentar abrir solicitação no App Vivo.\n\nApós selecionar linha é retornada tela em branco somente com a mensagem ''Como podemos te ajudar?''\n\nCaso fique voltando e acessando a pagina em algum momento aparece as opções.\n\n Passo a Passo: App Vivo > pra voce > acesso rápido > central de ajuda > minhas solicitações > abrir solicitação > selecionar linha > Falha apresentada\n\n\n» Observação: Evidências e passo a passo em anexo."", ""Causa Origem"": ""SISTEMAS - APLICAÇÃO"", ""Justificativa"": null, ""Canal impactado"": ""APP Vivo"", ""Causa provável"": ""Durante o processo de build de uma nova versão da aplicação no Nexus, por algum motivo ela não foi versionada corretamente. Isso fez com que a atualização ocorresse sobre uma versão já utilizada pelo microserviço customer-request-br.\n\nApós o scale up, com o aumento da volumetria, a versão 1.0.101 foi implantada em produção junto com alguns pods da versão 1.0.100. Como resultado, ao acessar a funcionalidade Minhas Solicitações, dependendo do pod em que o usuário fosse direcionado, ocorria falta de informações na tela de seleção."", ""Plano de Ação"": null, ""Atendimento para"": null, ""Tempo de Impacto"": ""01:18:00"", ""Communication State"": null, ""Incidente Primário"": null, ""Descrição resumida"": ""APLICATIVO VIVO - MINHAS SOLICITAÇÕES"", ""Causado pela mudança"": null, ""Impacto nos negócios"": ""APLICATIVO VIVO - MINHAS SOLICITAÇÕES"", ""Incidentes secundários"": 0, ""Anotações de resolução"": ""Causa Provável: Durante o processo de build de uma nova versão da aplicação no Nexus, por algum motivo ela não foi versionada corretamente. Isso fez com que a atualização ocorresse sobre uma versão já utilizada pelo microserviço customer-request-br.\n\nApós o scale up, com o aumento da volumetria, a versão 1.0.101 foi implantada em produção junto com alguns pods da versão 1.0.100. Como resultado, ao acessar a funcionalidade Minhas Solicitações, dependendo do pod em que o usuário fosse direcionado, ocorria falta de informações na tela de seleção.\nSolução aplicada ao incidente: Correção: CHG0174012 - Emergencial - Ajustado a versão dos pods De: 1.0.101 Para: 1.0.100."", ""u_rpt_tempo_total_de_impacto"": 4680}"
+"e2d88c15-f772-44f1-80d7-84e9e75e616b",1337,"Mês: 2025-12
+Número: INC3833483
+Prioridade: P3
+Estado: Encerrado
+Communication State: -
+Aberto: 2025-12-09T15:47:06
+Resolvido: 2025-12-09T18:10:46
+Encerrado: 2025-12-16T19:00:08
+Incidente Primário: -
+Incidentes secundários: 0
+Descrição resumida: RECARGA MÓVEL - RECARGA ELETRÔNICA
+Descrição: » Abrangência: Massivo
+» Frente: B2C Móvel Pré e Controle
+» Plataforma: Android | IOS
+
+»Canal Impactado: App Vivo | Recarga Digital
+» Funcionalidade: Recarga
+
+» Solicitante: QD E-com Sustentação
+
+» Descrição:  Falha Recarga
+
+» Detalhe da Falha: Identificamos falha ao tentar realizar recarga no APP VIVO. Apresentando a mensagem de erro """"Alg odeu errado ao exibir o código Pix. Tente Novamente mais tarde"""".
+
+ Passo a Passo: App Vivo > Recarga > Selecionar Valor > Copiar Código Pix > Falha apresentada
+
+
+» Observação: Evidências e passo a passo em anexo.
+...
+Canal impactado: APP Vivo, Recarga Digital
+Causa provável: Foi identificado uma latência no parceiro Pix (ARBI).
+Causa Origem: SHADOW IT - SUPORTE NEGÓCIO
+Causado pela mudança: -
+Anotações de resolução: Causa Provável: Foi identificado uma latência no parceiro Pix (ARBI).
+Solução aplicada ao incidente: A equipe da bimobi realizou a troca para outro parceiro, o que estabilizou o ambiente.
+u_rpt_tempo_total_de_impacto: 5098
+Impacto nos negócios: RECARGA MÓVEL - RECARGA ELETRÔNICA
+Tempo de Impacto: 01:24:58
+Tipo: -
+Spread: Spread
+Mesa: -
+Justificativa: -
+Plano de Ação: -
+Front/Back: B2C","0.000000000000000000000000000000",True,"03a8b2bb-f50e-4d52-9b60-0a293c6365fd","2026-01-12 18:05:17.909","2026-01-12 18:05:17.909","ed705017-fafe-4cc5-9401-06d972dec3d8","ed705017-fafe-4cc5-9401-06d972dec3d8",False,"{""ID"": 10, ""Mesa"": null, ""Tipo"": null, ""Aberto"": ""2025-12-09T15:47:06"", ""Estado"": ""Encerrado"", ""Spread"": ""Spread"", ""Status"": ""Análise de causa raiz"", ""is_app"": true, ""Número"": ""INC3833483"", ""Serviço"": ""Recarga"", ""is_ecomm"": false, ""Encerrado"": ""2025-12-16T19:00:08"", ""Resolvido"": ""2025-12-09T18:10:46"", ""Front/Back"": ""B2C"", ""Prioridade"": ""P3"", ""Descrição"": ""» Abrangência: Massivo\n» Frente: B2C Móvel Pré e Controle\n» Plataforma: Android | IOS\n\n»Canal Impactado: App Vivo | Recarga Digital\n» Funcionalidade: Recarga\n\n» Solicitante: QD E-com Sustentação\n\n» Descrição:  Falha Recarga\n\n» Detalhe da Falha: Identificamos falha ao tentar realizar recarga no APP VIVO. Apresentando a mensagem de erro \""\""Alg odeu errado ao exibir o código Pix. Tente Novamente mais tarde\""\"".\n\n Passo a Passo: App Vivo > Recarga > Selecionar Valor > Copiar Código Pix > Falha apresentada\n\n\n» Observação: Evidências e passo a passo em anexo."", ""Causa Origem"": ""SHADOW IT - SUPORTE NEGÓCIO"", ""Justificativa"": null, ""Canal impactado"": ""APP Vivo, Recarga Digital"", ""Causa provável"": ""Foi identificado uma latência no parceiro Pix (ARBI)."", ""Plano de Ação"": null, ""Atendimento para"": null, ""Tempo de Impacto"": ""01:24:58"", ""Communication State"": null, ""Incidente Primário"": null, ""Descrição resumida"": ""RECARGA MÓVEL - RECARGA ELETRÔNICA"", ""Causado pela mudança"": null, ""Impacto nos negócios"": ""RECARGA MÓVEL - RECARGA ELETRÔNICA"", ""Incidentes secundários"": 0, ""Anotações de resolução"": ""Causa Provável: Foi identificado uma latência no parceiro Pix (ARBI).\nSolução aplicada ao incidente: A equipe da bimobi realizou a troca para outro parceiro, o que estabilizou o ambiente."", ""u_rpt_tempo_total_de_impacto"": 5098}"
+"66964aee-4f4f-4c78-b02c-e1c051db87c6",1342,"Mês: 2025-12
+Número: INC3840463
+Prioridade: P3
+Estado: Encerrado
+Communication State: -
+Aberto: 2025-12-12T01:45:10
+Resolvido: 2025-12-12T09:38:57
+Encerrado: 2025-12-19T10:01:21
+Incidente Primário: -
+Incidentes secundários: 5
+Descrição resumida: ACESSO AO SISTEMA - SITE DE COMPRAS - LOGIN - SITE DE COMPRAS - INTERMITÊNCIA
+Descrição: » Abrangência: Massivo
+» Frente: Loja Online de Equipamentos B2B
+» Plataforma: Web - (Chrome + EDGE)
+»Canal Impactado: Loja de Equipamentos B2B 
+» Funcionalidade: Loja de aparelhos B2B
+» Solicitante: QD E-com Sustentação
+» Descrição: Falha no login B2B
+» Detalhe da Falha: Identificado falha ao tentar logar na loja de aparelhos B2B. Ao tentar logar é apresentada a informação 'Algo deu errado com este serviço'.
+ Passo a Passo: Loja de aparelhos B2B -> Clicar em login -> Preencher dados ->Erro 'Algo deu errado com este serviço'
+
+» Observação: Evidências e passo a passo em anexo.
+...
+Canal impactado: Loja Online B2B Móvel, Vivo Empresas, Portal Vivo B2B, Atendimento Call Center B2B
+Causa provável: CHG0166924 - Certificado expirado
+Causa Origem: TI - MUDANCA
+Causado pela mudança: CHG0166924
+Anotações de resolução: Causa Provável: CHG0166924 - Certificado expirado
+Solução aplicada ao incidente: CHG0174745- Deploy do instance no API Gateway Externo, para correção de certificado do salesforce.
+u_rpt_tempo_total_de_impacto: 4320
+Impacto nos negócios: ACESSO AO SISTEMA - SITE DE COMPRAS - LOGIN - SITE DE COMPRAS - INTERMITÊNCIA
+Tempo de Impacto: 01:12:00
+Tipo: -
+Spread: Spread
+Mesa: -
+Justificativa: -
+Plano de Ação: -
+Front/Back: B2B","0.000000000000000000000000000000",True,"03a8b2bb-f50e-4d52-9b60-0a293c6365fd","2026-01-12 18:05:17.909","2026-01-12 18:05:17.909","ed705017-fafe-4cc5-9401-06d972dec3d8","ed705017-fafe-4cc5-9401-06d972dec3d8",False,"{""ID"": 15, ""Mesa"": null, ""Tipo"": null, ""Aberto"": ""2025-12-12T01:45:10"", ""Estado"": ""Encerrado"", ""Spread"": ""Spread"", ""Status"": ""Correção em andamento"", ""is_app"": true, ""Número"": ""INC3840463"", ""Serviço"": ""Login"", ""is_ecomm"": false, ""Encerrado"": ""2025-12-19T10:01:21"", ""Resolvido"": ""2025-12-12T09:38:57"", ""Front/Back"": ""B2B"", ""Prioridade"": ""P3"", ""Descrição"": ""» Abrangência: Massivo\n» Frente: Loja Online de Equipamentos B2B\n» Plataforma: Web - (Chrome + EDGE)\n»Canal Impactado: Loja de Equipamentos B2B \n» Funcionalidade: Loja de aparelhos B2B\n» Solicitante: QD E-com Sustentação\n» Descrição: Falha no login B2B\n» Detalhe da Falha: Identificado falha ao tentar logar na loja de aparelhos B2B. Ao tentar logar é apresentada a informação 'Algo deu errado com este serviço'.\n Passo a Passo: Loja de aparelhos B2B -> Clicar em login -> Preencher dados ->Erro 'Algo deu errado com este serviço'\n\n» Observação: Evidências e passo a passo em anexo."", ""Causa Origem"": ""TI - MUDANCA"", ""Justificativa"": null, ""Canal impactado"": ""Loja Online B2B Móvel, Vivo Empresas, Portal Vivo B2B, Atendimento Call Center B2B"", ""Causa provável"": ""CHG0166924 - Certificado expirado"", ""Plano de Ação"": null, ""Atendimento para"": null, ""Tempo de Impacto"": ""01:12:00"", ""Communication State"": null, ""Incidente Primário"": null, ""Descrição resumida"": ""ACESSO AO SISTEMA - SITE DE COMPRAS - LOGIN - SITE DE COMPRAS - INTERMITÊNCIA"", ""Causado pela mudança"": ""CHG0166924"", ""Impacto nos negócios"": ""ACESSO AO SISTEMA - SITE DE COMPRAS - LOGIN - SITE DE COMPRAS - INTERMITÊNCIA"", ""Incidentes secundários"": 5, ""Anotações de resolução"": ""Causa Provável: CHG0166924 - Certificado expirado\nSolução aplicada ao incidente: CHG0174745- Deploy do instance no API Gateway Externo, para correção de certificado do salesforce.\n"", ""u_rpt_tempo_total_de_impacto"": 4320}"
+"80de0266-a3c4-4294-9b80-912d21c6cda1",2466,"Mês: 2025-12
+Categoria: APP
+Tipo: Resumo executivo + FAQ (treinamento RAG)
+
+KPIs do mês
+- Total de incidentes críticos (P1–P3): 0
+- P1: 0 | P2: 0 | P3: 0
+- Tempo total de impacto (soma): 00:00:00
+- Parada sistêmica (classificação por texto: INDISPONIBILIDADE / TELA DE MANUTENÇÃO): 00:00:00
+- MTTR (tempo médio de solução, baseado em u_rpt_tempo_total_de_impacto): N/A
+- Incidentes causados por mudança (Causado pela mudança preenchido ou Causa Origem indicando mudança): 0
+- Incidente de maior impacto: N/A
+
+Perguntas frequentes (Q&A) — sempre para APP no mês 2025-12
+1) Quais incidentes tivemos neste mês?
+- Total: 0 (P1=0, P2=0, P3=0)
+- Lista (top por impacto): 
+- Nenhum
+
+2) Para a funcionalidade X, quantos incidentes tivemos no mês de 2025-12?
+- Use a tabela “Incidentes por funcionalidade” abaixo. Ex.: se X = “Checkout”, procure “Checkout” e veja o total.
+
+3) Quais incidentes geraram indisponibilidade sistêmica no mês 2025-12?
+- Considerados “parada sistêmica” quando a descrição resumida contém “INDISPONIBILIDADE” ou “TELA DE MANUTENÇÃO”.
+- Total classificado: 0 | Tempo somado: 00:00:00
+
+4) Qual incidente teve maior impacto no mês 2025-12?
+- N/A
+
+5) Qual o tempo de parada sistêmica para operação APP no mês 2025-12?
+- 00:00:00
+
+6) Qual o tempo médio de solução (MTTR) no mês 2025-12?
+- N/A
+
+7) Quais incidentes foram causados por uma change/mudança no mês 2025-12?
+- Total: 0
+- Critério: “Causado pela mudança” preenchido ou “Causa Origem” indicando mudança.
+
+8) Me traga um resumo executivo dos incidentes para o mês 2025-12
+- APP | 2025-12: 0 incidentes críticos (P1=0, P2=0, P3=0).
+- Impacto total somado: 00:00:00. Parada sistêmica: 00:00:00. MTTR: N/A.
+- Maior impacto: N/A.
+- Mudança/CHG: 0 incidentes com indício de mudança.
+
+9) Me traga um resumo dos incidentes do mês com principais causas.
+- Principais “Causa Origem” (top): Não informado
+
+10) Me traga um comparativo de incidentes da funcionalidade X no mês 2025-12
+- Compare a funcionalidade X com as demais no quadro “Incidentes por funcionalidade” (ranking e volume).
+
+11) Quantos incidentes P1 tivemos no mês 2025-12?
+- P1: 0
+
+Incidentes por funcionalidade (Top 10)
+- Não informado","1.000000000000000000000000000000",False,"03a8b2bb-f50e-4d52-9b60-0a293c6365fd","2026-02-10 19:16:39.188","2026-02-10 19:22:55.861","ed705017-fafe-4cc5-9401-06d972dec3d8","7617dda6-1670-4534-a336-83bbf0fbcf3b",True,"{""kpis"": {""total"": 0, ""by_priority"": {""P1"": 0, ""P2"": 0, ""P3"": 0}, ""mttr_hhmmss"": null, ""systemic_total"": 0, ""change_caused_total"": 0, ""total_impact_hhmmss"": ""00:00:00"", ""systemic_impact_hhmmss"": ""00:00:00""}, ""month"": ""2025-12"", ""category"": ""APP"", ""doc_type"": ""exec_summary_monthly_faq"", ""createdBy"": ""ed705017-fafe-4cc5-9401-06d972dec3d8"", ""updatedBy"": ""ed705017-fafe-4cc5-9401-06d972dec3d8"", ""top_incident"": null, ""top_incidents"": [], ""top_causas_origem"": {}, ""top_funcionalidades"": {}}"
+"139ad2dd-fd7f-4c4d-8d9d-2dff0f57c530",2480,"Mês: 2025-12
+Categoria: APP
+
+Resumo executivo:
+- Total de incidentes críticos para operar o app: 26
+- P1: 0 | P2: 2 | P3: 24
+
+Fonte: insert_Article_2025-12_app_FULLTEXT.txt","1.000000000000000000000000000000",True,"03a8b2bb-f50e-4d52-9b60-0a293c6365fd","2026-02-10 20:36:44.425","2026-04-16 19:00:07.617","ed705017-fafe-4cc5-9401-06d972dec3d8","7617dda6-1670-4534-a336-83bbf0fbcf3b",False,"{""month"": ""2025-12"", ""total"": 26, ""category"": ""APP"", ""by_priority"": {""P1"": 0, ""P2"": 2, ""P3"": 24}, ""source_file"": ""insert_Article_2025-12_app_FULLTEXT.txt""}"
+"5b5263e1-cc57-4f3b-a86d-42f5c22498b7",1331,"Mês: 2025-12
+Número: INC3822452
+Prioridade: P3
+Estado: Encerrado
+Communication State: -
+Aberto: 2025-12-04T16:12:29
+Resolvido: 2025-12-09T07:18:25
+Encerrado: 2025-12-16T08:00:17
+Incidente Primário: -
+Incidentes secundários: 0
+Descrição resumida: RECARGA MÓVEL - RECARGA ELETRÔNICA
+Descrição: ""» Abrangência: Massivo
+» Frente: B2C Móvel Pré e Controle
+» Plataforma: Android | IOS
+
+»Canal Impactado: App Vivo | Recarga Digital
+» Funcionalidade: Recarga
+
+» Solicitante: QD E-com Sustentação
+
+» Descrição:  Falha Recarga
+
+» Detalhe da Falha: Identificamos Queda em Vendas no Grafana e falha em realizar a recarga no app vivo
+
+ Passo a Passo: App Vivo > Assinaturas > Recarga > Fazer recarga > Selecionar linha > gerar código pix > falha apresentada
+
+
+» Observação: Evidências e passo a passo em anexo.
+...
+Canal impactado: APP Vivo, Recarga Digital
+Causa provável: Oscilação no ambiente do parceiro Bemobi. Será analisado via RCA pelo parceiro.
+Causa Origem: SHADOW IT - SUPORTE NEGÓCIO
+Causado pela mudança: -
+Anotações de resolução: Causa Provável: Oscilação no ambiente do parceiro Bemobi. Será analisado via RCA pelo parceiro.
+Solução aplicada ao incidente: Após período de oscilação ambiente foi normalizado.
+u_rpt_tempo_total_de_impacto: 780
+Impacto nos negócios: RECARGA MÓVEL - RECARGA ELETRÔNICA
+Tempo de Impacto: 00:13:00
+Tipo: -
+Spread: Spread
+Mesa: -
+Justificativa: -
+Plano de Ação: -
+Front/Back: B2C","3.000000000000000000000000000000",True,"03a8b2bb-f50e-4d52-9b60-0a293c6365fd","2026-01-12 18:05:17.909","2026-01-12 18:05:17.909","ed705017-fafe-4cc5-9401-06d972dec3d8","ed705017-fafe-4cc5-9401-06d972dec3d8",False,"{""ID"": 4, ""Mesa"": null, ""Tipo"": null, ""Aberto"": ""2025-12-04T16:12:29"", ""Estado"": ""Encerrado"", ""Spread"": ""Spread"", ""Status"": ""Encerrado"", ""is_app"": true, ""Número"": ""INC3822452"", ""Serviço"": ""Recarga"", ""is_ecomm"": false, ""Encerrado"": ""2025-12-16T08:00:17"", ""Resolvido"": ""2025-12-09T07:18:25"", ""Front/Back"": ""B2C"", ""Prioridade"": ""P3"", ""Descrição"": ""\""» Abrangência: Massivo\n» Frente: B2C Móvel Pré e Controle\n» Plataforma: Android | IOS\n\n»Canal Impactado: App Vivo | Recarga Digital\n» Funcionalidade: Recarga\n\n» Solicitante: QD E-com Sustentação\n\n» Descrição:  Falha Recarga\n\n» Detalhe da Falha: Identificamos Queda em Vendas no Grafana e falha em realizar a recarga no app vivo\n\n Passo a Passo: App Vivo > Assinaturas > Recarga > Fazer recarga > Selecionar linha > gerar código pix > falha apresentada\n\n\n» Observação: Evidências e passo a passo em anexo."", ""Causa Origem"": ""SHADOW IT - SUPORTE NEGÓCIO"", ""Justificativa"": null, ""Canal impactado"": ""APP Vivo, Recarga Digital"", ""Causa provável"": ""Oscilação no ambiente do parceiro Bemobi. Será analisado via RCA pelo parceiro."", ""Plano de Ação"": null, ""Atendimento para"": null, ""Tempo de Impacto"": ""00:13:00"", ""Communication State"": null, ""Incidente Primário"": null, ""Descrição resumida"": ""RECARGA MÓVEL - RECARGA ELETRÔNICA"", ""Causado pela mudança"": null, ""Impacto nos negócios"": ""RECARGA MÓVEL - RECARGA ELETRÔNICA"", ""Incidentes secundários"": 0, ""Anotações de resolução"": ""Causa Provável: Oscilação no ambiente do parceiro Bemobi. Será analisado via RCA pelo parceiro.\nSolução aplicada ao incidente: Após período de oscilação ambiente foi normalizado."", ""u_rpt_tempo_total_de_impacto"": 780}"
+"464ea0fc-475d-4c03-9d8a-0ab6bc1f49a5",1329,"Mês: 2025-12
+Número: INC3816810
+Prioridade: P3
+Estado: Encerrado
+Communication State: -
+Aberto: 2025-12-03T09:41:26
+Resolvido: 2025-12-03T11:09:14
+Encerrado: 2025-12-10T12:02:02
+Incidente Primário: -
+Incidentes secundários: 0
+Descrição resumida: LOJA ONLINE - VITRINE
+Descrição: » Abrangência: Massivo
+» Frente: Consumer Eletronics
+» Plataforma: Android | IOS
+
+»Canal Impactado: Loja Online Aparelhos B2C
+» Funcionalidade: Falha ao acessar ps5
+
+» Solicitante: QD E-com Sustentação
+
+» Descrição: Falha ao acessar banner PS5 Slim
+
+» Detalhe da Falha: Identificamos falha ao acessar o banner do ps5 slim (natal vivo) na categoria especiais pra você na aba pra você
+
+ Passo a Passo: aba pra você> categoria especiais pra você> banner natal vivo compre um ps5> tela de erro ao clicar
+
+
+» Observação: Evidências e passo a passo em anexo.
+...
+Canal impactado: Loja Online Aparelhos B2C, APP Vivo
+Causa provável: SKU indicado na url está desaprovado.
+Causa Origem: SHADOW IT - SUPORTE NEGÓCIO
+Causado pela mudança: -
+Anotações de resolução: Causa Provável: SKU indicado na url está desaprovado.
+Solução aplicada ao incidente: Remoção do banner , até a mesa providenciar o link correto.
+u_rpt_tempo_total_de_impacto: 320
+Impacto nos negócios: LOJA ONLINE - VITRINE
+Tempo de Impacto: 00:05:20
+Tipo: -
+Spread: Spread
+Mesa: -
+Justificativa: -
+Plano de Ação: -
+Front/Back: B2C","0.000000000000000000000000000000",True,"03a8b2bb-f50e-4d52-9b60-0a293c6365fd","2026-01-12 18:05:17.909","2026-01-12 18:05:17.909","ed705017-fafe-4cc5-9401-06d972dec3d8","ed705017-fafe-4cc5-9401-06d972dec3d8",False,"{""ID"": 2, ""Mesa"": null, ""Tipo"": null, ""Aberto"": ""2025-12-03T09:41:26"", ""Estado"": ""Encerrado"", ""Spread"": ""Spread"", ""Status"": ""Encerrado"", ""is_app"": true, ""Número"": ""INC3816810"", ""Serviço"": ""Banners"", ""is_ecomm"": false, ""Encerrado"": ""2025-12-10T12:02:02"", ""Resolvido"": ""2025-12-03T11:09:14"", ""Front/Back"": ""B2C"", ""Prioridade"": ""P3"", ""Descrição"": ""» Abrangência: Massivo\n» Frente: Consumer Eletronics\n» Plataforma: Android | IOS\n\n»Canal Impactado: Loja Online Aparelhos B2C\n» Funcionalidade: Falha ao acessar ps5\n\n» Solicitante: QD E-com Sustentação\n\n» Descrição: Falha ao acessar banner PS5 Slim\n\n» Detalhe da Falha: Identificamos falha ao acessar o banner do ps5 slim (natal vivo) na categoria especiais pra você na aba pra você\n\n Passo a Passo: aba pra você> categoria especiais pra você> banner natal vivo compre um ps5> tela de erro ao clicar\n\n\n» Observação: Evidências e passo a passo em anexo."", ""Causa Origem"": ""SHADOW IT - SUPORTE NEGÓCIO"", ""Justificativa"": null, ""Canal impactado"": ""Loja Online Aparelhos B2C, APP Vivo"", ""Causa provável"": ""SKU indicado na url está desaprovado."", ""Plano de Ação"": null, ""Atendimento para"": null, ""Tempo de Impacto"": ""00:05:20"", ""Communication State"": null, ""Incidente Primário"": null, ""Descrição resumida"": ""LOJA ONLINE - VITRINE"", ""Causado pela mudança"": null, ""Impacto nos negócios"": ""LOJA ONLINE - VITRINE"", ""Incidentes secundários"": 0, ""Anotações de resolução"": ""Causa Provável: SKU indicado na url está desaprovado.\nSolução aplicada ao incidente: Remoção do banner , até a mesa providenciar o link correto."", ""u_rpt_tempo_total_de_impacto"": 320}"
+"a6a50c73-1b91-4fb6-b7e3-164e84734abc",1330,"Mês: 2025-12
+Número: INC3816893
+Prioridade: P3
+Estado: Encerrado
+Communication State: -
+Aberto: 2025-12-03T09:58:08
+Resolvido: 2025-12-03T12:36:13
+Encerrado: 2025-12-10T13:01:57
+Incidente Primário: -
+Incidentes secundários: 3
+Descrição resumida: APLICATIVO VIVO - BENEFÍCIOS
+Descrição: » Abrangência: Massivo
+» Frente: B2C Móvel Pré, Controle e Pós
+» Plataforma: Android | IOS
+
+»Canal Impactado: App Vivo | Aba Benefícios
+» Funcionalidade: Aba Beneficios
+
+» Solicitante: QD APPs Sustentação
+
+» Descrição: Identificamos lentidão no carregamento da Aba Benefícios no App Vivo.
+
+» Detalhe da Falha: Identificamos lentidão no carregamento da Aba Benefícios no App Vivo.
+
+
+ Passo a Passo: App Vivo >  Aba Benefícios > Apresenta Intermitência
+
+
+» Observação: Evidências e passo a passo em anexo.
+...
+Canal impactado: APP Vivo
+Causa provável: CHG0171781 (BSIM VIVO VALORIZA)-Vale Bonus (PRB0070595)
+Causa Origem: TI - MUDANCA
+Causado pela mudança: CHG0171781
+Anotações de resolução: Causa Provável: CHG0171781 (BSIM VIVO VALORIZA)-Vale Bonus (PRB0070595)
+Solução aplicada ao incidente: - Realizado rollback total do rollback da CHG0171781 
+- Dimensionamento de CPU do banco de dados do valoriza de 16 para 32;
+u_rpt_tempo_total_de_impacto: 11700
+Impacto nos negócios: APLICATIVO VIVO - BENEFÍCIOS
+Tempo de Impacto: 03:15:00
+Tipo: -
+Spread: Spread
+Mesa: -
+Justificativa: -
+Plano de Ação: -
+Front/Back: B2C","0.000000000000000000000000000000",True,"03a8b2bb-f50e-4d52-9b60-0a293c6365fd","2026-01-12 18:05:17.909","2026-01-12 18:05:17.909","ed705017-fafe-4cc5-9401-06d972dec3d8","ed705017-fafe-4cc5-9401-06d972dec3d8",False,"{""ID"": 3, ""Mesa"": null, ""Tipo"": null, ""Aberto"": ""2025-12-03T09:58:08"", ""Estado"": ""Encerrado"", ""Spread"": ""Spread"", ""Status"": ""Correção em andamento"", ""is_app"": true, ""Número"": ""INC3816893"", ""Serviço"": ""Aba Beneficios"", ""is_ecomm"": false, ""Encerrado"": ""2025-12-10T13:01:57"", ""Resolvido"": ""2025-12-03T12:36:13"", ""Front/Back"": ""B2C"", ""Prioridade"": ""P3"", ""Descrição"": ""» Abrangência: Massivo\n» Frente: B2C Móvel Pré, Controle e Pós\n» Plataforma: Android | IOS\n\n»Canal Impactado: App Vivo | Aba Benefícios\n» Funcionalidade: Aba Beneficios\n\n» Solicitante: QD APPs Sustentação\n\n» Descrição: Identificamos lentidão no carregamento da Aba Benefícios no App Vivo.\n\n» Detalhe da Falha: Identificamos lentidão no carregamento da Aba Benefícios no App Vivo.\n\n\n Passo a Passo: App Vivo >  Aba Benefícios > Apresenta Intermitência\n\n\n» Observação: Evidências e passo a passo em anexo."", ""Causa Origem"": ""TI - MUDANCA"", ""Justificativa"": null, ""Canal impactado"": ""APP Vivo"", ""Causa provável"": ""CHG0171781 (BSIM VIVO VALORIZA)-Vale Bonus (PRB0070595)"", ""Plano de Ação"": null, ""Atendimento para"": null, ""Tempo de Impacto"": ""03:15:00"", ""Communication State"": null, ""Incidente Primário"": null, ""Descrição resumida"": ""APLICATIVO VIVO - BENEFÍCIOS"", ""Causado pela mudança"": ""CHG0171781"", ""Impacto nos negócios"": ""APLICATIVO VIVO - BENEFÍCIOS"", ""Incidentes secundários"": 3, ""Anotações de resolução"": ""Causa Provável: CHG0171781 (BSIM VIVO VALORIZA)-Vale Bonus (PRB0070595)\nSolução aplicada ao incidente: - Realizado rollback total do rollback da CHG0171781 \n- Dimensionamento de CPU do banco de dados do valoriza de 16 para 32;"", ""u_rpt_tempo_total_de_impacto"": 11700}"
+"31dbd734-d303-4d2b-b575-c11e0090e1c2",1344,"Mês: 2025-12
+Número: INC3848485
+Prioridade: P3
+Estado: Encerrado
+Communication State: -
+Aberto: 2025-12-15T19:10:00
+Resolvido: 2025-12-15T22:21:48
+Encerrado: 2025-12-22T23:00:17
+Incidente Primário: -
+Incidentes secundários: 0
+Descrição resumida: LOJA ONLINE - FIDELIZAÇÃO
+Descrição: » Abrangência: Massivo
+» Frente: Consumer Eletronics
+» Plataforma: Web - (Chrome + EDGE)
+
+»Canal Impactado: Loja Online Aparelhos B2C
+» Funcionalidade: Store Vivo
+
+» Solicitante: Mesa de Negócio 
+
+» Descrição: Fidelização
+
+» Detalhe da Falha: Foi Identificado ausência de fidelização na loja Store Vivo para clientes aptos a oferta. 
+
+ Passo a Passo: Store Vivo -> Selecionar aparelho -> Falha ao exibir fidelização
+
+
+» Observação: Evidências e passo a passo em anexo.
+...
+Canal impactado: Loja Online Aparelhos B2C, APP Vivo
+Causa provável: Mudança Ofensora CHG0173909[SAP Cloud] - Ligue da Feature Flag - Projeto Master ] pela equipe (VIVO_DIGITAL-ECOMMERCE_PRODUCAO).
+Causa Origem: TI - MUDANCA
+Causado pela mudança: CHG0173909
+Anotações de resolução: Causa Provável: Mudança Ofensora CHG0173909[SAP Cloud] - Ligue da Feature Flag - Projeto Master ] pela equipe (VIVO_DIGITAL-ECOMMERCE_PRODUCAO).
+Solução aplicada ao incidente: Foi realizado o desligue da Feature Flag - Projeto Master - CHG0175150
+u_rpt_tempo_total_de_impacto: 1200
+Impacto nos negócios: LOJA ONLINE - FIDELIZAÇÃO
+Tempo de Impacto: 00:20:00
+Tipo: -
+Spread: Spread
+Mesa: -
+Justificativa: -
+Plano de Ação: -
+Front/Back: B2C","1.000000000000000000000000000000",True,"03a8b2bb-f50e-4d52-9b60-0a293c6365fd","2026-01-12 18:05:17.909","2026-01-12 18:05:17.909","ed705017-fafe-4cc5-9401-06d972dec3d8","ed705017-fafe-4cc5-9401-06d972dec3d8",False,"{""ID"": 17, ""Mesa"": null, ""Tipo"": null, ""Aberto"": ""2025-12-15T19:10:00"", ""Estado"": ""Encerrado"", ""Spread"": ""Spread"", ""Status"": ""Análise de causa raiz"", ""is_app"": true, ""Número"": ""INC3848485"", ""Serviço"": ""Fidelização Eletronicos"", ""is_ecomm"": false, ""Encerrado"": ""2025-12-22T23:00:17"", ""Resolvido"": ""2025-12-15T22:21:48"", ""Front/Back"": ""B2C"", ""Prioridade"": ""P3"", ""Descrição"": ""» Abrangência: Massivo\n» Frente: Consumer Eletronics\n» Plataforma: Web - (Chrome + EDGE)\n\n»Canal Impactado: Loja Online Aparelhos B2C\n» Funcionalidade: Store Vivo\n\n» Solicitante: Mesa de Negócio \n\n» Descrição: Fidelização\n\n» Detalhe da Falha: Foi Identificado ausência de fidelização na loja Store Vivo para clientes aptos a oferta. \n\n Passo a Passo: Store Vivo -> Selecionar aparelho -> Falha ao exibir fidelização\n\n\n» Observação: Evidências e passo a passo em anexo."", ""Causa Origem"": ""TI - MUDANCA"", ""Justificativa"": null, ""Canal impactado"": ""Loja Online Aparelhos B2C, APP Vivo"", ""Causa provável"": ""Mudança Ofensora CHG0173909[SAP Cloud] - Ligue da Feature Flag - Projeto Master ] pela equipe (VIVO_DIGITAL-ECOMMERCE_PRODUCAO)."", ""Plano de Ação"": null, ""Atendimento para"": null, ""Tempo de Impacto"": ""00:20:00"", ""Communication State"": null, ""Incidente Primário"": null, ""Descrição resumida"": ""LOJA ONLINE - FIDELIZAÇÃO"", ""Causado pela mudança"": ""CHG0173909"", ""Impacto nos negócios"": ""LOJA ONLINE - FIDELIZAÇÃO"", ""Incidentes secundários"": 0, ""Anotações de resolução"": ""Causa Provável: Mudança Ofensora CHG0173909[SAP Cloud] - Ligue da Feature Flag - Projeto Master ] pela equipe (VIVO_DIGITAL-ECOMMERCE_PRODUCAO).\nSolução aplicada ao incidente: Foi realizado o desligue da Feature Flag - Projeto Master - CHG0175150"", ""u_rpt_tempo_total_de_impacto"": 1200}"
+"38bda8df-e23d-48ee-a301-e0c5e0a79dd4",1345,"Mês: 2025-12
+Número: INC3848836
+Prioridade: P3
+Estado: Encerrado
+Communication State: -
+Aberto: 2025-12-16T08:04:54
+Resolvido: 2025-12-16T10:38:17
+Encerrado: 2025-12-23T11:01:49
+Incidente Primário: -
+Incidentes secundários: 2
+Descrição resumida: APLICATIVO VIVO - FATURA - PAGAMENTO
+Descrição: » Abrangência: Massivo
+» Frente: B2C
+» Plataforma: Android | IOS
+
+»Canal Impactado: App Vivo | Central de Faturas
+» Funcionalidade: Pagar Fatura
+
+» Solicitante: QD APPs Automação
+
+» Descrição:  Identificado falha ao tentar pagar fatura no App vivo
+
+» Detalhe da Falha:   Identificado falha ao tentar pagar fatura no App vivo.
+
+Ao tentar pagar fatura é retornada mensagem ''Algo deu errado. Tente de novo mais tarde. Voce pode tentar de novo agora ou fazer isso mais tarde. referencia de bug(código de erro)''
+
+ Passo a Passo: App Vivo > pra voce > acesso rápido > central de faturas > pagar agora > falha apresentada
+
+
+» Observação: Evidências e passo a passo em anexo.
+...
+Canal impactado: APP Vivo
+Causa provável: CHG0174210 - [Subida da policy na virtualização da API de Webviews para testes em ambiente de Darklaunch do APP Gestor]
+Causa Origem: TI - MUDANCA
+Causado pela mudança: CHG0174210
+Anotações de resolução: Causa Provável: CHG0174210 - [Subida da policy na virtualização da API de Webviews para testes em ambiente de Darklaunch do APP Gestor]
+Solução aplicada ao incidente: Realizado o rollback através da CHG0175189
+u_rpt_tempo_total_de_impacto: 10149
+Impacto nos negócios: APLICATIVO VIVO - FATURA - PAGAMENTO
+Tempo de Impacto: 02:49:09
+Tipo: -
+Spread: Spread
+Mesa: -
+Justificativa: -
+Plano de Ação: -
+Front/Back: B2C","0.000000000000000000000000000000",True,"03a8b2bb-f50e-4d52-9b60-0a293c6365fd","2026-01-12 18:05:17.909","2026-01-12 18:05:17.909","ed705017-fafe-4cc5-9401-06d972dec3d8","ed705017-fafe-4cc5-9401-06d972dec3d8",False,"{""ID"": 18, ""Mesa"": null, ""Tipo"": null, ""Aberto"": ""2025-12-16T08:04:54"", ""Estado"": ""Encerrado"", ""Spread"": ""Spread"", ""Status"": ""Análise de causa raiz"", ""is_app"": true, ""Número"": ""INC3848836"", ""Serviço"": ""Pagar Fatura"", ""is_ecomm"": false, ""Encerrado"": ""2025-12-23T11:01:49"", ""Resolvido"": ""2025-12-16T10:38:17"", ""Front/Back"": ""B2C"", ""Prioridade"": ""P3"", ""Descrição"": ""» Abrangência: Massivo\n» Frente: B2C\n» Plataforma: Android | IOS\n\n»Canal Impactado: App Vivo | Central de Faturas\n» Funcionalidade: Pagar Fatura\n\n» Solicitante: QD APPs Automação\n\n» Descrição:  Identificado falha ao tentar pagar fatura no App vivo\n\n» Detalhe da Falha:   Identificado falha ao tentar pagar fatura no App vivo.\n\nAo tentar pagar fatura é retornada mensagem ''Algo deu errado. Tente de novo mais tarde. Voce pode tentar de novo agora ou fazer isso mais tarde. referencia de bug(código de erro)''\n\n Passo a Passo: App Vivo > pra voce > acesso rápido > central de faturas > pagar agora > falha apresentada\n\n\n» Observação: Evidências e passo a passo em anexo."", ""Causa Origem"": ""TI - MUDANCA"", ""Justificativa"": null, ""Canal impactado"": ""APP Vivo"", ""Causa provável"": ""CHG0174210 - [Subida da policy na virtualização da API de Webviews para testes em ambiente de Darklaunch do APP Gestor]"", ""Plano de Ação"": null, ""Atendimento para"": null, ""Tempo de Impacto"": ""02:49:09"", ""Communication State"": null, ""Incidente Primário"": null, ""Descrição resumida"": ""APLICATIVO VIVO - FATURA - PAGAMENTO"", ""Causado pela mudança"": ""CHG0174210"", ""Impacto nos negócios"": ""APLICATIVO VIVO - FATURA - PAGAMENTO"", ""Incidentes secundários"": 2, ""Anotações de resolução"": ""Causa Provável: CHG0174210 - [Subida da policy na virtualização da API de Webviews para testes em ambiente de Darklaunch do APP Gestor]\nSolução aplicada ao incidente: Realizado o rollback através da CHG0175189"", ""u_rpt_tempo_total_de_impacto"": 10149}"
+"acc5d8aa-f57d-48b0-b00b-7295c257fded",1351,"Mês: 2025-12
+Número: INC3864497
+Prioridade: P3
+Estado: Encerrado
+Communication State: -
+Aberto: 2025-12-22T16:12:54
+Resolvido: 2025-12-22T17:05:23
+Encerrado: 2025-12-29T18:02:20
+Incidente Primário: -
+Incidentes secundários: 0
+Descrição resumida: RECARGA MÓVEL - RECARGA ELETRÔNICA
+Descrição: » Abrangência: Massivo
+» Frente: B2C Móvel Pré e Controle
+» Plataforma: Android | IOS
+
+»Canal Impactado: App Vivo | Recarga Digital
+» Funcionalidade: Recarga
+
+» Solicitante: QD E-com Sustentação
+
+» Descrição:  Falha Recarga
+
+» Detalhe da Falha: Identificamos falha ao tentar realizar recarga no APP VIVO. Apresentando a mensagem de erro """"Algo deu errado ao exibir o código Pix. Tente Novamente mais tarde"""".
+
+ Passo a Passo: App Vivo > Recarga > Selecionar Valor > Copiar Código Pix > Falha apresentada
+
+
+» Observação: Evidências e passo a passo em anexo.
+...
+Canal impactado: APP Vivo, Recarga Digital
+Causa provável: Degradação no parceiro Bemobi.
+Causa Origem: SHADOW IT - SUPORTE NEGÓCIO
+Causado pela mudança: -
+Anotações de resolução: Causa Provável: Degradação no parceiro Bemobi.
+Solução aplicada ao incidente: Normalizado após período de intermitencia no parceiro Bemobi.
+u_rpt_tempo_total_de_impacto: 303
+Impacto nos negócios: RECARGA MÓVEL - RECARGA ELETRÔNICA
+Tempo de Impacto: 00:05:03
+Tipo: -
+Spread: Spread
+Mesa: -
+Justificativa: -
+Plano de Ação: -
+Front/Back: B2C","0.000000000000000000000000000000",True,"03a8b2bb-f50e-4d52-9b60-0a293c6365fd","2026-01-12 18:05:17.909","2026-01-12 18:05:17.909","ed705017-fafe-4cc5-9401-06d972dec3d8","ed705017-fafe-4cc5-9401-06d972dec3d8",False,"{""ID"": 24, ""Mesa"": null, ""Tipo"": null, ""Aberto"": ""2025-12-22T16:12:54"", ""Estado"": ""Encerrado"", ""Spread"": ""Spread"", ""Status"": ""Encerrado"", ""is_app"": true, ""Número"": ""INC3864497"", ""Serviço"": ""Recarga"", ""is_ecomm"": false, ""Encerrado"": ""2025-12-29T18:02:20"", ""Resolvido"": ""2025-12-22T17:05:23"", ""Front/Back"": ""B2C"", ""Prioridade"": ""P3"", ""Descrição"": ""» Abrangência: Massivo\n» Frente: B2C Móvel Pré e Controle\n» Plataforma: Android | IOS\n\n»Canal Impactado: App Vivo | Recarga Digital\n» Funcionalidade: Recarga\n\n» Solicitante: QD E-com Sustentação\n\n» Descrição:  Falha Recarga\n\n» Detalhe da Falha: Identificamos falha ao tentar realizar recarga no APP VIVO. Apresentando a mensagem de erro \""\""Algo deu errado ao exibir o código Pix. Tente Novamente mais tarde\""\"".\n\n Passo a Passo: App Vivo > Recarga > Selecionar Valor > Copiar Código Pix > Falha apresentada\n\n\n» Observação: Evidências e passo a passo em anexo."", ""Causa Origem"": ""SHADOW IT - SUPORTE NEGÓCIO"", ""Justificativa"": null, ""Canal impactado"": ""APP Vivo, Recarga Digital"", ""Causa provável"": ""Degradação no parceiro Bemobi."", ""Plano de Ação"": null, ""Atendimento para"": null, ""Tempo de Impacto"": ""00:05:03"", ""Communication State"": null, ""Incidente Primário"": null, ""Descrição resumida"": ""RECARGA MÓVEL - RECARGA ELETRÔNICA"", ""Causado pela mudança"": null, ""Impacto nos negócios"": ""RECARGA MÓVEL - RECARGA ELETRÔNICA"", ""Incidentes secundários"": 0, ""Anotações de resolução"": ""Causa Provável: Degradação no parceiro Bemobi.\nSolução aplicada ao incidente: Normalizado após período de intermitencia no parceiro Bemobi."", ""u_rpt_tempo_total_de_impacto"": 303}"
+"1844fc7d-39b4-4706-b34e-8fac2926005c",1198,"1225","0.000000000000000000000000000000",False,"03a8b2bb-f50e-4d52-9b60-0a293c6365fd","2026-01-12 15:12:56.822","2026-01-12 18:06:22.095","7617dda6-1670-4534-a336-83bbf0fbcf3b","7617dda6-1670-4534-a336-83bbf0fbcf3b",True,NULL
+"5b5972af-c0e8-40a3-88e8-b5e3fa29dd43",1339,"Mês: 2025-12
+Número: INC3836495
+Prioridade: P3
+Estado: Encerrado
+Communication State: -
+Aberto: 2025-12-10T16:35:55
+Resolvido: 2025-12-10T17:14:22
+Encerrado: 2025-12-17T18:02:01
+Incidente Primário: -
+Incidentes secundários: 2
+Descrição resumida: APLICATIVO VIVO - PACOTES ADICIONAIS - CONTRATAR PACOTE
+Descrição: » Abrangência: Massivo
+» Frente: B2C Móvel Pré
+» Plataforma: Android
+
+»Canal Impactado: App Vivo | Pacotes Adicionais 
+» Funcionalidade: Pacotes adicionais 
+
+» Solicitante: QD APPs Automação
+
+» Descrição: Falha na funcionalidade Pacotes adicionais 
+
+» Detalhe da Falha: Identificamos falha massiva na funcionalidade comprar pacotes adicionais, problema  apresentada : """"Looping Infinito""""
+
+ Passo a Passo: App Vivo > Aba Assinatura > card assinatura > comprar pacotes adicionais > falha apresentada 
+
+
+» Observação: Evidências e passo a passo em anexo.
+...
+Canal impactado: APP Vivo
+Causa provável: Queda das portas do storage, que afetou a comunicação com o banco e os serviços dependentes.
+Causa Origem: INFRAESTRUTURA - STORAGE
+Causado pela mudança: -
+Anotações de resolução: Causa Provável: Queda das portas do storage, que afetou a comunicação com o banco e os serviços dependentes.
+Solução aplicada ao incidente: Realizado a subida do banco PORTPR nas máquinas brtlvlts0517fu e brtlvlts0518fu e ambiente foi normalizado.
+u_rpt_tempo_total_de_impacto: 300
+Impacto nos negócios: APLICATIVO VIVO - PACOTES ADICIONAIS - CONTRATAR PACOTE
+Tempo de Impacto: 00:05:00
+Tipo: -
+Spread: Spread
+Mesa: -
+Justificativa: -
+Plano de Ação: -
+Front/Back: B2C","24.000000000000000000000000000000",True,"03a8b2bb-f50e-4d52-9b60-0a293c6365fd","2026-01-12 18:05:17.909","2026-01-12 18:05:17.909","ed705017-fafe-4cc5-9401-06d972dec3d8","ed705017-fafe-4cc5-9401-06d972dec3d8",False,"{""ID"": 12, ""Mesa"": null, ""Tipo"": null, ""Aberto"": ""2025-12-10T16:35:55"", ""Estado"": ""Encerrado"", ""Spread"": ""Spread"", ""Status"": ""Análise de causa raiz"", ""is_app"": true, ""Número"": ""INC3836495"", ""Serviço"": ""Pacotes adicionais"", ""is_ecomm"": false, ""Encerrado"": ""2025-12-17T18:02:01"", ""Resolvido"": ""2025-12-10T17:14:22"", ""Front/Back"": ""B2C"", ""Prioridade"": ""P3"", ""Descrição"": ""» Abrangência: Massivo\n» Frente: B2C Móvel Pré\n» Plataforma: Android\n\n»Canal Impactado: App Vivo | Pacotes Adicionais \n» Funcionalidade: Pacotes adicionais \n\n» Solicitante: QD APPs Automação\n\n» Descrição: Falha na funcionalidade Pacotes adicionais \n\n» Detalhe da Falha: Identificamos falha massiva na funcionalidade comprar pacotes adicionais, problema  apresentada : \""\""Looping Infinito\""\""\n\n Passo a Passo: App Vivo > Aba Assinatura > card assinatura > comprar pacotes adicionais > falha apresentada \n\n\n» Observação: Evidências e passo a passo em anexo."", ""Causa Origem"": ""INFRAESTRUTURA - STORAGE"", ""Justificativa"": null, ""Canal impactado"": ""APP Vivo"", ""Causa provável"": ""Queda das portas do storage, que afetou a comunicação com o banco e os serviços dependentes."", ""Plano de Ação"": null, ""Atendimento para"": null, ""Tempo de Impacto"": ""00:05:00"", ""Communication State"": null, ""Incidente Primário"": null, ""Descrição resumida"": ""APLICATIVO VIVO - PACOTES ADICIONAIS - CONTRATAR PACOTE"", ""Causado pela mudança"": null, ""Impacto nos negócios"": ""APLICATIVO VIVO - PACOTES ADICIONAIS - CONTRATAR PACOTE"", ""Incidentes secundários"": 2, ""Anotações de resolução"": ""Causa Provável: Queda das portas do storage, que afetou a comunicação com o banco e os serviços dependentes.\nSolução aplicada ao incidente: Realizado a subida do banco PORTPR nas máquinas brtlvlts0517fu e brtlvlts0518fu e ambiente foi normalizado. "", ""u_rpt_tempo_total_de_impacto"": 300}"
+"48043e61-0c72-48b9-b16c-c0b52a2636fe",1343,"Mês: 2025-12
+Número: INC3843409
+Prioridade: P3
+Estado: Encerrado
+Communication State: -
+Aberto: 2025-12-12T19:00:05
+Resolvido: 2025-12-12T19:10:18
+Encerrado: 2025-12-19T20:00:54
+Incidente Primário: -
+Incidentes secundários: 2
+Descrição resumida: ORDEM DE SERVIÇO - PEDIDO - VIVOCORP
+Descrição: Pedidos apresentam o erro ""Erro de processamento no SGSIM""  Ativação linha Atlys:
+Pedido Linha ICCID Descrição do Erro
+1-946699555467 11919547663 89551062169021717735 Erro de processamento no SGSIM
+1-946680826200 68999359640 89550669269002740364 Erro de processamento no SGSIM
+1-946609163994 11918737400 89551062469006507675 Erro de processamento no SGSIM
+1-946581309307 35997645681 89552355169002412623 Erro de processamento no SGSIM
+1-946581309307 35999123061 89552355169002412805 Erro de processamento no SGSIM
+1-946609163994 11918737400 89551062469006507675 Erro de processamento no SGSIM
+1-946676520362 77999708267 89551167269001423926 Erro de processamento no SGSIM
+1-946687027440 21996590162 89551132169006236392 Erro de processamento no SGSIM
+1-946687027440 21972087529 89551132169006236400 Erro de processamento no SGSIM
+1-946690230508 41984500967 89550644169003592014 Erro de processamento no SGSIM
+1-946692199100 73998199179 89551167269001049002 Erro de processamento no SGSIM
+1-946700222791 79998510715 89551167269001642087 Erro de processamento no SGSIM
+1-946711068502 44991351925 89550644269000480765 Erro de processamento no SGSIM
+1-946714328210 11921935794 89551062169011252412 Erro de processamento no SGSIM
+1-946714328210 11971071499 89551062169011252420 Erro de processamento no SGSIM
+1-946714328210 11995014682 89551062169011252438 Erro de processamento no SGSIM
+1-946714328210 11912135201 89551062169011252446 Erro de processamento no SGSIM
+1-946714328210 11999233975 89551062169011252453 Erro de processamento no SGSIM
+1-946714328210 11922237893 89551062169011252461 Erro de processamento no SGSIM
+1-946714328210 11968633673 89551062169011252479 Erro de processamento no SGSIM
+...
+Canal impactado: Vendas B2B, Vivo Empresas
+Causa provável: Identificado que as requisições que caiam em algumas maquinas do GSIM estava retornando falha.
+brtlvlts5203sl 
+brtlvlts5204sl
+brtlvlts5205sl 
+brtlvlts5206sl
+Causa Origem: SISTEMAS - APLICAÇÃO
+Causado pela mudança: -
+Anotações de resolução: Causa Provável: Identificado que as requisições que caiam em algumas maquinas do GSIM estava retornando falha.
+brtlvlts5203sl 
+brtlvlts5204sl
+brtlvlts5205sl 
+brtlvlts5206sl
+Solução aplicada ao incidente: Realizado o isolamento das maquinas:brtlvlts5203sl 
+brtlvlts5204sl 
+brtlvlts5205sl 
+brtlvlts5206sl
+u_rpt_tempo_total_de_impacto: 633
+Impacto nos negócios: ORDEM DE SERVIÇO - PEDIDO - VIVOCORP
+Tempo de Impacto: 00:10:33
+Tipo: -
+Spread: Spread
+Mesa: -
+Justificativa: -
+Plano de Ação: -
+Front/Back: B2B","2.000000000000000000000000000000",True,"03a8b2bb-f50e-4d52-9b60-0a293c6365fd","2026-01-12 18:05:17.909","2026-01-12 18:05:17.909","ed705017-fafe-4cc5-9401-06d972dec3d8","ed705017-fafe-4cc5-9401-06d972dec3d8",False,"{""ID"": 16, ""Mesa"": null, ""Tipo"": null, ""Aberto"": ""2025-12-12T19:00:05"", ""Estado"": ""Encerrado"", ""Spread"": ""Spread"", ""Status"": ""Encerrado"", ""is_app"": true, ""Número"": ""INC3843409"", ""Serviço"": ""Falha na ativação de linhas Atlys"", ""is_ecomm"": false, ""Encerrado"": ""2025-12-19T20:00:54"", ""Resolvido"": ""2025-12-12T19:10:18"", ""Front/Back"": ""B2B"", ""Prioridade"": ""P3"", ""Descrição"": ""Pedidos apresentam o erro \""Erro de processamento no SGSIM\""  Ativação linha Atlys:\nPedido Linha ICCID Descrição do Erro\n1-946699555467 11919547663 89551062169021717735 Erro de processamento no SGSIM\n1-946680826200 68999359640 89550669269002740364 Erro de processamento no SGSIM\n1-946609163994 11918737400 89551062469006507675 Erro de processamento no SGSIM\n1-946581309307 35997645681 89552355169002412623 Erro de processamento no SGSIM\n1-946581309307 35999123061 89552355169002412805 Erro de processamento no SGSIM\n1-946609163994 11918737400 89551062469006507675 Erro de processamento no SGSIM\n1-946676520362 77999708267 89551167269001423926 Erro de processamento no SGSIM\n1-946687027440 21996590162 89551132169006236392 Erro de processamento no SGSIM\n1-946687027440 21972087529 89551132169006236400 Erro de processamento no SGSIM\n1-946690230508 41984500967 89550644169003592014 Erro de processamento no SGSIM\n1-946692199100 73998199179 89551167269001049002 Erro de processamento no SGSIM\n1-946700222791 79998510715 89551167269001642087 Erro de processamento no SGSIM\n1-946711068502 44991351925 89550644269000480765 Erro de processamento no SGSIM\n1-946714328210 11921935794 89551062169011252412 Erro de processamento no SGSIM\n1-946714328210 11971071499 89551062169011252420 Erro de processamento no SGSIM\n1-946714328210 11995014682 89551062169011252438 Erro de processamento no SGSIM\n1-946714328210 11912135201 89551062169011252446 Erro de processamento no SGSIM\n1-946714328210 11999233975 89551062169011252453 Erro de processamento no SGSIM\n1-946714328210 11922237893 89551062169011252461 Erro de processamento no SGSIM\n1-946714328210 11968633673 89551062169011252479 Erro de processamento no SGSIM"", ""Causa Origem"": ""SISTEMAS - APLICAÇÃO"", ""Justificativa"": null, ""Canal impactado"": ""Vendas B2B, Vivo Empresas"", ""Causa provável"": ""Identificado que as requisições que caiam em algumas maquinas do GSIM estava retornando falha.\nbrtlvlts5203sl \nbrtlvlts5204sl\nbrtlvlts5205sl \nbrtlvlts5206sl"", ""Plano de Ação"": null, ""Atendimento para"": null, ""Tempo de Impacto"": ""00:10:33"", ""Communication State"": null, ""Incidente Primário"": null, ""Descrição resumida"": ""ORDEM DE SERVIÇO - PEDIDO - VIVOCORP"", ""Causado pela mudança"": null, ""Impacto nos negócios"": ""ORDEM DE SERVIÇO - PEDIDO - VIVOCORP"", ""Incidentes secundários"": 2, ""Anotações de resolução"": ""Causa Provável: Identificado que as requisições que caiam em algumas maquinas do GSIM estava retornando falha.\nbrtlvlts5203sl \nbrtlvlts5204sl\nbrtlvlts5205sl \nbrtlvlts5206sl\nSolução aplicada ao incidente: Realizado o isolamento das maquinas:brtlvlts5203sl \nbrtlvlts5204sl \nbrtlvlts5205sl \nbrtlvlts5206sl"", ""u_rpt_tempo_total_de_impacto"": 633}"
+"5e0fe36f-ab5a-44f8-bfec-e7f6211ca1d9",1335,"Mês: 2025-12
+Número: INC3827291
+Prioridade: P3
+Estado: Encerrado
+Communication State: -
+Aberto: 2025-12-06T13:32:46
+Resolvido: 2025-12-06T15:29:47
+Encerrado: 2025-12-13T16:01:07
+Incidente Primário: -
+Incidentes secundários: 0
+Descrição resumida: LOJA ONLINE - FIDELIZAÇÃO
+Descrição: Abrangência: Massivo
+Frente: Consumer Eletronics
+Plataforma: Android | IOS
+
+Canal Impactado: App Vivo | Loja Online Aparelhos B2C
+Funcionalidade: Fidelização
+
+Solicitante: QD E-com Sustentação
+
+Descrição: Ausênciada opção fidelização
+
+Detalhe da Falha: Identificamos a ausencia da opção fidelização na CE (Apicativo Vivo e Web).
+
+Passo a Passo: Aplicativo Vivo > Login > Aba loja > Escolha do produto > Ausência da opção fidelização
+
+Observação: Evidências e passo a passo em anexo.
+...
+Canal impactado: APP Vivo, Loja Online Aparelhos B2C
+Causa provável: Ativação Master de Clientes - CHG0171529 - [SAP COMMERCE CLOUD] Fora de Release Dezembro SAP Commerce
+Causa Origem: TI - MUDANCA
+Causado pela mudança: CHG0171529
+Anotações de resolução: Causa Provável: Ativação Master de Clientes - CHG0171529 - [SAP COMMERCE CLOUD] Fora de Release Dezembro SAP Commerce
+Solução aplicada ao incidente: Efetuado o desligue de feature flags, através da CHG0174109 -  [SAP COMMERCE CLOUD B2C] - Desativação FF's Master Clientes
+u_rpt_tempo_total_de_impacto: 1860
+Impacto nos negócios: LOJA ONLINE - FIDELIZAÇÃO
+Tempo de Impacto: 00:31:00
+Tipo: -
+Spread: Spread
+Mesa: -
+Justificativa: -
+Plano de Ação: -
+Front/Back: B2C","0.000000000000000000000000000000",True,"03a8b2bb-f50e-4d52-9b60-0a293c6365fd","2026-01-12 18:05:17.909","2026-01-12 18:05:17.909","ed705017-fafe-4cc5-9401-06d972dec3d8","ed705017-fafe-4cc5-9401-06d972dec3d8",False,"{""ID"": 8, ""Mesa"": null, ""Tipo"": null, ""Aberto"": ""2025-12-06T13:32:46"", ""Estado"": ""Encerrado"", ""Spread"": ""Spread"", ""Status"": ""Encerrado"", ""is_app"": true, ""Número"": ""INC3827291"", ""Serviço"": ""Jornada de Eletronicos"", ""is_ecomm"": false, ""Encerrado"": ""2025-12-13T16:01:07"", ""Resolvido"": ""2025-12-06T15:29:47"", ""Front/Back"": ""B2C"", ""Prioridade"": ""P3"", ""Descrição"": ""Abrangência: Massivo\nFrente: Consumer Eletronics\nPlataforma: Android | IOS\n\nCanal Impactado: App Vivo | Loja Online Aparelhos B2C\nFuncionalidade: Fidelização\n\nSolicitante: QD E-com Sustentação\n\nDescrição: Ausênciada opção fidelização\n\nDetalhe da Falha: Identificamos a ausencia da opção fidelização na CE (Apicativo Vivo e Web).\n\nPasso a Passo: Aplicativo Vivo > Login > Aba loja > Escolha do produto > Ausência da opção fidelização\n\nObservação: Evidências e passo a passo em anexo."", ""Causa Origem"": ""TI - MUDANCA"", ""Justificativa"": null, ""Canal impactado"": ""APP Vivo, Loja Online Aparelhos B2C"", ""Causa provável"": ""Ativação Master de Clientes - CHG0171529 - [SAP COMMERCE CLOUD] Fora de Release Dezembro SAP Commerce"", ""Plano de Ação"": null, ""Atendimento para"": null, ""Tempo de Impacto"": ""00:31:00"", ""Communication State"": null, ""Incidente Primário"": null, ""Descrição resumida"": ""LOJA ONLINE - FIDELIZAÇÃO"", ""Causado pela mudança"": ""CHG0171529"", ""Impacto nos negócios"": ""LOJA ONLINE - FIDELIZAÇÃO"", ""Incidentes secundários"": 0, ""Anotações de resolução"": ""Causa Provável: Ativação Master de Clientes - CHG0171529 - [SAP COMMERCE CLOUD] Fora de Release Dezembro SAP Commerce\nSolução aplicada ao incidente: Efetuado o desligue de feature flags, através da CHG0174109 -  [SAP COMMERCE CLOUD B2C] - Desativação FF's Master Clientes\n"", ""u_rpt_tempo_total_de_impacto"": 1860}"
+"ef8ce6d5-86f9-4d26-b81a-061f5bea127b",1338,"Mês: 2025-12
+Número: INC3834388
+Prioridade: P3
+Estado: Encerrado
+Communication State: -
+Aberto: 2025-12-09T21:58:59
+Resolvido: 2025-12-09T23:34:40
+Encerrado: 2025-12-17T00:00:02
+Incidente Primário: -
+Incidentes secundários: 0
+Descrição resumida: APLICATIVO VIVO - RECARGA - APP
+Descrição: » Abrangência: Massivo
+» Frente: B2C Móvel Pré e Controle
+» Plataforma: Android | IOS
+
+»Canal Impactado: App Vivo | Recarga Digital
+» Funcionalidade: Recarga
+
+» Solicitante: QD E-com Sustentação
+
+» Descrição: Falha ao realizar Recarga no App
+
+» Detalhe da Falha: Foi identificado que ao  tentar realizar uma Recarga no App Vivo, acorre uma tela de erro 'Algo deu errado por aqui'.
+
+ Passo a Passo: Acessar o App Vivo  -> Clicar em Recarga -> ERRO
+
+
+» Observação: Evidências e passo a passo em anexo.
+...
+Canal impactado: Recarga Digital, APP Vivo
+Causa provável: Degradação na estrutura da Bemobi que esta sob analise e será entregue em RCA.
+Causa Origem: SHADOW IT - SUPORTE NEGÓCIO
+Causado pela mudança: -
+Anotações de resolução: Causa Provável: Degradação na estrutura da Bemobi que esta sob analise e será entregue em RCA.
+Solução aplicada ao incidente: normalizado durante analise sem ação técnica. Logs coletadas e evento está sob analise de RCA pelo parceiro.
+u_rpt_tempo_total_de_impacto: 900
+Impacto nos negócios: APLICATIVO VIVO - RECARGA - APP
+Tempo de Impacto: 00:15:00
+Tipo: -
+Spread: Spread
+Mesa: -
+Justificativa: -
+Plano de Ação: -
+Front/Back: B2C","0.000000000000000000000000000000",True,"03a8b2bb-f50e-4d52-9b60-0a293c6365fd","2026-01-12 18:05:17.909","2026-01-12 18:05:17.909","ed705017-fafe-4cc5-9401-06d972dec3d8","ed705017-fafe-4cc5-9401-06d972dec3d8",False,"{""ID"": 11, ""Mesa"": null, ""Tipo"": null, ""Aberto"": ""2025-12-09T21:58:59"", ""Estado"": ""Encerrado"", ""Spread"": ""Spread"", ""Status"": ""Análise de causa raiz"", ""is_app"": true, ""Número"": ""INC3834388"", ""Serviço"": ""Recarga"", ""is_ecomm"": false, ""Encerrado"": ""2025-12-17T00:00:02"", ""Resolvido"": ""2025-12-09T23:34:40"", ""Front/Back"": ""B2C"", ""Prioridade"": ""P3"", ""Descrição"": ""» Abrangência: Massivo\n» Frente: B2C Móvel Pré e Controle\n» Plataforma: Android | IOS\n\n»Canal Impactado: App Vivo | Recarga Digital\n» Funcionalidade: Recarga\n\n» Solicitante: QD E-com Sustentação\n\n» Descrição: Falha ao realizar Recarga no App\n\n» Detalhe da Falha: Foi identificado que ao  tentar realizar uma Recarga no App Vivo, acorre uma tela de erro 'Algo deu errado por aqui'.\n\n Passo a Passo: Acessar o App Vivo  -> Clicar em Recarga -> ERRO\n\n\n» Observação: Evidências e passo a passo em anexo."", ""Causa Origem"": ""SHADOW IT - SUPORTE NEGÓCIO"", ""Justificativa"": null, ""Canal impactado"": ""Recarga Digital, APP Vivo"", ""Causa provável"": ""Degradação na estrutura da Bemobi que esta sob analise e será entregue em RCA."", ""Plano de Ação"": null, ""Atendimento para"": null, ""Tempo de Impacto"": ""00:15:00"", ""Communication State"": null, ""Incidente Primário"": null, ""Descrição resumida"": ""APLICATIVO VIVO - RECARGA - APP"", ""Causado pela mudança"": null, ""Impacto nos negócios"": ""APLICATIVO VIVO - RECARGA - APP"", ""Incidentes secundários"": 0, ""Anotações de resolução"": ""Causa Provável: Degradação na estrutura da Bemobi que esta sob analise e será entregue em RCA.\nSolução aplicada ao incidente: normalizado durante analise sem ação técnica. Logs coletadas e evento está sob analise de RCA pelo parceiro.\n "", ""u_rpt_tempo_total_de_impacto"": 900}"
+"8c4ad560-763e-48e9-b2d2-3603371a1d73",1349,"Mês: 2025-12
+Número: INC3862087
+Prioridade: P3
+Estado: Encerrado
+Communication State: -
+Aberto: 2025-12-21T08:59:43
+Resolvido: 2025-12-21T14:00:33
+Encerrado: 2025-12-28T15:00:11
+Incidente Primário: -
+Incidentes secundários: 0
+Descrição resumida: ORDEM DE SERVIÇO - ATIVAÇÃO MÓVEL - INDISPONIBILIDADE PARCIAL
+Descrição: Caros, foram identificados cliente que estão sinalizando falha para ativação do e-sim nos aparelhos celulares, eles não conseguem gerar o QRcode para ativação do mesmo
+...
+Canal impactado: Atendimento Call Center B2C, Atendimento Call Center B2B, APP Vivo, Vivo Empresas, Lojas, Revendas
+Causa provável: Sendo investigada a conexão do GSIM para geração de dos ESIM
+Causa Origem: SISTEMAS - APLICAÇÃO
+Causado pela mudança: -
+Anotações de resolução: Causa Provável: Sendo investigada a conexão do GSIM para geração de dos ESIM 
+Solução aplicada ao incidente: Aplicado um paliativo de geração manual dos ESIM para disponibilidade da regional do ddd 2x
+u_rpt_tempo_total_de_impacto: 13620
+Impacto nos negócios: ORDEM DE SERVIÇO - ATIVAÇÃO MÓVEL - INDISPONIBILIDADE PARCIAL
+Tempo de Impacto: 03:47:00
+Tipo: -
+Spread: Spread
+Mesa: -
+Justificativa: -
+Plano de Ação: -
+Front/Back: B2C + B2B","1.000000000000000000000000000000",True,"03a8b2bb-f50e-4d52-9b60-0a293c6365fd","2026-01-12 18:05:17.909","2026-01-12 18:05:17.909","ed705017-fafe-4cc5-9401-06d972dec3d8","ed705017-fafe-4cc5-9401-06d972dec3d8",False,"{""ID"": 22, ""Mesa"": null, ""Tipo"": null, ""Aberto"": ""2025-12-21T08:59:43"", ""Estado"": ""Encerrado"", ""Spread"": ""Spread"", ""Status"": ""Análise de causa raiz"", ""is_app"": true, ""Número"": ""INC3862087"", ""Serviço"": ""eSIM"", ""is_ecomm"": false, ""Encerrado"": ""2025-12-28T15:00:11"", ""Resolvido"": ""2025-12-21T14:00:33"", ""Front/Back"": ""B2C + B2B"", ""Prioridade"": ""P3"", ""Descrição"": ""Caros, foram identificados cliente que estão sinalizando falha para ativação do e-sim nos aparelhos celulares, eles não conseguem gerar o QRcode para ativação do mesmo"", ""Causa Origem"": ""SISTEMAS - APLICAÇÃO"", ""Justificativa"": null, ""Canal impactado"": ""Atendimento Call Center B2C, Atendimento Call Center B2B, APP Vivo, Vivo Empresas, Lojas, Revendas"", ""Causa provável"": ""Sendo investigada a conexão do GSIM para geração de dos ESIM "", ""Plano de Ação"": null, ""Atendimento para"": null, ""Tempo de Impacto"": ""03:47:00"", ""Communication State"": null, ""Incidente Primário"": null, ""Descrição resumida"": ""ORDEM DE SERVIÇO - ATIVAÇÃO MÓVEL - INDISPONIBILIDADE PARCIAL"", ""Causado pela mudança"": null, ""Impacto nos negócios"": ""ORDEM DE SERVIÇO - ATIVAÇÃO MÓVEL - INDISPONIBILIDADE PARCIAL"", ""Incidentes secundários"": 0, ""Anotações de resolução"": ""Causa Provável: Sendo investigada a conexão do GSIM para geração de dos ESIM \nSolução aplicada ao incidente: Aplicado um paliativo de geração manual dos ESIM para disponibilidade da regional do ddd 2x "", ""u_rpt_tempo_total_de_impacto"": 13620}"
+"afcb5bcd-6645-426f-ac38-9c16e8cc09b9",1352,"Mês: 2025-12
+Número: INC3877307
+Prioridade: P3
+Estado: Resolvido
+Communication State: -
+Aberto: 2025-12-29T21:15:34
+Resolvido: 2025-12-29T21:56:11
+Encerrado: NaT
+Incidente Primário: -
+Incidentes secundários: 4
+Descrição resumida: NOTA FISCAL - NFE - EMISSÃO NOTA FISCAL - LENTIDÃO
+Descrição: Recebemos sinalização que o sistema SAP esta apresentando diversos erros.
+...
+Canal impactado: Lojas, Revendas, APP Vivo, Atendimento Call Center B2C
+Causa provável: Causado devido CHG0175976 [Ajustes Correção no SAP ECC Unificado PTV]
+Causa Origem: TI - MUDANCA
+Causado pela mudança: CHG0175976
+Anotações de resolução: Causa Provável: Causado devido CHG0175976 [Ajustes Correção no SAP ECC Unificado PTV]
+Solução aplicada ao incidente: Realizado rollback via CHG0175976 [Ajustes Correção no SAP ECC Unificado PTV]
+u_rpt_tempo_total_de_impacto: 2390
+Impacto nos negócios: NOTA FISCAL - NFE - EMISSÃO NOTA FISCAL - LENTIDÃO
+Tempo de Impacto: 00:39:50
+Tipo: -
+Spread: Spread
+Mesa: -
+Justificativa: -
+Plano de Ação: -
+Front/Back: B2C","0.000000000000000000000000000000",True,"03a8b2bb-f50e-4d52-9b60-0a293c6365fd","2026-01-12 18:05:17.909","2026-01-12 18:05:17.909","ed705017-fafe-4cc5-9401-06d972dec3d8","ed705017-fafe-4cc5-9401-06d972dec3d8",False,"{""ID"": 25, ""Mesa"": null, ""Tipo"": null, ""Aberto"": ""2025-12-29T21:15:34"", ""Estado"": ""Resolvido"", ""Spread"": ""Spread"", ""Status"": ""Avaliar"", ""is_app"": true, ""Número"": ""INC3877307"", ""Serviço"": ""Notas Fiscais"", ""is_ecomm"": false, ""Encerrado"": ""NaT"", ""Resolvido"": ""2025-12-29T21:56:11"", ""Front/Back"": ""B2C"", ""Prioridade"": ""P3"", ""Descrição"": ""Recebemos sinalização que o sistema SAP esta apresentando diversos erros."", ""Causa Origem"": ""TI - MUDANCA"", ""Justificativa"": null, ""Canal impactado"": ""Lojas, Revendas, APP Vivo, Atendimento Call Center B2C"", ""Causa provável"": ""Causado devido CHG0175976 [Ajustes Correção no SAP ECC Unificado PTV]"", ""Plano de Ação"": null, ""Atendimento para"": null, ""Tempo de Impacto"": ""00:39:50"", ""Communication State"": null, ""Incidente Primário"": null, ""Descrição resumida"": ""NOTA FISCAL - NFE - EMISSÃO NOTA FISCAL - LENTIDÃO"", ""Causado pela mudança"": ""CHG0175976"", ""Impacto nos negócios"": ""NOTA FISCAL - NFE - EMISSÃO NOTA FISCAL - LENTIDÃO"", ""Incidentes secundários"": 4, ""Anotações de resolução"": ""Causa Provável: Causado devido CHG0175976 [Ajustes Correção no SAP ECC Unificado PTV]\nSolução aplicada ao incidente: Realizado rollback via CHG0175976 [Ajustes Correção no SAP ECC Unificado PTV]"", ""u_rpt_tempo_total_de_impacto"": 2390}"
+"5bdcd1f9-d184-4841-8116-1d81dbd107dd",1332,"Mês: 2025-12
+Número: INC3823361
+Prioridade: P2
+Estado: Encerrado
+Communication State: -
+Aberto: 2025-12-05T06:23:58
+Resolvido: 2025-12-05T07:17:36
+Encerrado: 2025-12-12T08:00:29
+Incidente Primário: -
+Incidentes secundários: 3
+Descrição resumida: LOJA ONLINE - VITRINE
+Descrição: » Abrangência: Massivo
+» Frente: B2C
+» Plataforma: Web - (Chrome + EDGE)
+
+»Canal Impactado: Loja Online B2C Móvel
+» Funcionalidade: Portal Vivo
+
+» Solicitante: QD E-com Sustentação
+
+» Descrição: Erro 500 Internal Server Error
+
+» Detalhe da Falha: Identificamos erro 500 Internal Server Error cloudflare ao tentar acessar o Portal Vivo.
+
+ Passo a Passo: Portal Vivo > Falha
+
+
+» Observação: Evidências em anexo.
+...
+Canal impactado: APP Vivo, Atendimento Call Center B2C, Loja Online B2C Móvel, Portal Vivo B2C, Tecnologia
+Causa provável: Instabilidade nas APIs da Cloudflare global causou falhas de conectividade a diversos ambientes da Vivo
+Causa Origem: SEGURANÇA
+Causado pela mudança: -
+Anotações de resolução: Causa Provável: Instabilidade nas APIs da Cloudflare global causou falhas de conectividade a diversos ambientes da Vivo
+Solução aplicada ao incidente: Normalizado após a Cloudlfare aplicar um fix em seu ambiente.
+u_rpt_tempo_total_de_impacto: 1380
+Impacto nos negócios: LOJA ONLINE - VITRINE
+Tempo de Impacto: 00:23:00
+Tipo: -
+Spread: Spread
+Mesa: -
+Justificativa: -
+Plano de Ação: -
+Front/Back: B2C + B2B","1.000000000000000000000000000000",True,"03a8b2bb-f50e-4d52-9b60-0a293c6365fd","2026-01-12 18:05:17.909","2026-01-12 18:05:17.909","ed705017-fafe-4cc5-9401-06d972dec3d8","ed705017-fafe-4cc5-9401-06d972dec3d8",False,"{""ID"": 5, ""Mesa"": null, ""Tipo"": null, ""Aberto"": ""2025-12-05T06:23:58"", ""Estado"": ""Encerrado"", ""Spread"": ""Spread"", ""Status"": ""Análise de causa raiz"", ""is_app"": true, ""Número"": ""INC3823361"", ""Serviço"": ""Instabilidade no App"", ""is_ecomm"": false, ""Encerrado"": ""2025-12-12T08:00:29"", ""Resolvido"": ""2025-12-05T07:17:36"", ""Front/Back"": ""B2C + B2B"", ""Prioridade"": ""P2"", ""Descrição"": ""» Abrangência: Massivo\n» Frente: B2C\n» Plataforma: Web - (Chrome + EDGE)\n\n»Canal Impactado: Loja Online B2C Móvel\n» Funcionalidade: Portal Vivo\n\n» Solicitante: QD E-com Sustentação\n\n» Descrição: Erro 500 Internal Server Error\n\n» Detalhe da Falha: Identificamos erro 500 Internal Server Error cloudflare ao tentar acessar o Portal Vivo.\n\n Passo a Passo: Portal Vivo > Falha\n\n\n» Observação: Evidências em anexo."", ""Causa Origem"": ""SEGURANÇA"", ""Justificativa"": null, ""Canal impactado"": ""APP Vivo, Atendimento Call Center B2C, Loja Online B2C Móvel, Portal Vivo B2C, Tecnologia"", ""Causa provável"": ""Instabilidade nas APIs da Cloudflare global causou falhas de conectividade a diversos ambientes da Vivo"", ""Plano de Ação"": null, ""Atendimento para"": null, ""Tempo de Impacto"": ""00:23:00"", ""Communication State"": null, ""Incidente Primário"": null, ""Descrição resumida"": ""LOJA ONLINE - VITRINE"", ""Causado pela mudança"": null, ""Impacto nos negócios"": ""LOJA ONLINE - VITRINE"", ""Incidentes secundários"": 3, ""Anotações de resolução"": ""Causa Provável: Instabilidade nas APIs da Cloudflare global causou falhas de conectividade a diversos ambientes da Vivo\nSolução aplicada ao incidente: Normalizado após a Cloudlfare aplicar um fix em seu ambiente."", ""u_rpt_tempo_total_de_impacto"": 1380}"
+"6bc55023-38d9-4edc-8701-9a064feeb27d",1333,"Mês: 2025-12
+Número: INC3823512
+Prioridade: P3
+Estado: Encerrado
+Communication State: -
+Aberto: 2025-12-05T09:03:05
+Resolvido: 2025-12-05T11:37:47
+Encerrado: 2025-12-12T12:01:01
+Incidente Primário: -
+Incidentes secundários: 0
+Descrição resumida: SVAS MÓVEL - AVULSO - NETFLIX
+Descrição: » Abrangência: Massivo
+» Frente: B2C
+» Plataforma: Web - (Chrome + EDGE)
+
+»Canal Impactado: Loja Online B2C Fixa
+
+» Funcionalidade: SVA - Netflix
+
+» Solicitante: QD E-com Sustentação
+
+» Descrição: Falha ao clicar no SVA Netflix
+
+» Detalhe da Falha: Identificamos falha ao tentar contratar o SVA Netflix no Portal. Apresentando a seguinte mensagem ap...entamos, sua linha não possui esse beneficio ativado para esse plano. 
+
+ Passo a Passo: Portal > Produtos e Serviços > Serviços Digitais > Apps Avulsos > Netflix >
+
+
+» Observação: Evidências e passo a passo em anexo.
+...
+Canal impactado: Portal Vivo B2C
+Causa provável: A oferta correta deveria ser vinculada ao PRM, pois o Netflix não integra mais com o Terra México, porém está vinculada incorretamente ao Terra.
+Causa Origem: SHADOW IT - SUPORTE NEGÓCIO
+Causado pela mudança: -
+Anotações de resolução: Causa Provável: A oferta correta deveria ser vinculada ao PRM, pois o Netflix não integra mais com o Terra México, porém está vinculada incorretamente ao Terra.
+Solução aplicada ao incidente: Realizada a correção do direcionamento da oferta Netflix removendo do Terra México e direcionando para o PRM.
+u_rpt_tempo_total_de_impacto: 6840
+Impacto nos negócios: SVAS MÓVEL - AVULSO - NETFLIX
+Tempo de Impacto: 01:54:00
+Tipo: -
+Spread: Spread
+Mesa: -
+Justificativa: -
+Plano de Ação: -
+Front/Back: B2C","2.000000000000000000000000000000",True,"03a8b2bb-f50e-4d52-9b60-0a293c6365fd","2026-01-12 18:05:17.909","2026-01-12 18:05:17.909","ed705017-fafe-4cc5-9401-06d972dec3d8","ed705017-fafe-4cc5-9401-06d972dec3d8",False,"{""ID"": 6, ""Mesa"": null, ""Tipo"": null, ""Aberto"": ""2025-12-05T09:03:05"", ""Estado"": ""Encerrado"", ""Spread"": ""Spread"", ""Status"": ""Análise de causa raiz"", ""is_app"": true, ""Número"": ""INC3823512"", ""Serviço"": ""Serviços Digitais"", ""is_ecomm"": false, ""Encerrado"": ""2025-12-12T12:01:01"", ""Resolvido"": ""2025-12-05T11:37:47"", ""Front/Back"": ""B2C"", ""Prioridade"": ""P3"", ""Descrição"": ""» Abrangência: Massivo\n» Frente: B2C\n» Plataforma: Web - (Chrome + EDGE)\n\n»Canal Impactado: Loja Online B2C Fixa\n\n» Funcionalidade: SVA - Netflix\n\n» Solicitante: QD E-com Sustentação\n\n» Descrição: Falha ao clicar no SVA Netflix\n\n» Detalhe da Falha: Identificamos falha ao tentar contratar o SVA Netflix no Portal. Apresentando a seguinte mensagem após clicar em \""\""Assinar Netflix\""\"": Lamentamos, sua linha não possui esse beneficio ativado para esse plano. \n\n Passo a Passo: Portal > Produtos e Serviços > Serviços Digitais > Apps Avulsos > Netflix >\n\n\n» Observação: Evidências e passo a passo em anexo."", ""Causa Origem"": ""SHADOW IT - SUPORTE NEGÓCIO"", ""Justificativa"": null, ""Canal impactado"": ""Portal Vivo B2C"", ""Causa provável"": ""A oferta correta deveria ser vinculada ao PRM, pois o Netflix não integra mais com o Terra México, porém está vinculada incorretamente ao Terra."", ""Plano de Ação"": null, ""Atendimento para"": null, ""Tempo de Impacto"": ""01:54:00"", ""Communication State"": null, ""Incidente Primário"": null, ""Descrição resumida"": ""SVAS MÓVEL - AVULSO - NETFLIX"", ""Causado pela mudança"": null, ""Impacto nos negócios"": ""SVAS MÓVEL - AVULSO - NETFLIX"", ""Incidentes secundários"": 0, ""Anotações de resolução"": ""Causa Provável: A oferta correta deveria ser vinculada ao PRM, pois o Netflix não integra mais com o Terra México, porém está vinculada incorretamente ao Terra.\nSolução aplicada ao incidente: Realizada a correção do direcionamento da oferta Netflix removendo do Terra México e direcionando para o PRM."", ""u_rpt_tempo_total_de_impacto"": 6840}"
+"0e050a67-1379-4bf7-b43c-b8731f8cd7ff",1336,"Mês: 2025-12
+Número: INC3830175
+Prioridade: P2
+Estado: Encerrado
+Communication State: -
+Aberto: 2025-12-08T14:19:52
+Resolvido: 2025-12-08T18:50:54
+Encerrado: 2025-12-15T19:01:55
+Incidente Primário: -
+Incidentes secundários: 26
+Descrição resumida: ORDEM DE SERVIÇO - TROCA DE PLANO - INDISPONIBILIDADE TOTAL
+Descrição: 1 - Qual é o sistema/aplicação onde a falha ocorre e qual a funcionalidade afetada? NEXT
+2 - Existe uma mensagem de erro relacionada à ocorrência, quais são as evidências? AUTENTICAÇÃO DE USUÁRIO FALHOU
+3 - A evidência está com data e hora atualizadas (inserir no mínimo 5 prints), recebemos as linhas / massas afetadas / Desde quando a falha ocorre (incluir data e hora início)? 08/12/2025 14:00
+4 - Qual é o impacto direto ao Negócio / Cliente? OPERADORES NÃO CONSEGUEM LOGAR NA FERRAMENTA
+*5 - Qual é o produto do cliente? MÓVEL
+*6 - Qual é a área, grupo ou equipes impactadas? TODO GRUPO OUVIDORIA
+*7 - Qual é a localidade afetada? Site ou Home Office? GRUPO 100% HOME
+*8 - Qual é quantidade de falhas identificadas? Impacta quantos usuários e qual o total de usuários do grupo? 120 PESSOAS NO GRUPO
+*9 - Existem outras áreas ou localidades que utilizam essa funcionalidade? (Locais onde a falha também ocorre) N/A
+*10 - Existe alguma contingência já disponível para minimizar o impacto? NÃO
+...
+Canal impactado: Atendimento Call Center B2C, Atendimento Campo, Lojas, Revendas, BackOffice - E-commerce, APP Vivo, Loja Online B2C Móvel, Loja Online B2C Fixa, Loja Online Aparelhos B2C
+Causa provável: BUG no ambiente do Exacc gerando instabilidade e contenção no banco do CRM.
+Causa Origem: INFRAESTRUTURA - BANCO DE DADOS
+Causado pela mudança: -
+Anotações de resolução: Causa Provável: BUG no ambiente do Exacc gerando instabilidade e contenção no banco do CRM.
+Solução aplicada ao incidente: Após liberação da contenção foi realizado restart das máquinas do IGW e restart do barramento após ações ambiente foi normalizado.
+u_rpt_tempo_total_de_impacto: 5520
+Impacto nos negócios: ORDEM DE SERVIÇO - TROCA DE PLANO - INDISPONIBILIDADE TOTAL
+Tempo de Impacto: 01:32:00
+Tipo: -
+Spread: Spread
+Mesa: -
+Justificativa: -
+Plano de Ação: -
+Front/Back: B2C","9.000000000000000000000000000000",True,"03a8b2bb-f50e-4d52-9b60-0a293c6365fd","2026-01-12 18:05:17.909","2026-01-12 18:05:17.909","ed705017-fafe-4cc5-9401-06d972dec3d8","ed705017-fafe-4cc5-9401-06d972dec3d8",False,"{""ID"": 9, ""Mesa"": null, ""Tipo"": null, ""Aberto"": ""2025-12-08T14:19:52"", ""Estado"": ""Encerrado"", ""Spread"": ""Spread"", ""Status"": ""Análise de causa raiz"", ""is_app"": true, ""Número"": ""INC3830175"", ""Serviço"": ""Instabilidade e contenção no banco do CRM."", ""is_ecomm"": false, ""Encerrado"": ""2025-12-15T19:01:55"", ""Resolvido"": ""2025-12-08T18:50:54"", ""Front/Back"": ""B2C"", ""Prioridade"": ""P2"", ""Descrição"": ""1 - Qual é o sistema/aplicação onde a falha ocorre e qual a funcionalidade afetada? NEXT\n2 - Existe uma mensagem de erro relacionada à ocorrência, quais são as evidências? AUTENTICAÇÃO DE USUÁRIO FALHOU\n3 - A evidência está com data e hora atualizadas (inserir no mínimo 5 prints), recebemos as linhas / massas afetadas / Desde quando a falha ocorre (incluir data e hora início)? 08/12/2025 14:00\n4 - Qual é o impacto direto ao Negócio / Cliente? OPERADORES NÃO CONSEGUEM LOGAR NA FERRAMENTA\n*5 - Qual é o produto do cliente? MÓVEL\n*6 - Qual é a área, grupo ou equipes impactadas? TODO GRUPO OUVIDORIA\n*7 - Qual é a localidade afetada? Site ou Home Office? GRUPO 100% HOME\n*8 - Qual é quantidade de falhas identificadas? Impacta quantos usuários e qual o total de usuários do grupo? 120 PESSOAS NO GRUPO\n*9 - Existem outras áreas ou localidades que utilizam essa funcionalidade? (Locais onde a falha também ocorre) N/A\n*10 - Existe alguma contingência já disponível para minimizar o impacto? NÃO"", ""Causa Origem"": ""INFRAESTRUTURA - BANCO DE DADOS"", ""Justificativa"": null, ""Canal impactado"": ""Atendimento Call Center B2C, Atendimento Campo, Lojas, Revendas, BackOffice - E-commerce, APP Vivo, Loja Online B2C Móvel, Loja Online B2C Fixa, Loja Online Aparelhos B2C"", ""Causa provável"": ""BUG no ambiente do Exacc gerando instabilidade e contenção no banco do CRM."", ""Plano de Ação"": null, ""Atendimento para"": null, ""Tempo de Impacto"": ""01:32:00"", ""Communication State"": null, ""Incidente Primário"": null, ""Descrição resumida"": ""ORDEM DE SERVIÇO - TROCA DE PLANO - INDISPONIBILIDADE TOTAL"", ""Causado pela mudança"": null, ""Impacto nos negócios"": ""ORDEM DE SERVIÇO - TROCA DE PLANO - INDISPONIBILIDADE TOTAL"", ""Incidentes secundários"": 26, ""Anotações de resolução"": ""Causa Provável: BUG no ambiente do Exacc gerando instabilidade e contenção no banco do CRM.\nSolução aplicada ao incidente: Após liberação da contenção foi realizado restart das máquinas do IGW e restart do barramento após ações ambiente foi normalizado."", ""u_rpt_tempo_total_de_impacto"": 5520}"
+"090e5ec8-8733-47fc-92d6-f66c4e17a2f2",1340,"Mês: 2025-12
+Número: INC3836868
+Prioridade: P3
+Estado: Encerrado
+Communication State: -
+Aberto: 2025-12-10T18:19:48
+Resolvido: 2025-12-10T20:44:59
+Encerrado: 2025-12-17T21:00:36
+Incidente Primário: -
+Incidentes secundários: 0
+Descrição resumida: APLICATIVO VIVO - ABA PARA VOCÊ
+Descrição: » Abrangência: Massivo
+» Frente: B2C Móvel Pré e Controle
+» Plataforma: Android | IOS
+
+»Canal Impactado: App Vivo
+» Funcionalidade: Banner
+
+» Solicitante: QD E-com Sustentação
+
+» Descrição: Ausência de banners
+
+» Detalhe da Falha: Identificamos a ausência de toda a estrutura de banners no App Vivo para os planos Pré e Controle.
+
+ Passo a Passo: Acessar App vivo >> aba pra você >> ausência dos banners
+
+
+» Observação: Evidências e passo a passo em anexo.
+...
+Canal impactado: APP Vivo, Loja Online B2C Móvel
+Causa provável: Foi identificado um resquício do incidente INC3836495, ocasionando falha em 1 dos 8 storages, o que impactou a máquina BRTLVLTS1608PL.
+Causa Origem: INFRAESTRUTURA - STORAGE
+Causado pela mudança: -
+Anotações de resolução: Causa Provável: Identificado que ocorreu um problema em 1 das 8 máquinas do ambiente do SAS que é utilizada pelo fluxo, com todas requisições de massas que estavam em fila dessa máquina acabaram tomando a falha reportada. 
+Solução aplicada ao incidente: Após o restabelecimento da máquina ambiente foi normalizado e foi realizado a limpeza de cache para as requisições que estavam em fila.
+u_rpt_tempo_total_de_impacto: 960
+Impacto nos negócios: APLICATIVO VIVO - ABA PARA VOCÊ
+Tempo de Impacto: 00:16:00
+Tipo: -
+Spread: Spread
+Mesa: -
+Justificativa: -
+Plano de Ação: -
+Front/Back: B2C","3.000000000000000000000000000000",True,"03a8b2bb-f50e-4d52-9b60-0a293c6365fd","2026-01-12 18:05:17.909","2026-01-12 18:05:17.909","ed705017-fafe-4cc5-9401-06d972dec3d8","ed705017-fafe-4cc5-9401-06d972dec3d8",False,"{""ID"": 13, ""Mesa"": null, ""Tipo"": null, ""Aberto"": ""2025-12-10T18:19:48"", ""Estado"": ""Encerrado"", ""Spread"": ""Spread"", ""Status"": ""Encerrado"", ""is_app"": true, ""Número"": ""INC3836868"", ""Serviço"": ""Banners"", ""is_ecomm"": false, ""Encerrado"": ""2025-12-17T21:00:36"", ""Resolvido"": ""2025-12-10T20:44:59"", ""Front/Back"": ""B2C"", ""Prioridade"": ""P3"", ""Descrição"": ""» Abrangência: Massivo\n» Frente: B2C Móvel Pré e Controle\n» Plataforma: Android | IOS\n\n»Canal Impactado: App Vivo\n» Funcionalidade: Banner\n\n» Solicitante: QD E-com Sustentação\n\n» Descrição: Ausência de banners\n\n» Detalhe da Falha: Identificamos a ausência de toda a estrutura de banners no App Vivo para os planos Pré e Controle.\n\n Passo a Passo: Acessar App vivo >> aba pra você >> ausência dos banners\n\n\n» Observação: Evidências e passo a passo em anexo."", ""Causa Origem"": ""INFRAESTRUTURA - STORAGE"", ""Justificativa"": null, ""Canal impactado"": ""APP Vivo, Loja Online B2C Móvel"", ""Causa provável"": ""Foi identificado um resquício do incidente INC3836495, ocasionando falha em 1 dos 8 storages, o que impactou a máquina BRTLVLTS1608PL."", ""Plano de Ação"": null, ""Atendimento para"": null, ""Tempo de Impacto"": ""00:16:00"", ""Communication State"": null, ""Incidente Primário"": null, ""Descrição resumida"": ""APLICATIVO VIVO - ABA PARA VOCÊ"", ""Causado pela mudança"": null, ""Impacto nos negócios"": ""APLICATIVO VIVO - ABA PARA VOCÊ"", ""Incidentes secundários"": 0, ""Anotações de resolução"": ""Causa Provável: Identificado que ocorreu um problema em 1 das 8 máquinas do ambiente do SAS que é utilizada pelo fluxo, com todas requisições de massas que estavam em fila dessa máquina acabaram tomando a falha reportada. \nSolução aplicada ao incidente: Após o restabelecimento da máquina ambiente foi normalizado e foi realizado a limpeza de cache para as requisições que estavam em fila. "", ""u_rpt_tempo_total_de_impacto"": 960}"
+"5152d354-5eb0-48b3-b461-efb75a74093a",1328,"Mês: 2025-12
+Número: INC3816797
+Prioridade: P3
+Estado: Encerrado
+Communication State: -
+Aberto: 2025-12-03T09:38:42
+Resolvido: 2025-12-03T11:00:45
+Encerrado: 2025-12-10T12:00:36
+Incidente Primário: -
+Incidentes secundários: 0
+Descrição resumida: APLICATIVO VIVO - PRA VOCÊ - EXIBIÇÃO/DIRECIONAMENTO
+Descrição: » Abrangência: Massivo
+» Frente: B2C
+» Plataforma: Android | IOS
+
+»Canal Impactado: App Vivo | Loja Online Aparelhos B2C
+» Funcionalidade: Vitrine
+
+» Solicitante: QD E-com Sustentação
+
+» Descrição: Falha ao acessar banner Smart Tv - APP VIVO
+
+» Detalhe da Falha: Identificamos uma falha no redirecionamento do banner de Smart TV na seção “Especiais pra você” do a...io está sendo direcionado incorretamente para a PDP do Smartphone A56.
+
+ Passo a Passo: APP VIVO > ABA PRA VOCÊ > ESPECIAIS PRA VOCê > BANNER COMPRA UM SMART TV
+
+
+» Observação: Evidências em anexo.
+...
+Canal impactado: Loja Online Aparelhos B2C, APP Vivo
+Causa provável: SKU indicado para cadastro era de outro produto
+Causa Origem: SHADOW IT - SUPORTE NEGÓCIO
+Causado pela mudança: -
+Anotações de resolução: Causa Provável: SKU indicado para cadastro era de outro produto
+Solução aplicada ao incidente: Remoção do banner , até a mesa providenciar o link correto
+u_rpt_tempo_total_de_impacto: 339
+Impacto nos negócios: APLICATIVO VIVO - PRA VOCÊ - EXIBIÇÃO/DIRECIONAMENTO
+Tempo de Impacto: 00:05:39
+Tipo: -
+Spread: Spread
+Mesa: -
+Justificativa: -
+Plano de Ação: -
+Front/Back: B2C","1.000000000000000000000000000000",True,"03a8b2bb-f50e-4d52-9b60-0a293c6365fd","2026-01-12 18:05:17.909","2026-01-12 18:05:17.909","ed705017-fafe-4cc5-9401-06d972dec3d8","ed705017-fafe-4cc5-9401-06d972dec3d8",False,"{""ID"": 1, ""Mesa"": null, ""Tipo"": null, ""Aberto"": ""2025-12-03T09:38:42"", ""Estado"": ""Encerrado"", ""Spread"": ""Spread"", ""Status"": ""Encerrado"", ""is_app"": true, ""Número"": ""INC3816797"", ""Serviço"": ""Banners"", ""is_ecomm"": false, ""Encerrado"": ""2025-12-10T12:00:36"", ""Resolvido"": ""2025-12-03T11:00:45"", ""Front/Back"": ""B2C"", ""Prioridade"": ""P3"", ""Descrição"": ""» Abrangência: Massivo\n» Frente: B2C\n» Plataforma: Android | IOS\n\n»Canal Impactado: App Vivo | Loja Online Aparelhos B2C\n» Funcionalidade: Vitrine\n\n» Solicitante: QD E-com Sustentação\n\n» Descrição: Falha ao acessar banner Smart Tv - APP VIVO\n\n» Detalhe da Falha: Identificamos uma falha no redirecionamento do banner de Smart TV na seção “Especiais pra você” do app Vivo. Ao tentar acessar o banner, o usuário está sendo direcionado incorretamente para a PDP do Smartphone A56.\n\n Passo a Passo: APP VIVO > ABA PRA VOCÊ > ESPECIAIS PRA VOCê > BANNER COMPRA UM SMART TV\n\n\n» Observação: Evidências em anexo."", ""Causa Origem"": ""SHADOW IT - SUPORTE NEGÓCIO"", ""Justificativa"": null, ""Canal impactado"": ""Loja Online Aparelhos B2C, APP Vivo"", ""Causa provável"": ""SKU indicado para cadastro era de outro produto"", ""Plano de Ação"": null, ""Atendimento para"": null, ""Tempo de Impacto"": ""00:05:39"", ""Communication State"": null, ""Incidente Primário"": null, ""Descrição resumida"": ""APLICATIVO VIVO - PRA VOCÊ - EXIBIÇÃO/DIRECIONAMENTO"", ""Causado pela mudança"": null, ""Impacto nos negócios"": ""APLICATIVO VIVO - PRA VOCÊ - EXIBIÇÃO/DIRECIONAMENTO"", ""Incidentes secundários"": 0, ""Anotações de resolução"": ""Causa Provável: SKU indicado para cadastro era de outro produto\nSolução aplicada ao incidente: Remoção do banner , até a mesa providenciar o link correto"", ""u_rpt_tempo_total_de_impacto"": 339}"
+"f0027b7e-f9e4-4c34-9cbd-50f5ebc3350a",1341,"Mês: 2025-12
+Número: INC3837442
+Prioridade: P3
+Estado: Encerrado
+Communication State: -
+Aberto: 2025-12-11T07:15:42
+Resolvido: 2025-12-11T08:27:24
+Encerrado: 2025-12-18T09:00:45
+Incidente Primário: -
+Incidentes secundários: 2
+Descrição resumida: LOJA ONLINE - VITRINE
+Descrição: » Abrangência: Massivo
+» Frente: B2C Móvel Pré, Controle e Pós
+» Plataforma: Web - (Chrome + EDGE)
+
+»Canal Impactado: Loja Online B2C Móvel | Loja Online B2C Fixa 
+» Funcionalidade: Portal
+
+» Solicitante: QD E-com Sustentação
+
+» Descrição: Falha para acessar o portal Vivo
+
+» Detalhe da Falha: Identificamos que, ao tentar acessar alguma categoria do Portal Vivo, aparece uma mensagem de erro:...sues with our service. We are working hard to bring it online again.""""
+
+ Passo a Passo: Portal Vivo > Categoria > Erro
+
+
+» Observação: Evidências e passo a passo em anexo.
+...
+Canal impactado: Portal Vivo B2C, Loja Online Aparelhos B2B, Portal Vivo B2B, Loja Online B2C Fixa, Loja Online B2C Móvel
+Causa provável: Intermitência nos transbordos das abas de domínio do vivo.com.br, será aberto chamado na Clouflare e Adobe para retorno da causa raiz.
+Causa Origem: SISTEMAS - APLICAÇÃO
+Causado pela mudança: -
+Anotações de resolução: Causa Provável: Intermitência nos transbordos das abas de domínio do vivo.com.br, será aberto chamado na Clouflare e Adobe para retorno da causa raiz.
+Solução aplicada ao incidente: Após oscilação do ambiente do funcionalidades de transbordo retornaram a normalidade na aplicação.
+u_rpt_tempo_total_de_impacto: 3818
+Impacto nos negócios: LOJA ONLINE - VITRINE
+Tempo de Impacto: 01:03:38
+Tipo: -
+Spread: Spread
+Mesa: -
+Justificativa: -
+Plano de Ação: -
+Front/Back: B2C","2.000000000000000000000000000000",True,"03a8b2bb-f50e-4d52-9b60-0a293c6365fd","2026-01-12 18:05:17.909","2026-01-12 18:05:17.909","ed705017-fafe-4cc5-9401-06d972dec3d8","ed705017-fafe-4cc5-9401-06d972dec3d8",False,"{""ID"": 14, ""Mesa"": null, ""Tipo"": null, ""Aberto"": ""2025-12-11T07:15:42"", ""Estado"": ""Encerrado"", ""Spread"": ""Spread"", ""Status"": ""Análise de causa raiz"", ""is_app"": true, ""Número"": ""INC3837442"", ""Serviço"": ""Categorias"", ""is_ecomm"": false, ""Encerrado"": ""2025-12-18T09:00:45"", ""Resolvido"": ""2025-12-11T08:27:24"", ""Front/Back"": ""B2C"", ""Prioridade"": ""P3"", ""Descrição"": ""» Abrangência: Massivo\n» Frente: B2C Móvel Pré, Controle e Pós\n» Plataforma: Web - (Chrome + EDGE)\n\n»Canal Impactado: Loja Online B2C Móvel | Loja Online B2C Fixa \n» Funcionalidade: Portal\n\n» Solicitante: QD E-com Sustentação\n\n» Descrição: Falha para acessar o portal Vivo\n\n» Detalhe da Falha: Identificamos que, ao tentar acessar alguma categoria do Portal Vivo, aparece uma mensagem de erro: \""\""Service Outage: Looks like we are having some issues with our service. We are working hard to bring it online again.\""\""\n\n Passo a Passo: Portal Vivo > Categoria > Erro\n\n\n» Observação: Evidências e passo a passo em anexo."", ""Causa Origem"": ""SISTEMAS - APLICAÇÃO"", ""Justificativa"": null, ""Canal impactado"": ""Portal Vivo B2C, Loja Online Aparelhos B2B, Portal Vivo B2B, Loja Online B2C Fixa, Loja Online B2C Móvel"", ""Causa provável"": ""Intermitência nos transbordos das abas de domínio do vivo.com.br, será aberto chamado na Clouflare e Adobe para retorno da causa raiz."", ""Plano de Ação"": null, ""Atendimento para"": null, ""Tempo de Impacto"": ""01:03:38"", ""Communication State"": null, ""Incidente Primário"": null, ""Descrição resumida"": ""LOJA ONLINE - VITRINE"", ""Causado pela mudança"": null, ""Impacto nos negócios"": ""LOJA ONLINE - VITRINE"", ""Incidentes secundários"": 2, ""Anotações de resolução"": ""Causa Provável: Intermitência nos transbordos das abas de domínio do vivo.com.br, será aberto chamado na Clouflare e Adobe para retorno da causa raiz.\nSolução aplicada ao incidente: Após oscilação do ambiente do funcionalidades de transbordo retornaram a normalidade na aplicação."", ""u_rpt_tempo_total_de_impacto"": 3818}"

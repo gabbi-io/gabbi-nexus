@@ -1,0 +1,75 @@
+{
+  "case_id": "e672c0472c",
+  "title": "Blueprint Inicial de Automação",
+  "objective": "Entender os dados e documentos, consolidar regras e exceções e preparar automação assistida.",
+  "stages": [
+    {
+      "order": 1,
+      "name": "Receber documentos e bases",
+      "description": "Entrada de arquivos do processo para análise."
+    },
+    {
+      "order": 2,
+      "name": "Extrair e classificar conteúdo",
+      "description": "Separar conteúdo útil, metadados, tabelas e tipos de documento."
+    },
+    {
+      "order": 3,
+      "name": "Consolidar regras e exceções",
+      "description": "Mapear regras de decisão e casos ambíguos."
+    },
+    {
+      "order": 4,
+      "name": "Responder perguntas com evidência",
+      "description": "Permitir análise assistida com RAG e conversa contextual."
+    },
+    {
+      "order": 5,
+      "name": "Executar automação assistida",
+      "description": "Acionar workflow n8n, extrações e validação humana."
+    }
+  ],
+  "entities": [
+    "cliente",
+    "contrato",
+    "pedido",
+    "produto",
+    "data",
+    "valor",
+    "status"
+  ],
+  "rules": [
+    "As regras ainda parecem majoritariamente implícitas e devem ser refinadas com validação humana."
+  ],
+  "exceptions": [
+    "\",3780,\"[SIEBEL] Identificado falha nos componentes do Siebel 8",
+    "15 gerando lentidão e falha nas consultas de clientes no Smart , Wisetool e URA",
+    "\",01:03:00,Pai,Outras Áreas ,Consumer Eletronics,Identificado que a aplicação Olho Vivo utilizada pelo time de segurança para monitorar o banco de dados gerou alto consumo nas maquinas - Siebel (Backoffice),,Back\r\nINC2588571,,0,2024-11-06 19:53:22,2024-11-06 20:42:20,2024-11-13 2",
+    "Você pode tentar de novo por aqui\"\"\",00:06:00,Shadow IT,Spread,Móvel - Rentabilização,,,Front\r\nINC2596304,,0,2024-11-08 18:27:55,2024-11-08 19:14:22,2024-11-15 20:00:25,Encerrado,Encerramento,P3,PORTAL VIVO - HOME - INDISPONIBILIDADE PARCIAL,\"\"\"» Mesa: Purpura\n» Frente: B2C\n\n» Ca",
+    "Solução aplicada ao incidente: Realizado rollback da CHG0120724  pela CHG0121804 \",890,\"[PORTAL VIVO] URLs de padrão de mídias com erro, ao clicar esta retornando a mensagem \"\"Forbidden\nYou don't have permission to access this resource",
+    "\"\"\",00:14:50,Pai,Spread - Mesa,Móvel - Rentabilização,Incidente causado por uma Mudança do portal,,Front\r\nINC2598960,,0,2024-11-10 10:02:24,2024-11-10 14:00:17,2024-11-17 15:00:02,Encerrado,Encerramento,P3,LOJA ONLINE - LOGIN / CADASTRO - INDISPONIBILIDADE TOTAL,\"» Mesa: Consumer",
+    "\",7656,\"[Loja Online Aparelhos B2C] - Falha ao tentar realizar reset de senha na Loja online de Aparelhos B2C",
+    "Exibindo a mensagem \"\"Não foi possível cadastrar uma nova senha, tente novamente\"\"\",02:07:36,Pai,Spread,Consumer Eletronics,,,Front\r\nINC2609818,INC2609864,0,2024-11-13 10:59:28,2024-11-13 12:06:53,2024-11-20 13:00:36,Encerrado,Sem Comunicação,P3,APLICATIVO VIVO - RECARGA - APP - ",
+    "» Detalhe da Falha: Identificamos falha ao tentar acessar a aba Recarga no App Vivo",
+    "\",Pessoa Física (B2C),Leonardo Tokio De Sousa Almeida,Leonardo Tokio De Sousa Almeida,Diego Rocha De Oliveira,APLICATIVO VIVO,RECARGA - APP,\"APP Vivo, Recarga Digital\",TLV_SI_FRAMEWORK MOBILE,TLV_SI_INFRAESTRUTURA REDE,PRB0058844,Encerrado,,Solucionado (contorno),Falha de Hardwar",
+    ",INFRAESTRUTURA - REDES - DATA CENTER FIREWALL,,\"Causa Provável: Falha de Hardware no Firewall de borda stratosphere",
+    "\",600,\"[APP VIVO] Identificamos falha ao tentar acessar a aba Recarga no App Vivo",
+    "Exibindo a mensagem \"\" Algo deu errado por aqui\"\"\",00:10:00,Filho,Spread,,,,Front\r\nINC2609864,,3,2024-11-13 11:11:15,2024-11-13 12:06:52,2024-11-20 13:01:15,Encerrado,Abertura / Encerramento,P2,REDES DATACENTER - CONECTIVIDADE ENTRE SERVIDORES / APLICAÇÕES - INDISPONIBILIDADE TOT",
+    ",Interno,Maxwell Rodrigues Ribeiro Da Costa,Maxwell Rodrigues Ribeiro Da Costa,Diego Rocha De Oliveira,REDES DATACENTER,CONECTIVIDADE ENTRE SERVIDORES / APLICAÇÕES,\"APP Vivo, BackOffice - E-commerce, Revendas, PAP, Vendas B2B, Recarga Digital\",TLV_SI_INFRAESTRUTURA REDE,TLV_SI_IN",
+    "\",1500,[REDE] Falha para acesso à internet e aplicaçãoes"
+  ],
+  "recommendations": [
+    "Criar base de conhecimento RAG com chunks revisados e metadados por documento.",
+    "Implementar extração estruturada de campos e classificação de linhas/abas.",
+    "Adicionar checklist de validação humana para regras ambíguas e exceções.",
+    "Gerar workflow inicial no n8n com etapa de triagem, extração, decisão e validação."
+  ],
+  "recommended_capabilities": [
+    "RAG para perguntas sobre documentos e bases",
+    "Classificação de documentos",
+    "Extração estruturada de campos",
+    "Workflow n8n com validação humana",
+    "Agente de apoio à análise"
+  ],
+  "readiness_score": 80
+}

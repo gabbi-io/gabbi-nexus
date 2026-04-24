@@ -1,0 +1,1676 @@
+{
+  "id": "254c546cd1",
+  "name": "Caso piloto - entendimento pré-automação",
+  "description": "Analisar arquivos, identificar regras, exceções, oportunidades e gerar insumos para automação.",
+  "documents": [
+    {
+      "id": "7a6ccc655c54",
+      "filename": "caderno2.pdf",
+      "path": "C:\\Users\\bruno.santos\\Desktop\\gabbi_poc_LangGhap\\gabbi_poc\\app\\data\\254c546cd1\\files\\caderno2.pdf",
+      "content_type": "application/pdf",
+      "parsed": {
+        "text": "[Página 1]\nPTIECBC02-8051 - [Travel Tela Consumo] CMS - Principais \ndúvidas (MVP)\n1. História Funcional\n2. Fora de escopo\n3. Pré-condições / Premissas\n4. Clientes Impactados/Público\n5. Descrição da História\n6. Protótipo\n7. Critérios de aceite\n -   PTIECBC02-8051 Obtendo detalhes do item... STATUS\nData Atividade Responsável Pendencias\n03/12/2024  Escrita da história Luciana Melim Borges \n1. História Funcional\nEU COMO cliente vivo Pós pago, Total ou Família \nDESEJO ter acesso a FAQ do Travel \nPARA consultar informações de ajuda sobre o Travel\n2. Fora de escopo\nNão serão alterados dados de pacotes individuais (Pré-pago e Controle).Travel \nNão serão tratados públicos de portfólios diferentes de: Pós-pago, Total e Família.\nNão será alterada a jornada de permissão de compra de pacotes Travel para plano Família.\nNão será alterada a jornada de cancelamento de Travel.\n3. Pré-condições / Premissas\nCliente com acesso ao novo App Vivo;\nJornada light estar desativada;\nCliente atender ao público definido\nCliente possua pacote  contratado de forma adicional ou incluso na assinaturaTravel\n4. Clientes Impactados/Público\nO escopo desta história contempla apenas clientes Pós-pago, Vivo Total e Família;\nSegmento Base Produto\nMóvel AMDOCS\nPós-Pago\nPós-Pago Família\nFuncional/Gerencial\nVivo Total\nVivo Total Família\n5. Descrição da História\n\n[Página 2]\nEssa história irá descrever sobre o direcionamento da ação ' ' disponível nas páginas descritas abaixo:Principais dúvidas\n: header e açõesT  PTIECBC02-8418 - [Travel] Tela Seleção de Pacotes (MVP): detalhada na históriaela de seleção de pacotes\n(adicional ou incluso): detalhada nas histórias:Tela de consumo \nPTIECBC02-8042 - [Travel] Tela de consumo: Pacote Adicional (MVP)\nPTIECBC02-8043 - [Travel] Tela de consumo: Pacote Incluso (MVP)\n Tela de Ligações e SMS\nTela Cobertura (países)\n5.1 Entrypoints 'Principais dúvidas' \nOs entrypoints 'Principais dúvidas' encontram-se conforme segue:\nTela seleção pacotes/ Header Tela seleção pacotes/ Ações Tela consumo (Ex: adicional)\n- header >  Tela seleção pacotes \n- seção Ações > Tela seleção pacotes \nPrincipais dúvidas\n - seção Ações > Principais Tela 'Consumo'\ndúvidas\n \n5.1 Direcionamento 'Principais dúvidas' \nAo clicar em um dos  o cliente será direcionado para a tela principal de FAQ do travel.entrypoints\n\n[Página 3]\nPágina principal da FAQ\nVivo Travel\nPage 1\nComo funciona o Vivo Travel?\nPage 2\nComo funciona a renovação diária do Vivo Travel?\nOs textos de FAQ serão inseridos nas telas em CMS.\n\n[Página 4]\nLink Figma 20/03/2025\nLink Figma   20/03/2025\nLink Figma   20/03/2025\nCERT1: https://web-cert1.vivo.com.br/consumptions/modular-screen/faq-\n  vivotravel-pacotestravel-pos-total-principais-duvidas 24/03/2025\npages/dynamic-content?name=CERT1: https://web-cert1.vivo.com.br/ faq-\nvivotravel-pacotestravel-pos-total-como-funciona-vivo-travel  \nCERT1: https://web-cert1.vivo.com.br/pages/dynamic-content?name=faq-\nvivotravel-pacotestravel-pos-total-como-funciona-renovacao-diaria-travel\n\n[Página 5]\nCERT 2: https://web-cert2.vivo.com.br/consumptions/modular-screen/faq-\n  vivotravel-pacotestravel-pos-total-principais-duvidas 24/03/2025\nCERT 2: https://web-cert2.vivo.com.br/pages/dynamic-content?name=faq-\n  vivotravel-pacotestravel-pos-total-como-funciona-vivo-travel\nCERT 2: https://web-cert2.vivo.com.br/pages/dynamic-content?name=faq-\nvivotravel-pacotestravel-pos-total-como-funciona-renovacao-diaria-travel\nPROD: https://web.vivo.com.br/consumptions/modular-screen/faq-vivotravel-\n pacotestravel-pos-total-principais-duvidas 24/03/2025\nPROD: https://web.vivo.com.br/pages/dynamic-content?name=faq-vivotravel-\n  pacotestravel-pos-total-como-funciona-vivo-travel\nPROD: https://web.vivo.com.br/pages/dynamic-content?name=faq-vivotravel-\npacotestravel-pos-total-como-funciona-renovacao-diaria-travel\nTodos os links \"sim\" e \"não\" direcionam o cliente para a página principal de FAQ - Vivo Travel\nPágina principal de FAQ\n\n[Página 6]\nLink Figma  20/03/2025\n\n[Página 7]\n6. Protótipo\nVivo Travel - Pós - Consumo – Figma\n7. Critérios de aceite\nID Critérios de aceite\n01 Premissa: Cliente Pós-pago que contenha um pacote  contratado de forma Travel adicional\nExecução:\nNa tela de consumo, clicar em   \nResultado esperado 1:\nDeverá exibir a FAQ principal detalhada nessa história, com as opções de todas as perguntas e respostas\nResultado esperado 2:\nDeverá exibir cada tela final de FAQ a partir da tela principal\n02 Premissa: Cliente Pós-pago que contenha um pacote  na assinaturaTravel incluso\nExecução:\nNa tela de consumo, clicar em   \nResultado esperado 1:\nDeverá exibir a FAQ principal detalhada nessa história, com as opções de todas as perguntas e respostas\nResultado esperado 2:\nDeverá exibir cada tela final de FAQ a partir da tela principal\n03 Premissa: Cliente Pós-pago, Vivo Total ou Família que possua pacote Travel Américas, Europa ou Mundo\nExecução:\nNa tela de consumo, clicar em   \nEm cada uma das FAQs, clicar em 'Sim' e 'Não'\nResultado esperado:\nDeverá exibir a página de FAQ principal - Vivo Travel\n\n[Página 8]\n04 Premissa: Cliente Pós-pago, Vivo Total ou Família que possua pacote Travel Américas, Europa ou Mundo\nExecução:\nNa tela de consumo, clicar em   \nEm cada uma das FAQs, clicar no botão '< ' (voltar)\nResultado esperado:\nVoltar para a tela anterior - FAQ principal - Vivo Travel detalhada nessa história\n05 : Cliente Pós-pago, Vivo Total ou Família que possua pacote Travel Américas, Europa ou Mundo  Premissa\n:Execução\nNa tela de consumo, clicar em   \nAcessar FAQ que possua link para o chat\nao clicar no link do chat\nResultado esperado:\nCliente é direcionado para o chat da Aura\n06 Premissa: Cliente Pós-pago que contenha mais de um pacote  contratado de forma Travel adicional ou incluso\nExecução:\nNa tela de seleção de pacotes (header), clicar em   \nResultado esperado 1:\nDeverá exibir a FAQ principal detalhada nessa história, com as opções de todas as perguntas e respostas\nResultado esperado 2:\nDeverá exibir cada tela final de FAQ a partir da tela principal \n07 Premissa: Cliente Pós-pago que contenha mais de um pacote  contratado de forma Travel adicional ou incluso\nExecução:\nNa tela de seleção de pacotes (Ações), clicar em   \nResultado esperado 1:\nDeverá exibir a FAQ principal detalhada nessa história, com as opções de todas as perguntas e respostas\nResultado esperado 2:\nDeverá exibir cada tela final de FAQ a partir da tela principal \n'Sim' e 'Não' direcionam para a FAQ principal -   'Vivo Travel'\n\n[Página 9]\n08 Premissa: Cliente Pós-pago que contenha pelo menos um pacote contratado de forma Travel adicional ou incluso\nExecução:\nNa tela de consumo, clicar no componente 'Ligações'\nNa tela de Ligações/SMS, clicar em   \nResultado esperado 1:\nDeverá exibir a FAQ principal detalhada nessa história, com as opções de todas as perguntas e respostas\nResultado esperado 2:\nDeverá exibir cada tela final de FAQ a partir da tela principal  \n'Sim' e 'Não' direcionam para a FAQ principal - ' ' Vivo Travel\n09 Premissa: Cliente Pós-pago ou Total que contenha pelo menos um pacote contratado de forma Travel adicional ou incluso\nExecução:\nNa tela de consumo, clicar no componente 'Internet'\nNa tela de Cobertura, clicar em   \nResultado esperado 1:\nDeverá exibir a FAQ principal detalhada nessa história, com as opções de todas as perguntas e respostas\nResultado esperado 2:\nDeverá exibir cada tela final de FAQ a partir da tela principal  \n'Sim' e 'Não' direcionam para a FAQ principal - ' '  Vivo Travel\n10 Premissa: Cliente Pós-pago ou Total que contenha pelo menos um pacote contratado de forma Travel adicional ou incluso\nExecução:\nNa tela de consumo, clicar na ação 'Diárias avulsas'\nNa tela 'Diárias avulsas', clicar no link Exibir internet por país >\nNa tela 'Cobertura', clicar em \nResultado esperado 1:\nDeverá exibir a FAQ principal detalhada nessa história, com as opções de todas as perguntas e respostas\nResultado esperado 2:\nDeverá exibir cada tela final de FAQ a partir da tela principal  \n'Sim' e 'Não' direcionam para a FAQ principal - ' '  Vivo Travel\n11 Premissa: Cliente Pós-pago ou Total que contenha mais de um pacote  contratado de forma Travel adicional ou incluso\nExecução:\nNa tela de seleção de pacotes, clicar no link Exibir todos os países >\nNa tela 'Cobertura', clicar em \nResultado esperado 1:\nDeverá exibir a FAQ principal detalhada nessa história, com as opções de todas as perguntas e respostas\nResultado esperado 2:\nDeverá exibir cada tela final de FAQ a partir da tela principal  \n'Sim' e 'Não' direcionam para a FAQ principal - ' '  Vivo Travel\n\n[Página 10]\n12 Premissa: Cliente Pós-pago que contenha um pacote  na assinaturaTravel adicional ou  incluso\nExecução:\nNa tela de consumo, clicar em   \nNa tela de Princpais dúvidas - Vivo Travel (Modular) clicar na FAQ  'Como acessar a internet no exterior?'\nResultado esperado 1:\nDeverá exibir a FAQ 'Como acessar a internet no exterior?' conforme detalhado nessa história\nResultado esperado 2:\nAo clicar no link: 'É só clicar e conferir' o cliente será direcionado para a FAQ 12 - 'Como faço para ativar ou desativar o roaming de dados no \ncelular?'",
+        "tables": [
+          {
+            "name": "Página 1 - Tabela 1",
+            "columns": [
+              "Data",
+              "Atividade",
+              "Responsável",
+              "Pendencias"
+            ],
+            "rows_preview": [
+              [
+                "03/12/2024",
+                "Escrita da história",
+                "Luciana Melim Borges",
+                ""
+              ]
+            ],
+            "row_count": 1
+          },
+          {
+            "name": "Página 1 - Tabela 2",
+            "columns": [
+              "Segmento",
+              "Base",
+              "Produto"
+            ],
+            "rows_preview": [
+              [
+                "Móvel",
+                "AMDOCS",
+                "Pós-Pago"
+              ],
+              [
+                "",
+                "",
+                "Pós-Pago Família"
+              ],
+              [
+                "",
+                "",
+                "Funcional/Gerencial"
+              ],
+              [
+                "",
+                "",
+                "Vivo Total"
+              ],
+              [
+                "",
+                "",
+                "Vivo Total Família"
+              ]
+            ],
+            "row_count": 5
+          },
+          {
+            "name": "Página 2 - Tabela 1",
+            "columns": [
+              "Tela seleção pacotes/ Header",
+              "Tela seleção pacotes/ Ações",
+              "Tela consumo (Ex: adicional)",
+              "",
+              ""
+            ],
+            "rows_preview": [
+              [
+                "",
+                "",
+                "",
+                "",
+                ""
+              ],
+              [
+                "Tela seleção pacotes - header >",
+                "Tela seleção pacotes - seção Ações >\nPrincipais dúvidas",
+                "Tela 'Consumo' - seção Ações > Principais\ndúvidas",
+                "",
+                ""
+              ]
+            ],
+            "row_count": 2
+          },
+          {
+            "name": "Página 3 - Tabela 1",
+            "columns": [
+              "Página principal da FAQ\nVivo Travel",
+              "Page 1\nComo funciona o Vivo Travel?",
+              "Page 2\nComo funciona a renovação diária",
+              "do Vivo Travel?"
+            ],
+            "rows_preview": [],
+            "row_count": 0
+          },
+          {
+            "name": "Página 4 - Tabela 1",
+            "columns": [
+              "Link Figma 20/03/2025",
+              "Link Figma 20/03/2025",
+              "Link Figma 20/03/2025"
+            ],
+            "rows_preview": [
+              [
+                "CERT1: https://web-cert1.vivo.com.br/consumptions/modular-screen/faq-\nvivotravel-pacotestravel-pos-total-principais-duvidas 24/03/2025",
+                "CERT1: https://web-cert1.vivo.com.br/pages/dynamic-content?name=faq-\nvivotravel-pacotestravel-pos-total-como-funciona-vivo-travel",
+                "CERT1: https://web-cert1.vivo.com.br/pages/dynamic-content?name=faq-\nvivotravel-pacotestravel-pos-total-como-funciona-renovacao-diaria-travel"
+              ]
+            ],
+            "row_count": 1
+          },
+          {
+            "name": "Página 5 - Tabela 1",
+            "columns": [
+              "CERT 2: https://web-cert2.vivo.com.br/consumptions/modular-screen/faq-\nvivotravel-pacotestravel-pos-total-principais-duvidas 24/03/2025",
+              "CERT 2: https://web-cert2.vivo.com.br/pages/dynamic-content?name=faq-\nvivotravel-pacotestravel-pos-total-como-funciona-vivo-travel",
+              "CERT 2: https://web-cert2.vivo.com.br/pages/dynamic-content?name=faq-\nvivotravel-pacotestravel-pos-total-como-funciona-renovacao-diaria-travel"
+            ],
+            "rows_preview": [
+              [
+                "PROD: https://web.vivo.com.br/consumptions/modular-screen/faq-vivotravel-\npacotestravel-pos-total-principais-duvidas 24/03/2025",
+                "PROD: https://web.vivo.com.br/pages/dynamic-content?name=faq-vivotravel-\npacotestravel-pos-total-como-funciona-vivo-travel",
+                "PROD: https://web.vivo.com.br/pages/dynamic-content?name=faq-vivotravel-\npacotestravel-pos-total-como-funciona-renovacao-diaria-travel"
+              ]
+            ],
+            "row_count": 1
+          },
+          {
+            "name": "Página 7 - Tabela 1",
+            "columns": [
+              "ID",
+              "Critérios de aceite"
+            ],
+            "rows_preview": [
+              [
+                "01",
+                "Premissa: Cliente Pós-pago que contenha um pacote Travel contratado de forma adicional\nExecução:\nNa tela de consumo, clicar em\nResultado esperado 1:\nDeverá exibir a FAQ principal detalhada nessa história, com as opções de todas as perguntas e respostas\nResultado esperado 2:\nDeverá exibir cada tela final de FAQ a partir da tela principal"
+              ],
+              [
+                "02",
+                "Premissa: Cliente Pós-pago que contenha um pacote Travel incluso na assinatura\nExecução:\nNa tela de consumo, clicar em\nResultado esperado 1:\nDeverá exibir a FAQ principal detalhada nessa história, com as opções de todas as perguntas e respostas\nResultado esperado 2:\nDeverá exibir cada tela final de FAQ a partir da tela principal"
+              ],
+              [
+                "03",
+                "Premissa: Cliente Pós-pago, Vivo Total ou Família que possua pacote Travel Américas, Europa ou Mundo\nExecução:\nNa tela de consumo, clicar em\nEm cada uma das FAQs, clicar em 'Sim' e 'Não'\nResultado esperado:\nDeverá exibir a página de FAQ principal - Vivo Travel"
+              ]
+            ],
+            "row_count": 3
+          },
+          {
+            "name": "Página 8 - Tabela 1",
+            "columns": [
+              "04",
+              "Premissa: Cliente Pós-pago, Vivo Total ou Família que possua pacote Travel Américas, Europa ou Mundo\nExecução:\nNa tela de consumo, clicar em\nEm cada uma das FAQs, clicar no botão '< ' (voltar)\nResultado esperado:\nVoltar para a tela anterior - FAQ principal - Vivo Travel detalhada nessa história"
+            ],
+            "rows_preview": [
+              [
+                "05",
+                "Premissa: Cliente Pós-pago, Vivo Total ou Família que possua pacote Travel Américas, Europa ou Mundo\nExecução:\nNa tela de consumo, clicar em\nAcessar FAQ que possua link para o chat\nao clicar no link do chat\nResultado esperado:\nCliente é direcionado para o chat da Aura"
+              ],
+              [
+                "06",
+                "Premissa: Cliente Pós-pago que contenha mais de um pacote Travel contratado de forma adicional ou incluso\nExecução:\nNa tela de seleção de pacotes (header), clicar em\nResultado esperado 1:\nDeverá exibir a FAQ principal detalhada nessa história, com as opções de todas as perguntas e respostas\nResultado esperado 2:\nDeverá exibir cada tela final de FAQ a partir da tela principal"
+              ],
+              [
+                "07",
+                "Premissa: Cliente Pós-pago que contenha mais de um pacote Travel contratado de forma adicional ou incluso\nExecução:\nNa tela de seleção de pacotes (Ações), clicar em\nResultado esperado 1:\nDeverá exibir a FAQ principal detalhada nessa história, com as opções de todas as perguntas e respostas\nResultado esperado 2:\nDeverá exibir cada tela final de FAQ a partir da tela principal\n'Sim' e 'Não' direcionam para a FAQ principal - 'Vivo Travel'"
+              ]
+            ],
+            "row_count": 3
+          },
+          {
+            "name": "Página 9 - Tabela 1",
+            "columns": [
+              "08",
+              "Premissa: Cliente Pós-pago que contenha pelo menos um pacote Travel contratado de forma adicional ou incluso\nExecução:\nNa tela de consumo, clicar no componente 'Ligações'\nNa tela de Ligações/SMS, clicar em\nResultado esperado 1:\nDeverá exibir a FAQ principal detalhada nessa história, com as opções de todas as perguntas e respostas\nResultado esperado 2:\nDeverá exibir cada tela final de FAQ a partir da tela principal\n'Sim' e 'Não' direcionam para a FAQ principal - 'Vivo Travel'"
+            ],
+            "rows_preview": [
+              [
+                "09",
+                "Premissa: Cliente Pós-pago ou Total que contenha pelo menos um pacote Travel contratado de forma adicional ou incluso\nExecução:\nNa tela de consumo, clicar no componente 'Internet'\nNa tela de Cobertura, clicar em\nResultado esperado 1:\nDeverá exibir a FAQ principal detalhada nessa história, com as opções de todas as perguntas e respostas\nResultado esperado 2:\nDeverá exibir cada tela final de FAQ a partir da tela principal\n'Sim' e 'Não' direcionam para a FAQ principal - 'Vivo Travel'"
+              ],
+              [
+                "10",
+                "Premissa: Cliente Pós-pago ou Total que contenha pelo menos um pacote Travel contratado de forma adicional ou incluso\nExecução:\nNa tela de consumo, clicar na ação 'Diárias avulsas'\nNa tela 'Diárias avulsas', clicar no link Exibir internet por país >\nNa tela 'Cobertura', clicar em\nResultado esperado 1:\nDeverá exibir a FAQ principal detalhada nessa história, com as opções de todas as perguntas e respostas\nResultado esperado 2:\nDeverá exibir cada tela final de FAQ a partir da tela principal\n'Sim' e 'Não' direcionam para a FAQ principal - 'Vivo Travel'"
+              ],
+              [
+                "11",
+                "Premissa: Cliente Pós-pago ou Total que contenha mais de um pacote Travel contratado de forma adicional ou incluso\nExecução:\nNa tela de seleção de pacotes, clicar no link Exibir todos os países >\nNa tela 'Cobertura', clicar em\nResultado esperado 1:\nDeverá exibir a FAQ principal detalhada nessa história, com as opções de todas as perguntas e respostas\nResultado esperado 2:\nDeverá exibir cada tela final de FAQ a partir da tela principal\n'Sim' e 'Não' direcionam para a FAQ principal - 'Vivo Travel'"
+              ]
+            ],
+            "row_count": 3
+          },
+          {
+            "name": "Página 10 - Tabela 1",
+            "columns": [
+              "12",
+              "Premissa: Cliente Pós-pago que contenha um pacote Travel adicional ou incluso na assinatura\nExecução:\nNa tela de consumo, clicar em\nNa tela de Princpais dúvidas - Vivo Travel (Modular) clicar na FAQ 'Como acessar a internet no exterior?'\nResultado esperado 1:\nDeverá exibir a FAQ 'Como acessar a internet no exterior?' conforme detalhado nessa história\nResultado esperado 2:\nAo clicar no link: 'É só clicar e conferir' o cliente será direcionado para a FAQ 12 - 'Como faço para ativar ou desativar o roaming de dados no\ncelular?'"
+            ],
+            "rows_preview": [],
+            "row_count": 0
+          }
+        ],
+        "fields": [
+          "(adicional ou incluso)",
+          "CERT 2",
+          "CERT1",
+          "Execução",
+          "PROD",
+          "Resultado esperado",
+          "Resultado esperado 1",
+          "Resultado esperado 2",
+          "pages/dynamic-content?name=CERT1"
+        ],
+        "warnings": [],
+        "metadata": {
+          "file_type": ".pdf",
+          "pages_with_text": 10,
+          "tables": 10
+        }
+      }
+    },
+    {
+      "id": "5d6264e21c16",
+      "filename": "Caderno vivo 1.pdf",
+      "path": "C:\\Users\\bruno.santos\\Desktop\\gabbi_poc_LangGhap\\gabbi_poc\\app\\data\\254c546cd1\\files\\Caderno vivo 1.pdf",
+      "content_type": "application/pdf",
+      "parsed": {
+        "text": "[Página 1]\nAtualização do Status de Pagamento da Fatura via Rajadas \n- App e Web\nID Jira: [PTIECBC02-9395] [SQUAD DIGIMON ]Status Online da fatura - Rajada - JIRAPROD - PTI-6722 - [SQUAD DIGIMON] - Evolução Fatura\nEpico - PTIECBC02-9394\nLink Figma: https://www.figma.com/design/BWbynHIysBf4mjNFbKL6Tl/Central-de-faturas?m=auto&node-id=12837-\n43875&t=aBclJyzmYycvgrMS-1\nSpec Acessibilidade: https://www.figma.com/design/BWbynHIysBf4mjNFbKL6Tl/Central-de-faturas?m=auto&node-id=1306-\n1105&t=7jRi7drZAR8v2FOw-1\nFormulário QD: https://forms.office.com/Pages/ResponseDetailPage.aspx?\nid=oDGTVFpL8EOQxOqu8nGAsF4BJqLaOg1OivQOwG_69i5UQ0xXN1hDWDNWOVhINTBPMEJaOFk1RjlIQyQlQCN0PWcu&rid=471&GetRespons\neToken=52Vc3JX4PJ1Aca5GAXQuQWiXRQHgH4CWaWw3aafaAdk&origin=rc\nFormulário QD Teste em CERT2: https://forms.office.com/Pages/ResponseDetailPage.aspx?\nid=oDGTVFpL8EOQxOqu8nGAsF4BJqLaOg1OivQOwG_69i5UQ0xXN1hDWDNWOVhINTBPMEJaOFk1RjlIQyQlQCN0PWcu&rid=554&GetRespons\neToken=OWCmgbiZTTr-BduQS38iHglMojlKfrh-1R70sQwKbQ4&origin=rc\n1. Detalhamento\nMelhorar a experiência dos clientes Next Móvel e Fixa ao exibir o status de pagamento da fatura nas telas \"Central de Faturas\", \"Detalhes da \n(App e Web), utilizando o status já disponível na  comoAssinatura\" e Histórico de faturas   \"Processando Pagamento\"  API Invoicing  Processing.\nContexto Atual\nHoje, quando um cliente realiza o pagamento da fatura via ou  o status de pagamento pode levar até para  Pix   Código de barras,  2 dias úteis (2DU) \nrefletir no App e Web, apresentando o status , gerando incerteza e possíveis contatos com o atendimento.\"Pronta para pagar\" \"atrasada\" e \"Negociar\"\nProposta de Solução\nUtilizar o sistema , que permite uma atualização mais ágil do status de pagamento: Rajadas\nFuncionamento do Rajadas:\nA cada , os 05 bancos conveniados  enviam arquivos bancários  15 minutos  (Caixa, Santander, Itaú, Banco do Brasil e Bradesco)\ncom os pagamentos realizados no período.\nA , atualizando os sistemas de Billing. Vivo processa esses arquivos em até 1 hora\nCom isso, o status da fatura no App/Web deve ser alterado para , oferecendo mais transparência ao  \"Processando Pagamento\"\ncliente até que a baixa efetiva do pagamento aconteça.\nImportante:\nA confirmação definitiva do pagamento (status só ocorre após o recebimento do arquivo , enviado pelos  \"Paga\"  CNAB da FEBRABAN\nbancos a partir da meia-noite.\nOu seja, o status  é uma etapa intermediária que antecipa a informação ao cliente, sem substituir a baixa  \"Processando Pagamento\"\nbancária oficial.\n\n[Página 2]\nPagamentos via Bancos Não Conveniados\nQuando o pagamento é feito por bancos (ex: bancos digitais), o repasse ocorre via intermediários. não conveniados \nSe o repasse for feito por um banco conveniado, o poderá atuar normalmente. Rajadas \nCaso contrário, o status será atualizado apenas após a , sem exibição do status intermediário - de acordo com a regra  baixa bancária oficial\nexistente atualmente para o App e Web, apresentando o status \"Pronta para pagar\" ou \"Atrasada\" após o vencimento.\n2. Escopo da História\nEu como PO desejo que seja exibido  o status nas páginas \"Processando Pagamento\"   \"Central de Faturas\", \"Detalhes da Assinatura\"  e \"Histórico \n(App e Web), ao realizar o pagamento da fatura via ou , utilizando dados do sistema com os bancos  de Faturas\"  Pix   Código de barras  Rajadas \nconveniados.\n2.1. Entregáveis\nAtualização da interface do App e Web para exibir o novo status de fatura.\nIntegração com a API Invoicing para uso do status P rocessing\nConsumo dos arquivos bancários enviados via Rajadas a cada 15 minutos \nAtualização do status da fatura em até 1 hora após o recebimento do arquivo.\nManutenção do fluxo de baixa bancária via CNAB para confirmação final do pagamento (status \"Paga\").\n3. Fluxo de negócio\n3.1. Atualização do Status\nApós o processamento, o status da fatura é atualizado na API Invoicing para . processing payment\nO App e Web consomem essa informação e exibem o status nas seguintes áreas: \"Processando Pagamento\" \nPágina Central de Faturas.\nPágina Detalhes da Assinatura\nHistórico das Faturas\n3.2. Visualização pelo Cliente\nO cliente acessa o App na TAB e entra na Assinaturas   Central de Faturas e histórico de faturas\nVisualiza o card da fatura com o status \"Processando Pagamento\"\n\n[Página 3]\nAo clicar em status . \"Exibir detalhes\" - tela Detalhes da Assinatura apresenta o   \"Processando Pagamento\"\n3.3. Confirmação Final do Pagamento\nA confirmação oficial do pagamento ocorre via , enviado pelos bancos a partir da . arquivo CNAB da FEBRABAN  meia-noite\nApós o recebimento e processamento do CNAB, o status da fatura é atualizado para \"Paga\"\n3.4. Regra - Bancos Conveniados - Rajadas \nO status \"Pronta para pagar\" deverá ser mantido - Pagamento Via Código Pix e Código Barras para Bancos conveniados\nFatura com vencimento em 10/03, Pagamento em 10/03, recebimento da informação de paga pelo Rajadas, altera o Status para \n\"Processando Pagamento e em até 48h - 2DU ou o que ocorrer antes quando receber o arquivo com a baixa, retorno \"Paga\nData 10/mar 10/mar - Retorno do Rajadas 11/mar 12/mar 13/03 (00h)\nChip Pronta pra pagar Processando Pagamento Processando Pagamento Processando Pagamento \"Paga\"\nApós 48horas a partir da data de vencimento da fatura, caso o pagamento não tenha sido reconhecido retorno do arquivo com a baixa no \npagamento, o status da fatura a ser exibido passa a ser \"Atrasada\" \nExemplo: Fatura com vencimento em 10/03, sem pagamento identificado\nData 10/mar 10/mar - Retorno do Rajadas 11/mar 12/mar 13/03 (00h)\nChip Pronta pra pagar Processando Pagamento Processando Pagamento Processando Pagamento \"Atrasada\"\nData 10/mar 10/mar - Retorno do Rajadas 11/mar 12/mar 13/03 (00h)\nChip Atrasada Processando Pagamento Processando Pagamento Processando Pagamento \"Paga\" \nAviso: Pagamento aos finais de semana e feriado via Pix ou Código de Barras por meio do Bancos Conveniados -Há disparo normalmente do \narquivo via Rajadas\n3.5 Fluxo Telas - Aplicativo Vivo\nCliente Next Móvel ou Fixa loga e acessa o App\nTAB Assinaturas\nAcessa a Central de Faturas\nApresentar o Card com a fatura pronta para ser paga, atrasada e negociada\nClica no botão \"Pagar Fatura\"\nvisualiza a tela com os meios de pagamentos disponíveis\nSeleciona a opção Pix Copia e Cola e/ou Código de barras\nApresenta o crouton que o código foi copiado\nRealiza o pagamento no  banco por meio dos bancos conveniados\nRajadas banco intermediário da Vivo que é o Santander retorna a informação em até 15 minutos que o pagamento foi realizado\nEm até 01 horas os Billings são atualizados\nAo retornar ao App na Central Fatura e no Detalhes da Assinatura e Histórico da Fatura deve apresentar a informação \"Processando Pagamento\"\nA baixa efetiva no pagamento onde deve constar a informação de \"Paga\" somente após a baixa efetiva do pagamento - fluxo atual\n \n1 - Central de Faturas (Novum)\nStatus \"Pronta pra Pagar\"\n2- Detalhes da Assinatura (FRB)\nStatus \"Pronta pra Pagar\"\n3 - Tela Meios de Pagamentos (sem alteração)\n\n[Página 5]\n3.8 Fluxo Telas - Web - Pagamento via Código Pix\nCliente Next Móvel ou Fixa loga e acessa a Web\nClica no Card Central de Faturas\nAcessa a  Página Central de Faturas\nApresentar o Card com a fatura pronta para ser paga, atrasada, Negociada\nClica no botão \"Pagar Fatura\"\nVisualiza Side Drawer com os meios de pagamentos disponíveis\nSeleciona a opção Pagar com Código Pix\nClica no botão copiar código Pix ou realiza a leitura por meio do QR Code\nRealiza o pagamento por meio dos bancos conveniados\nRajadas banco intermediário da Vivo que é o Santander retorna a informação em até 15 minutos que o pagamento foi realizado\nEm até 01 horas os Billings são atualizados\nAo retornar  a Web na Central Fatura e no Detalhes da Assinatura e Histórico da Fatura deve apresentar a informação \"Processando Pagamento\"\nA baixa efetiva no pagamento onde deve constar a informação de \"Paga\" somente após a baixa efetiva do pagamento - fluxo atual\n3.9 Fluxo Telas - Web - Pagamento via Código de Barras\nCliente Next Móvel ou Fixa loga e acessa a Web\nClica no Card Central de Faturas\nAcessa a  Página Central de Faturas\nApresentar o Card com a fatura pronta para ser paga, atrasada e negociada\nClica no botão \"Pagar Fatura\"\nVisualiza Side Drawer com os meios de pagamentos disponíveis - Visualiza os meios de pagamentos disponíveis\nSeleciona a opção Pagar com Código de Barras\nClica no botão copiar código de barras\nApresenta o crouton que o código foi copiado\nRealiza o pagamento no  banco por meio dos bancos conveniados\nRajadas banco intermediário da Vivo que é o Santander retorna a informação em até 15 minutos que o pagamento foi realizado\nEm até 01 horas os Billings são atualizados\nAo retornar  a Web na Central Faturas e no Detalhes da Assinatura e Histórico da Fatura deve apresentar a informação \"Processando \nPagamento\"\nA baixa efetiva no pagamento onde deve constar a informação de \"Paga\" somente após a baixa efetiva do pagamento - fluxo atual\n1 Central de Faturas\nClica em \"Pagar Fatura\" no CARD\n\n[Página 6]\n3.9.1 - Web - Fluxo Responsividade\nNão houve mudança e/ou alteração e inclusão de componente - Necessário a validação\n1 - Desktop\n\n[Página 8]\n3.9.2 - Tela de Erro\nAS IS\n\n[Página 9]\n4.0 Fluxo de Apresentação do Header e Callout- Desenvolvimento Novum\nCliente acessa o App\nTab Pra você - visualiza o header com as informações da fatura a ser paga - clica em pagar fatura\nAcessa a Tab Assinaturas - Visualiza o Callout \nApresentar o Card com a fatura pronta para ser paga, atrasada e negociada\nClica no botão \"Pagar Fatura\"\nvisualiza a tela com os meios de pagamentos disponíveis\nSeleciona a opção Pix ou Código de Barras\nApresenta o crouton que o código\nEfetuou o pagamento por meio dos bancos conveniados, após retorno do rajadas o card da fatura entra no status \"Processando Pagamento\"\nO Header e Callout deixa de ser apresentado - Tab Pra Você e Tab Assinaturas\nApresentação de Header - Tab Pra Você e Callout\n\n[Página 10]\n4. Premissas\nOs bancos conveniados continuarão enviando os arquivos de pagamento via Rajadas conforme acordado.\nA API Invoicing está disponível e funcional para uso do status . processing payment\nO App e Web estão preparados para receber e exibir o novo status sem impacto em outras funcionalidades.\n5. Pré-condições\nClientes Next Móvel e Fixa com fatura Vivo\nCliente B2B - Gestor\nPagamentos realizados via bancos conveniados (Caixa, Santander, Itaú, Banco do Brasil, Bradesco).\nExibição do status intermediário \"Processando Pagamento\" antes da baixa oficial e virar para paga \nTratamento de pagamentos via bancos não conveniados, com atualização apenas após baixa bancária\n6. Fora de Escopo\nCliente B2B\n\n[Página 11]\nCliente Fixa (Legado)\nCliente Controle (Legado)\nCliente Pré pago (NGIN)\nCliente Pós Pago (Atlys)\nPagamentos realizados pelo bancos não identificáveis via Rajadas - não haverá alteração da regra atual\n7. Impactos\nCLIENTES IMPACTADOS:\n \nClientes Next que possuam fatura  \"Pronta para pagar\" | \"Atrasada\" | \"Negociada\" e efetuou o ´pagamento via código de barras e código PIX\nSISTEMAS IMPACTADOS:\nApp  e Web\n8. Restrições\nA exibição do status depende da recepção e processamento dos arquivos bancários.\nO status \"Paga\" continuará dependendo exclusivamente da baixa bancária oficial.\nO projeto não contempla mudanças nos sistemas de Billing, apenas na camada de exibição e integração.\n9. Critérios de aceite\n001 App - Massa: Cliente Pós Next  - Com fatura pronta para pagar\nValidar página de Detalhe de Assinatura e Central de Faturas - status \"Processando Pagamento\" após pagamento da fatura via código Cenário: \nPix - utilizando os bancos conveniados \nPré-condição: Cliente Next com fatura pronta para pagar - Pagamento Via Código Pix\n:Ação\nCliente acessa o novo app na TAB Assinaturas e clica Central de Faturas\nVisualiza a página de Central de faturas e Detalhes da Assinatura\n Seleciona a fatura para pagamento \"Pronta para Pagar\" \nVisualiza a tela com os meios de pagamento e clica em copiar código Pix\nEfetua o pagamento via Banco Conveniado\nRetorna para o App - Em Central de Faturas deve apresentar o novo status \"  - apresentar o status em até 01 Processando Pagamento\"\nhoras\nCliente visualiza a página de Detalhes da Assinatura com o novo status \" \"Processando Pagamento\nApós 48horas ou o que ocorrer primeiro - a baixa bancária deve apresentar o status \"Paga\"\nResultado esperado:\nValidar o status de pagamento da fatura no App - Processando Pagamento\nValidar o status de pagamento da fatura na Web - Processando Pagamento\nValidar o status de pagamento da fatura no App - Paga\nValidar o status de pagamento da fatura na Web - Paga\n\n[Página 12]\n002 App - Massa: Cliente Controle Next  - Com fatura em atraso\nValidar página de Detalhe de Assinatura e Central de Faturas - status \"Processando Pagamento\" após pagamento da fatura via código Cenário: \nde barras - utilizando os bancos conveniados \nPré-condição: Cliente Next com fatura em atraso - Pagamento Via Código de Barras\n:Ação\nCliente acessa o novo app na TAB Assinaturas e clica Central de Faturas\nVisualiza a página de Central de faturas e Detalhes da Assinatura\n Seleciona a fatura para pagamento \"Pronta para Pagar\" \nVisualiza a tela com os meios de pagamento e clica em copiar código de barras\nEfetua o pagamento via Banco Conveniado\nRetorna para o App - Em Central de Faturas deve apresentar o novo status \"  - apresentar o status em até 01 Processando Pagamento\"\nhoras\nCliente visualiza a página de Detalhes da Assinatura com o novo status \" \"Processando Pagamento\nApós 48horas ou o que ocorrer primeiro - a baixa bancária deve apresentar o status \"Paga\"\nResultado esperado:\nValidar o status de pagamento da fatura no App - Processando Pagamento\nValidar o status de pagamento da fatura na Web - Processando Pagamento\nValidar o status de pagamento da fatura no App - Paga\nValidar o status de pagamento da fatura na Web - Paga \n 0\n03\n App - Massa: Cliente Fixa Next  - Com fatura pronta para pagar - Pagamento via banco não conveniado - Fluxo existente\nValidar página de Detalhe de Assinatura e Central de Faturas - status \"Processando Pagamento\" após pagamento da fatura via código Cenário: \nPix - Pagamento sem banco conveniado\nPré-condição: Cliente Next com fatura em atraso - Pagamento Via Código Pix\n:Ação\nCliente acessa o novo app na TAB Assinaturas e clica Central de Faturas\nVisualiza a página de Central de faturas e Detalhes da Assinatura\n Seleciona a fatura para pagamento \"Pronta para Pagar\" \nVisualiza a tela com os meios de pagamento e clica em copiar código Pix\nEfetua o pagamento via Banco Conveniado\nRetorna para o App - Em Central de Faturas deve apresentar o novo status \"Pronta para Pagar\"\nCliente visualiza a página de Detalhes da Assinatura com o novo status \"Pronta para Pagar\"\nEm até 48horas, após a baixa bancária deve apresentar o status \"Paga\"\nResultado esperado:\nValidar o status de pagamento da fatura no App - Paga - Em 48 horas - Fluxo existente\nValidar o status de pagamento da fatura no Web - Paga - Em 48 horas - Fluxo existente\n004 Web - Massa: Cliente Pós Next  - Com fatura pronta para pagar\nValidar página de Detalhe de Assinatura e Central de Faturas - status \"Processando Pagamento\" após pagamento da fatura via código Cenário: \nPix - utilizando os bancos conveniados \nPré-condição: Cliente Next com fatura pronta para pagar - Pagamento Via Código Pix\nAção:\nCliente acessa o Web \nVisualiza a página de Central de faturas \n Seleciona o Card com a Fatura Pronta para Pagar - Clica em Pagar Fatura \nVisualiza Side Drawer\nClica em Pagar com código Pix\ncopia o código Pix\nEfetua o pagamento via Banco Conveniado\nRetorna para na Web - Em Central de Faturas deve apresentar no Card o novo status \"  - apresentar o status em Processando Pagamento\"\naté 01 horas\nCliente visualiza a página de Detalhes da Assinatura com o novo status \" \"Processando Pagamento\nApós 48horas ou o que ocorrer primeiro - a baixa bancária deve apresentar o status \"Paga\"\nResultado esperado:\nValidar o status de pagamento da fatura no App - Processando Pagamento\nValidar o status de pagamento da fatura na Web - Processando Pagamento\nValidar o status de pagamento da fatura no App - Paga\nValidar o status de pagamento da fatura na Web - Paga\n\n[Página 13]\n005 Web - Massa: Cliente Fixa Next  - Com fatura em atraso\nValidar página de Detalhe de Assinatura e Central de Faturas - status \"Processando Pagamento\" após pagamento da fatura via código Cenário: \nbarras - utilizando os bancos conveniados \nPré-condição: Cliente Next com fatura pronta em atraso - Pagamento Via Código barras\nAção:\nCliente acessa o Web \nVisualiza a página de Central de faturas \n Seleciona o Card com a Fatura Pronta para Pagar - Clica em Pagar Fatura \nVisualiza Side Drawer\nClica em Pagar com código barras\ncopia o código de barras\nEfetua o pagamento via Banco Conveniado\nRetorna para na Web - Em Central de Faturas deve apresentar no Card o novo status \"  - apresentar o status em Processando Pagamento\"\naté 01 horas\nCliente visualiza a página de Detalhes da Assinatura com o novo status \" \"Processando Pagamento\nApós 48horas ou o que ocorrer primeiro - a baixa bancária deve apresentar o status \"Paga\"\nResultado esperado:\nValidar o status de pagamento da fatura no App - Processando Pagamento\nValidar o status de pagamento da fatura na Web - Processando Pagamento\nValidar o status de pagamento da fatura no App - Paga\nValidar o status de pagamento da fatura na Web - Paga \n006  Web - Massa: Cliente Fixa Next  - Com fatura pronta para pagar - Pagamento via banco não conveniado - Fluxo existente\nValidar página de Detalhe de Assinatura e Central de Faturas - status \"Processando Pagamento\" após pagamento da fatura via código Cenário: \nPix - Pagamento sem banco conveniado\nPré-condição: Cliente Next com fatura em atraso - Pagamento Via Código Pix\n:Ação\nCliente acessa o Web \nVisualiza a página de Central de faturas \n Seleciona o Card com a Fatura Pronta para Pagar - Clica em Pagar Fatura \nVisualiza Side Drawer\nClica em Pagar com código Pix\nCopia o código Pix\nEfetua o pagamento via Banco que não seja o conveniado\nRetorna para Web - Em Central de Faturas deve apresentar o novo status \"Pronta para Pagar\"\nCliente visualiza a página de Detalhes da Assinatura o status \"Pronta para Pagar\"\nEm até 48horas, após a baixa bancária deve apresentar o status \"Paga\"\nResultado esperado:\nValidar o status de pagamento da fatura no App - Paga - Em 48 horas - Fluxo existente\nValidar o status de pagamento da fatura no Web - Paga - Em 48 horas - Fluxo existente\n \n007 App - Massa: Cliente Pós Next  - Com fatura pronta para pagar - Header e Callout (Entrega Novum)\nCenário: Apresenta o Header na Tab Pra Você e Callout na Tab Assinaturas - Para pagamento da Fatura\nPré-condição: Cliente Next com fatura pronta para pagar  - Pagamento Via Código Pix\n:Ação\nCliente acessa o App\nTab Pra Você\nVisualiza o Header com a informação da fatura a ser paga - clica em pagar fatura\nVisualiza a página de Central de faturas\n Seleciona a fatura para pagamento \"Pronta para Pagar\" \nVisualiza a tela com os meios de pagamento e clica em copiar código Pix\nEfetua o pagamento via Banco conveniado\nRetorna para o App - Em Central de Faturas deve apresentar o novo status \"  - apresentar o status em até 01 Processando Pagamento\"\nhoras\nCliente visualiza a página de Detalhes da Assinatura com o novo status \" \"Processando Pagamento\nResultado esperado:\nO Header e Callout deixa de ser apresentado ao cliente uma vez que o status entrou em \"Processando Pagamento\"\n\n[Página 14]\n00\n8 \nApp - Massa: Cliente Pós Next  - Com fatura pronta para pagar - Pagamento aos finais de semana e feriado\nValidar página de Detalhe de Assinatura e Central de Faturas - status \"Processando Pagamento\" após pagamento da fatura via código Cenário: \nPix - utilizando os bancos conveniados \nPré-condição: Cliente Next com fatura pronta para pagar  - Pagamento Via Código Pix\n:Ação\nCliente acessa o App\nTab Pra Você\nVisualiza a página de Central de faturas\n Seleciona a fatura para pagamento \"Pronta para Pagar\" \nVisualiza a tela com os meios de pagamento e clica em copiar código Pix\nEfetua o pagamento via Banco Conveniados\nResultado esperado:\nValidar o status de pagamento da fatura no App - Processando Pagamento\nValidar o status de pagamento da fatura na Web - Processando Pagamento\nValidar o status de pagamento da fatura no App - Paga\nValidar o status de pagamento da fatura na Web - Paga \n009 App - Massa: Cliente Fixa Next  - Com fatura pronta para pagar - Pagamento aos finais de semana e feriado\nValidar página de Detalhe de Assinatura e Central de Faturas - status \"Processando Pagamento\" após pagamento da fatura via código Cenário: \nde barras - utilizando os bancos conveniados \nPré-condição: Cliente Next com fatura pronta para pagar  - Pagamento Via Código de barras\n:Ação\nCliente acessa o App\nTab Pra Você\nVisualiza a página de Central de faturas\n Seleciona a fatura para pagamento \"Pronta para Pagar\" \nVisualiza a tela com os meios de pagamento e clica em copiar código de barras\nEfetua o pagamento via Banco Conveniados\nResultado esperado:\nValidar o status de pagamento da fatura no App - Processando Pagamento\nValidar o status de pagamento da fatura na Web - Processando Pagamento\nValidar o status de pagamento da fatura no App - Paga\nValidar o status de pagamento da fatura na Web - Paga \n010 Web Responsividade -  Massa: Cliente Pós Next  - Com pronta para pagar \nValidar a responsividade para Web - Testar todos os devices especificados na históriaCenário: \nPré-condição: Cliente Next com fatura pronta para pagar\nCliente acessa o Web \nVisualiza a página de Central de faturas \n Seleciona o Card com a Fatura Pronta para Pagar - Clica em Pagar Fatura \nVisualiza Side Drawer\nClica em Pagar com código barras\ncopia o código de barras\nEfetua o pagamento via Banco Conveniado\nRetorna para na Web - Em Central de Faturas deve apresentar no Card o novo status \"  - apresentar o status em Processando Pagamento\"\naté 01 horas\nCliente visualiza a página de Detalhes da Assinatura com o novo status \" \"Processando Pagamento\nApós 48horas ou o que ocorrer primeiro - a baixa bancária deve apresentar o status \"Paga\"\nResultado esperado:\nTestar a responsividade",
+        "tables": [
+          {
+            "name": "Página 3 - Tabela 1",
+            "columns": [
+              "Data",
+              "10/mar",
+              "10/mar - Retorno do Rajadas",
+              "11/mar",
+              "12/mar",
+              "13/03 (00h)"
+            ],
+            "rows_preview": [
+              [
+                "Chip",
+                "Pronta pra pagar",
+                "Processando Pagamento",
+                "Processando Pagamento",
+                "Processando Pagamento",
+                "\"Paga\""
+              ]
+            ],
+            "row_count": 1
+          },
+          {
+            "name": "Página 3 - Tabela 2",
+            "columns": [
+              "Data",
+              "10/mar",
+              "10/mar - Retorno do Rajadas",
+              "11/mar",
+              "12/mar",
+              "13/03 (00h)"
+            ],
+            "rows_preview": [
+              [
+                "Chip",
+                "Pronta pra pagar",
+                "Processando Pagamento",
+                "Processando Pagamento",
+                "Processando Pagamento",
+                "\"Atrasada\""
+              ]
+            ],
+            "row_count": 1
+          },
+          {
+            "name": "Página 3 - Tabela 3",
+            "columns": [
+              "Data",
+              "10/mar",
+              "10/mar - Retorno do Rajadas",
+              "11/mar",
+              "12/mar",
+              "13/03 (00h)"
+            ],
+            "rows_preview": [
+              [
+                "Chip",
+                "Atrasada",
+                "Processando Pagamento",
+                "Processando Pagamento",
+                "Processando Pagamento",
+                "\"Paga\""
+              ]
+            ],
+            "row_count": 1
+          },
+          {
+            "name": "Página 3 - Tabela 4",
+            "columns": [
+              "1 - Central de Faturas (Novum)\nStatus \"Pronta pra Pagar\"",
+              "2- Detalhes da Assinatura (FRB)\nStatus \"Pronta pra Pagar\"",
+              "3 - Tela Meios de Pagamentos",
+              "(sem alteração)"
+            ],
+            "rows_preview": [
+              [
+                "",
+                "",
+                "",
+                ""
+              ]
+            ],
+            "row_count": 1
+          },
+          {
+            "name": "Página 4 - Tabela 1",
+            "columns": [
+              "",
+              "",
+              ""
+            ],
+            "rows_preview": [],
+            "row_count": 0
+          },
+          {
+            "name": "Página 5 - Tabela 1",
+            "columns": [
+              "",
+              "",
+              ""
+            ],
+            "rows_preview": [],
+            "row_count": 0
+          },
+          {
+            "name": "Página 5 - Tabela 2",
+            "columns": [
+              "1 Central de Faturas\nClica em \"Pagar Fatura\" no CARD",
+              "",
+              ""
+            ],
+            "rows_preview": [],
+            "row_count": 0
+          },
+          {
+            "name": "Página 6 - Tabela 1",
+            "columns": [
+              "",
+              ""
+            ],
+            "rows_preview": [],
+            "row_count": 0
+          },
+          {
+            "name": "Página 6 - Tabela 2",
+            "columns": [
+              "1 - Desktop",
+              "",
+              ""
+            ],
+            "rows_preview": [
+              [
+                "",
+                "",
+                ""
+              ]
+            ],
+            "row_count": 1
+          },
+          {
+            "name": "Página 7 - Tabela 1",
+            "columns": [
+              "",
+              ""
+            ],
+            "rows_preview": [],
+            "row_count": 0
+          },
+          {
+            "name": "Página 8 - Tabela 1",
+            "columns": [
+              "",
+              ""
+            ],
+            "rows_preview": [],
+            "row_count": 0
+          },
+          {
+            "name": "Página 9 - Tabela 1",
+            "columns": [
+              "Apresentação de Header - Tab Pra Você e Callout",
+              ""
+            ],
+            "rows_preview": [],
+            "row_count": 0
+          },
+          {
+            "name": "Página 11 - Tabela 1",
+            "columns": [
+              "001",
+              "App - Massa: Cliente Pós Next - Com fatura pronta para pagar\nCenário: Validar página de Detalhe de Assinatura e Central de Faturas - status \"Processando Pagamento\" após pagamento da fatura via código\nPix - utilizando os bancos conveniados\nPré-condição: Cliente Next com fatura pronta para pagar - Pagamento Via Código Pix\nAção:\nCliente acessa o novo app na TAB Assinaturas e clica Central de Faturas\nVisualiza a página de Central de faturas e Detalhes da Assinatura\nSeleciona a fatura para pagamento \"Pronta para Pagar\"\nVisualiza a tela com os meios de pagamento e clica em copiar código Pix\nEfetua o pagamento via Banco Conveniado\nRetorna para o App - Em Central de Faturas deve apresentar o novo status \"Processando Pagamento\" - apresentar o status em até 01\nhoras\nCliente visualiza a página de Detalhes da Assinatura com o novo status \"Processando Pagamento\"\nApós 48horas ou o que ocorrer primeiro - a baixa bancária deve apresentar o status \"Paga\"\nResultado esperado:\nValidar o status de pagamento da fatura no App - Processando Pagamento\nValidar o status de pagamento da fatura na Web - Processando Pagamento\nValidar o status de pagamento da fatura no App - Paga\nValidar o status de pagamento da fatura na Web - Paga"
+            ],
+            "rows_preview": [],
+            "row_count": 0
+          },
+          {
+            "name": "Página 12 - Tabela 1",
+            "columns": [
+              "002",
+              "App - Massa: Cliente Controle Next - Com fatura em atraso\nCenário: Validar página de Detalhe de Assinatura e Central de Faturas - status \"Processando Pagamento\" após pagamento da fatura via código\nde barras - utilizando os bancos conveniados\nPré-condição: Cliente Next com fatura em atraso - Pagamento Via Código de Barras\nAção:\nCliente acessa o novo app na TAB Assinaturas e clica Central de Faturas\nVisualiza a página de Central de faturas e Detalhes da Assinatura\nSeleciona a fatura para pagamento \"Pronta para Pagar\"\nVisualiza a tela com os meios de pagamento e clica em copiar código de barras\nEfetua o pagamento via Banco Conveniado\nRetorna para o App - Em Central de Faturas deve apresentar o novo status \"Processando Pagamento\" - apresentar o status em até 01\nhoras\nCliente visualiza a página de Detalhes da Assinatura com o novo status \"Processando Pagamento\"\nApós 48horas ou o que ocorrer primeiro - a baixa bancária deve apresentar o status \"Paga\"\nResultado esperado:\nValidar o status de pagamento da fatura no App - Processando Pagamento\nValidar o status de pagamento da fatura na Web - Processando Pagamento\nValidar o status de pagamento da fatura no App - Paga\nValidar o status de pagamento da fatura na Web - Paga"
+            ],
+            "rows_preview": [
+              [
+                "0\n03",
+                "App - Massa: Cliente Fixa Next - Com fatura pronta para pagar - Pagamento via banco não conveniado - Fluxo existente\nCenário: Validar página de Detalhe de Assinatura e Central de Faturas - status \"Processando Pagamento\" após pagamento da fatura via código\nPix - Pagamento sem banco conveniado\nPré-condição: Cliente Next com fatura em atraso - Pagamento Via Código Pix\nAção:\nCliente acessa o novo app na TAB Assinaturas e clica Central de Faturas\nVisualiza a página de Central de faturas e Detalhes da Assinatura\nSeleciona a fatura para pagamento \"Pronta para Pagar\"\nVisualiza a tela com os meios de pagamento e clica em copiar código Pix\nEfetua o pagamento via Banco Conveniado\nRetorna para o App - Em Central de Faturas deve apresentar o novo status \"Pronta para Pagar\"\nCliente visualiza a página de Detalhes da Assinatura com o novo status \"Pronta para Pagar\"\nEm até 48horas, após a baixa bancária deve apresentar o status \"Paga\"\nResultado esperado:\nValidar o status de pagamento da fatura no App - Paga - Em 48 horas - Fluxo existente\nValidar o status de pagamento da fatura no Web - Paga - Em 48 horas - Fluxo existente"
+              ],
+              [
+                "004",
+                "Web - Massa: Cliente Pós Next - Com fatura pronta para pagar\nCenário: Validar página de Detalhe de Assinatura e Central de Faturas - status \"Processando Pagamento\" após pagamento da fatura via código\nPix - utilizando os bancos conveniados\nPré-condição: Cliente Next com fatura pronta para pagar - Pagamento Via Código Pix\nAção:\nCliente acessa o Web\nVisualiza a página de Central de faturas\nSeleciona o Card com a Fatura Pronta para Pagar - Clica em Pagar Fatura\nVisualiza Side Drawer\nClica em Pagar com código Pix\ncopia o código Pix\nEfetua o pagamento via Banco Conveniado\nRetorna para na Web - Em Central de Faturas deve apresentar no Card o novo status \"Processando Pagamento\" - apresentar o status em\naté 01 horas\nCliente visualiza a página de Detalhes da Assinatura com o novo status \"Processando Pagamento\"\nApós 48horas ou o que ocorrer primeiro - a baixa bancária deve apresentar o status \"Paga\"\nResultado esperado:\nValidar o status de pagamento da fatura no App - Processando Pagamento\nValidar o status de pagamento da fatura na Web - Processando Pagamento\nValidar o status de pagamento da fatura no App - Paga\nValidar o status de pagamento da fatura na Web - Paga"
+              ]
+            ],
+            "row_count": 2
+          },
+          {
+            "name": "Página 13 - Tabela 1",
+            "columns": [
+              "005",
+              "Web - Massa: Cliente Fixa Next - Com fatura em atraso\nCenário: Validar página de Detalhe de Assinatura e Central de Faturas - status \"Processando Pagamento\" após pagamento da fatura via código\nbarras - utilizando os bancos conveniados\nPré-condição: Cliente Next com fatura pronta em atraso - Pagamento Via Código barras\nAção:\nCliente acessa o Web\nVisualiza a página de Central de faturas\nSeleciona o Card com a Fatura Pronta para Pagar - Clica em Pagar Fatura\nVisualiza Side Drawer\nClica em Pagar com código barras\ncopia o código de barras\nEfetua o pagamento via Banco Conveniado\nRetorna para na Web - Em Central de Faturas deve apresentar no Card o novo status \"Processando Pagamento\" - apresentar o status em\naté 01 horas\nCliente visualiza a página de Detalhes da Assinatura com o novo status \"Processando Pagamento\"\nApós 48horas ou o que ocorrer primeiro - a baixa bancária deve apresentar o status \"Paga\"\nResultado esperado:\nValidar o status de pagamento da fatura no App - Processando Pagamento\nValidar o status de pagamento da fatura na Web - Processando Pagamento\nValidar o status de pagamento da fatura no App - Paga\nValidar o status de pagamento da fatura na Web - Paga"
+            ],
+            "rows_preview": [
+              [
+                "006",
+                "Web - Massa: Cliente Fixa Next - Com fatura pronta para pagar - Pagamento via banco não conveniado - Fluxo existente\nCenário: Validar página de Detalhe de Assinatura e Central de Faturas - status \"Processando Pagamento\" após pagamento da fatura via código\nPix - Pagamento sem banco conveniado\nPré-condição: Cliente Next com fatura em atraso - Pagamento Via Código Pix\nAção:\nCliente acessa o Web\nVisualiza a página de Central de faturas\nSeleciona o Card com a Fatura Pronta para Pagar - Clica em Pagar Fatura\nVisualiza Side Drawer\nClica em Pagar com código Pix\nCopia o código Pix\nEfetua o pagamento via Banco que não seja o conveniado\nRetorna para Web - Em Central de Faturas deve apresentar o novo status \"Pronta para Pagar\"\nCliente visualiza a página de Detalhes da Assinatura o status \"Pronta para Pagar\"\nEm até 48horas, após a baixa bancária deve apresentar o status \"Paga\"\nResultado esperado:\nValidar o status de pagamento da fatura no App - Paga - Em 48 horas - Fluxo existente\nValidar o status de pagamento da fatura no Web - Paga - Em 48 horas - Fluxo existente"
+              ],
+              [
+                "007",
+                "App - Massa: Cliente Pós Next - Com fatura pronta para pagar - Header e Callout (Entrega Novum)\nCenário: Apresenta o Header na Tab Pra Você e Callout na Tab Assinaturas - Para pagamento da Fatura\nPré-condição: Cliente Next com fatura pronta para pagar - Pagamento Via Código Pix\nAção:\nCliente acessa o App\nTab Pra Você\nVisualiza o Header com a informação da fatura a ser paga - clica em pagar fatura\nVisualiza a página de Central de faturas\nSeleciona a fatura para pagamento \"Pronta para Pagar\"\nVisualiza a tela com os meios de pagamento e clica em copiar código Pix\nEfetua o pagamento via Banco conveniado\nRetorna para o App - Em Central de Faturas deve apresentar o novo status \"Processando Pagamento\" - apresentar o status em até 01\nhoras\nCliente visualiza a página de Detalhes da Assinatura com o novo status \"Processando Pagamento\"\nResultado esperado:\nO Header e Callout deixa de ser apresentado ao cliente uma vez que o status entrou em \"Processando Pagamento\""
+              ]
+            ],
+            "row_count": 2
+          },
+          {
+            "name": "Página 14 - Tabela 1",
+            "columns": [
+              "00\n8",
+              "App - Massa: Cliente Pós Next - Com fatura pronta para pagar - Pagamento aos finais de semana e feriado\nCenário: Validar página de Detalhe de Assinatura e Central de Faturas - status \"Processando Pagamento\" após pagamento da fatura via código\nPix - utilizando os bancos conveniados\nPré-condição: Cliente Next com fatura pronta para pagar - Pagamento Via Código Pix\nAção:\nCliente acessa o App\nTab Pra Você\nVisualiza a página de Central de faturas\nSeleciona a fatura para pagamento \"Pronta para Pagar\"\nVisualiza a tela com os meios de pagamento e clica em copiar código Pix\nEfetua o pagamento via Banco Conveniados\nResultado esperado:\nValidar o status de pagamento da fatura no App - Processando Pagamento\nValidar o status de pagamento da fatura na Web - Processando Pagamento\nValidar o status de pagamento da fatura no App - Paga\nValidar o status de pagamento da fatura na Web - Paga"
+            ],
+            "rows_preview": [
+              [
+                "009",
+                "App - Massa: Cliente Fixa Next - Com fatura pronta para pagar - Pagamento aos finais de semana e feriado\nCenário: Validar página de Detalhe de Assinatura e Central de Faturas - status \"Processando Pagamento\" após pagamento da fatura via código\nde barras - utilizando os bancos conveniados\nPré-condição: Cliente Next com fatura pronta para pagar - Pagamento Via Código de barras\nAção:\nCliente acessa o App\nTab Pra Você\nVisualiza a página de Central de faturas\nSeleciona a fatura para pagamento \"Pronta para Pagar\"\nVisualiza a tela com os meios de pagamento e clica em copiar código de barras\nEfetua o pagamento via Banco Conveniados\nResultado esperado:\nValidar o status de pagamento da fatura no App - Processando Pagamento\nValidar o status de pagamento da fatura na Web - Processando Pagamento\nValidar o status de pagamento da fatura no App - Paga\nValidar o status de pagamento da fatura na Web - Paga"
+              ],
+              [
+                "010",
+                "Web Responsividade - Massa: Cliente Pós Next - Com pronta para pagar\nCenário: Validar a responsividade para Web - Testar todos os devices especificados na história\nPré-condição: Cliente Next com fatura pronta para pagar\nCliente acessa o Web\nVisualiza a página de Central de faturas\nSeleciona o Card com a Fatura Pronta para Pagar - Clica em Pagar Fatura\nVisualiza Side Drawer\nClica em Pagar com código barras\ncopia o código de barras\nEfetua o pagamento via Banco Conveniado\nRetorna para na Web - Em Central de Faturas deve apresentar no Card o novo status \"Processando Pagamento\" - apresentar o status em\naté 01 horas\nCliente visualiza a página de Detalhes da Assinatura com o novo status \"Processando Pagamento\"\nApós 48horas ou o que ocorrer primeiro - a baixa bancária deve apresentar o status \"Paga\"\nResultado esperado:\nTestar a responsividade"
+              ]
+            ],
+            "row_count": 2
+          }
+        ],
+        "fields": [
+          "001 App - Massa",
+          "002 App - Massa",
+          "004 Web - Massa",
+          "005 Web - Massa",
+          "010 Web Responsividade -  Massa",
+          "Ação",
+          "CLIENTES IMPACTADOS",
+          "Exemplo",
+          "Formulário QD",
+          "Funcionamento do Rajadas",
+          "Importante",
+          "Pré-condição",
+          "Resultado esperado",
+          "SISTEMAS IMPACTADOS"
+        ],
+        "warnings": [],
+        "metadata": {
+          "file_type": ".pdf",
+          "pages_with_text": 12,
+          "tables": 16
+        }
+      }
+    },
+    {
+      "id": "ea7a8b5d6e32",
+      "filename": "vivo.pdf",
+      "path": "C:\\Users\\bruno.santos\\Desktop\\gabbi_poc_LangGhap\\gabbi_poc\\app\\data\\254c546cd1\\files\\vivo.pdf",
+      "content_type": "application/pdf",
+      "parsed": {
+        "text": "[Página 1]\nAcessibilidade Master - Endereço de Assinatura: \nRelacionamento\nLink do Jira:  -   \nMDC-1316 Acessibilidade Geral app EXECUÇÃO\n1. Nome da História:\nAcessibilidade - Endereço de relacionamento\n2. Escopo da História\nEu como cliente Vivo quero utilizar ferramentas assistivas para acessar o fluxo \"Endereço de relacionamento\"  para que possa navegar e interagir com o \nconteúdo de forma independente.\n3. Fluxos de negócio\n acessa o app vivo; Cliente\n acessa a tab de assinaturas;Cliente\n clica no menuCliente\n clica no perfil;Cliente\n clica emCliente  Informações pessoais\nCliente visualiza Morada \nCliente Visualiza Endereço de relacionamento\n4. Detalhamento da História\nEssa história visa o desenvolvimento de acessibilidade (leitura de elementos) no fluxo Nome de preferência\nAções: Implementar leitura dos elementos mapeados. Idioma da Aplicação: Código \"pt-BR\".\nResultado esperado: Que o leitor efetue a leitura com sucesso após o cliente clicar nos elementos mapeados e conforme as regras que seguem. \n: LINK FIGMA  https://www.figma.com/design/Xq09WjUgKW5mVl38EtBGlx/Informa%C3%A7%C3%B5es-Pessoais?node-id=12986-\n 293336&t=AUwAN9jUgcxWOEeW-0\n\n[Página 2]\nA   dos elementos em tela sequência de leitura\ndeve seguir a numeração contida nos círculos. \nTextos não especificados devem seguir a leitura \npadrão dos leitores de tela.\nMarcador usado para destacar, na \ndocumentação, uma área de elementos como \numa lista de itens ou regiões da página.\n    Textos envoltos por uma caixa preta, \ncomo neste exemplo, indicam o foco do leitor e \nagrupamentos de elementos que devem ser \nlidos de forma automática (juntos e em \nsequência).\nO ícone {audio-off} indica elementos \nque devem ser ignorados por leitores de tela.\nCamadas usadas para delimitar uma \nárea de clique ou toque. Componentes validados \nno design system não precisam ser delimitados.\nA sequência de leitura dos \nelementos em tela deve seguir a numeração \ncontida nos círculos. Textos não especificados \ndevem seguir a leitura padrão dos leitores de \ntela.\n    Sequência de leitura dos element os  \nem tela e representa um cabeçalho (headings).\nEntrypoint\n\n[Página 3]\nNão estamos implementando acessibilidade no \nentrypoint nesta entrega, \"Informações pessoais\" \npois já deve possuir acessibiidade conforme \nlançamento do novo app.\n\n[Página 4]\nAo clicar no entrypoint \"Informações \npessoais\",  o usuário será direcionado para o \nSkeleton e então deve ler os componentes da \nseguinte forma: \n Deve ser identificado como um botão 1- Botão:\ne sua literal deve ser: Voltar \n Deve ser identificado como um 2- Cabeçalho:\ntítulo de Nível 1 ou H1.\n Deve possuir um nome acessível. 3- Skeleton:\nSua literal deve ser: \"Carregando\"\n\n[Página 5]\nApos o carregamento do Skeleton deve ser \napresentado a morada de informações pessoais\n1- Botão: Deve ser identificado como um botão e \nsua literal deve ser \"Voltar\".\n2- Cabeçalho: Deve ser identificado como um \ntítulo de: Nível 1 ou H1\n3- Cabeçalho: Deve ser identificado como um \ntítulo de Nível 2 ou H2.\n4- Deve ser identificado como um botão e sua \nliteral deve ser: \"Sobre você, nome e dados de \ncontato\".\n5- Cabeçalho \nDeve ser identificado como um título de:\nNível 2 ou H2\nLista de botões\n6 - Lista não ordenada de itens contendo:\nBotões\n7- Deve ser identificado como um botão e sua \nliteral deve ser:\n\"Assinaturas, para envio de faturas e \nrelacionamento\"\n8 - Deve ser identificado como um botão e sua \nliteral deve ser:\n\"Entrega, das suas compras na loja online Vivo\"\n\n[Página 6]\nAo clicar em \"Sobre você\" \n1- Botão: Deve ser identificado como um botão e \nsua literal deve ser \"Voltar\".\n2- Cabeçalho: Deve ser identificado como um \ntítulo de Nível 1 ou H1.\n3-Skeleton\nDeve possuir um nome acessível. Sua literal \ndeve ser: \"Carregando\"\n\n[Página 7]\n01\nBotão\nDeve ser identificado como um botão e sua \nliteral deve ser:\n“Voltar”\n02\nCabeçalho\nDeve ser identificado como um título de:\nNível 1 ou H1\n\"Insira o termo completo\"\n \n03 - Lista não ordenada de itens contendo:\nBotões\n04\n05\n06\nLista de itens\n04\nDeve ser identificado como um botão e sua \nliteral deve ser:\nBotão\nRelacionamento + {endereço}\"Exemplo: ”\nRelacionamento, Rua Pedro, 56, Centro, \nDiadema São Paulo, CEP 01357113”\n05\nDeve ser identificado como um botão e sua \nliteral deve ser:\nBotão\n\"{Nome da assinatura} + {Endereço}\"Exemplo: ”\nVivo Fibra 500 Mbps Netflix, Rua Mares do Sol, \n489, Jardim Santista, Santos São Paulo, CEP \n05453000”\n06\nDeve ser identificado como um botão e sua \nliteral deve ser:\nBotão\n\"{Nome da assinatura} + {Endereço}\"Exemplo: ”\nVivo Controle 34 GB, Rua Plínio Fernandes, \n1.849, Vila Madalena, São Paulo São Paulo, \nCEP 05453-000”\nFLUXO Editar endereço\n\n[Página 8]\nApos o clique no endereço de \nrelacionamneto  o cliente visualiza a tela \ncom imputs e clica no campo CEP\n      \n01\n09\n11\nTítulo da interface\nCampo de texto\npreenchido\nO título da Nav Bar ou Toolbar da tela, deve \nser:\nInput de entrada de dados do tipo texto.\n”Endereço de relacionamento”\nO label deve estar corretamente associado \nao respectivo campo.\n\"Insira o termo completo\"\n02\nLabel: \"Endereço\"\nBotão\nO valor do campo deve ser anunciado.\n12\nDeve ser identificado como um botão e sua \nliteral deve ser:\nBotão desabilitado\n“Fechar janela”\nDeve ser identificado como um botão \ndesabilitado e sua literal deve ser:\n03\n\"Confirmar endereço\"\nCabeçalho\nO botão deve ser perceptível ao leitor de \ntela, e indicar que está desativado. Em html \nutilize o atributo aria-disabled.\nDeve ser identificado como um título de:\nNível 2 ou H2\n\"Insira o termo completo\"\n05\n06\n10\nCampo de texto\npreenchido\nInput de entrada de dados do tipo texto.\nO label deve estar corretamente associado \nao respectivo campo.\nLabel: \"Endereço\"\nO valor do campo deve ser anunciado.\n04\n07\nCampo numérico\npreenchido\nInput de entrada de dados do tipo \nnúmeros. Apenas números são aceitos.O \nlabel deve estar corretamente associado ao \nrespectivo campo.\nLiteral\nLabel: \"Insira a label + {variável}\"\nO valor do campo deve ser anunciado.\n\n[Página 9]\n08\nCheckbox (caixa de seleção)\nDeve ser identificado como uma caixa de \nseleção e o label deve estar corretamente \nassociado. Deve anunciar se está \ndesmarcada ou marcada.\nDesmarcado por padrão\n09\n11\nCampo de texto\npreenchido\nInput de entrada de dados do tipo texto.\nO label deve estar corretamente associado \nao respectivo campo.\nO valor do campo deve ser anunciado.\n12\nLabel: \"Endereço\"\nBotão desabilitado\nDeve ser identificado como um botão \ndesabilitado e sua literal deve ser:\n\"Confirmar endereço\"\nO botão deve ser perceptível ao leitor de \ntela, e indicar que está desativado. Em html \nutilize o atributo aria-disabled.\n\n[Página 10]\nAo clicar no input CEP\n01\nTítulo da interface\nO título da Nav Bar ou Toolbar da tela, deve ser:\n”Endereço de relacionamento”\n\"Insira o termo completo\"\n02\nBotão\nDeve ser identificado como um botão e sua \nliteral deve ser:\n“Fechar janela”\n03\nCabeçalho\nDeve ser identificado como um título de:\nNível 2 ou H2\n\"Insira o termo completo\"\n04\nCampo numérico\npreenchido\nInput de entrada de dados do tipo números. \nApenas números são aceitos.O label deve estar \ncorretamente associado ao respectivo campo.\nLiteral\nO valor do campo deve ser anunciado.\nLabel: \"Insira a label + {variável}\"\n05\nSpinner\nDeve possuir um nome acessível. Sua literal \ndeve ser:”Carregando”\n05 Após o carregamento do endereço \nautomatico \nDeve ser identificado como um botão e sua \nliteral deve ser:\nEndereço + {endereço encontrado}\"Exemplo: ”\nEndereço, Av. Doutor Chucri Zaidan, 2460, Vila \nCordeiro, São Paulo São Paulo, CEP 04711-130”\nImagem decorativa\nA imagem deve ser ignorada pelo leitor de tela. \nDeve ser utilizado a tag alt com valor nulo \n(alt=\"\").\nLiteral\n06\nBotão desabilitado\nDeve ser identificado como um botão \ndesabilitado e sua literal deve ser:\n\"Confirmar endereço\"\nO botão deve ser perceptível ao leitor de tela, e \nindicar que está desativado. Em html utilize o \natributo aria-disabled.\n07\nTeclado nativo\nDeve ser interpretado em linguagem português \n(pt-BR)\n\n[Página 11]\nApós digitar o cep e confirmar o endereço, o \ncliente retorna para tela de endereço de \nassinatura para confimar a alteração\n01\n09\n11\nTítulo da interface\nCampo de texto\npreenchido\nO título da Nav Bar ou Toolbar da tela, deve ser:\nInput de entrada de dados do tipo texto.\n”Endereço de relacionamento”\nO label deve estar corretamente associado ao \nrespectivo campo.\n\"Insira o termo completo\"\n02\nLabel: \"Endereço\"\nBotão\nO valor do campo deve ser anunciado.\n12\nDeve ser identificado como um botão e sua \nliteral deve ser:\nBotão\n“Fechar janela”\nDeve ser identificado como um botão e sua \nliteral deve ser:\n\n[Página 12]\n\"Confirmar endereço\"\n03\nCabeçalho\nDeve ser identificado como um título de:\nNível 2 ou H2\n\"Insira o termo completo\"\n05\n06\n10\nCampo de texto\npreenchido\nInput de entrada de dados do tipo texto.\nO label deve estar corretamente associado ao \nrespectivo campo.\nLabel: \"Endereço\"\nO valor do campo deve ser anunciado.\n04\n07\nCampo numérico\npreenchido\nInput de entrada de dados do tipo números. \nApenas números são aceitos.O label deve estar \ncorretamente associado ao respectivo campo.\nLiteral\nLabel: \"Insira a label + {variável}\"\nO valor do campo deve ser anunciado.\n08\nCheckbox (caixa de seleção)\nDeve ser identificado como uma caixa de \nseleção e o label deve estar corretamente \nassociado. Deve anunciar se está desmarcada \nou marcada.\nDesmarcada por padrão\n09\n11\nCampo de texto\npreenchido\nInput de entrada de dados do tipo texto.\nO label deve estar corretamente associado ao \nrespectivo campo.\nO valor do campo deve ser anunciado.\n12\nLabel: \"Endereço\"\nBotão\nDeve ser identificado como um botão e sua \nliteral deve ser:\n\"Confirmar endereço\"\n\n[Página 13]\nApós  a confirmação da alteração o \ncarregamento sera apresentado tela de sucesso \npara alteração de endereço. \n01\nImagem decorativa\nA imagem deve ser ignorada pelo leitor de tela. \nDeve ser utilizado a tag alt com valor nulo \n(alt=\"\").\n02\nTexto / Parágrafo\nDeve ser interpretado como texto ou <p>.\nLiteral\n\"Insira o termo completo\"\n\n[Página 14]\n01\nImagem decorativa\nA imagem deve ser ignorada pelo leitor de tela. \nDeve ser utilizado a tag alt com valor nulo \n(alt=\"\").\n02\nTexto / Parágrafo\nDeve ser interpretado como texto ou <p>.\nLiteral\n03\n\"Insira o termo completo\"\nBotão\nDeve ser identificado como um botão e sua \nliteral deve ser:\n\"Ir pro início\"\nERROS GENERICOS: ERRO AO ADICIONAR NOME\n\n[Página 15]\n01\nImagem decorativa\nA imagem deve ser ignorada pelo leitor de tela. \nDeve ser utilizado a tag alt com valor nulo \n(alt=\"\").\n02\nCabeçalho\nDeve ser identificado como um título de:\nLiteral\nNível 2 ou H2\n\"Insira o termo completo\"\n03\nTexto / Parágrafo\nDeve ser interpretado como texto ou <p>.\n04\n\"Insira o termo completo\"\nBotão\nDeve ser identificado como um botão e sua \nliteral deve ser:\n”Tentar de novo\"\n05\nBotão\nDeve ser identificado como um botão e sua \nliteral deve ser:\n\"Ir para o início\"\nERROS NOS INPUTS DE DIGITAÇÃO\n\n[Página 16]\n01\nNotificação imediata\nDeve ser interpretado como um texto, e caso \nrenderizado na interface, deve notificar o usuário \nimediatamente, interrompendo a leitura de foco \ndo usuário e descrevendo o conteúdo da \nnotificação. Em html utilize a propriedade aria-\nlive=\"assertive\" ou role=\"alert\".\n\n[Página 17]\n\\\n02\nNotificação imediata\nDeve ser interpretado como um texto, e caso \nrenderizado na interface, deve notificar o usuário \nimediatamente, interrompendo a leitura de foco \ndo usuário e descrevendo o conteúdo da \nnotificação. Em html utilize a propriedade aria-\nlive=\"assertive\" ou role=\"alert\".\n\n[Página 18]\n01\n02\n03\n05\n06\nNotificação imediata\nDeve ser interpretado como um texto, e caso \nrenderizado na interface, deve notificar o usuário \nimediatamente, interrompendo a leitura de foco \ndo usuário e descrevendo o conteúdo da \nnotificação. Em html utilize a propriedade aria-\nlive=\"assertive\" ou role=\"alert\".\n04\nCheckbox (caixa de seleção)\nDeve ser identificado como uma caixa de \nseleção e o label deve estar corretamente \nassociado. Deve anunciar se está desmarcada \nou marcada.\nDesmarcado por padrão\n\n[Página 19]\n5. Premissas\nEstar em conformidade com os princípios do Framework de Acessibilidade Vivo\nAtendimento à critérios relacionados da WCAG 2.1 e MORGA versão 7.*\nReferência: Versão 7, publicada em julho de 2022. \nLayout, fontes e cores da tela devem seguir definição do UX disponibilizadas no Figma ( )Serviços adicionais - Fixa – Figma\nO carregamento completo da tela deve ocorrer em até 3 segundos.\nDesenvolvimento deve contemplar Android e iOS.\n6. Pré-condições\nSer um cliente:\nAPP*\nValidar com WAVE (teste estático).\nAtivar o Leitor de Telas do device.\nValidar em ambiente iOS (leitor VoiceOver) e Android (leitor Talkback).\n7. Critérios de Aceite \nID DESCRIÇÃO DOS CRITÉRIOS DE ACEITE\n\n[Página 20]\n001 usuário esteja na tela de \"Endereços de assinatura\"\" e localiza o entrypoint  com o seu endereço de relacionamentoDado que  \n: Então\n01\nBotão\nDeve ser identificado como um botão e sua literal deve ser:\n“Voltar”\n02\nCabeçalho\nDeve ser identificado como um título de:\nNível 1 ou H1\n\"Insira o termo completo\"\n \n03 - Lista não ordenada de itens contendo:\nBotões\n04\n05\n06\nLista de itens\n04\nDeve ser identificado como um botão e sua literal deve ser:\nBotão\nRelacionamento + {endereço}\"Exemplo: ”Relacionamento, Rua Pedro, 56, Centro, Diadema São Paulo, CEP 01357113”\n05\nDeve ser identificado como um botão e sua literal deve ser:\nBotão\n\"{Nome da assinatura} + {Endereço}\"Exemplo: ”Vivo Fibra 500 Mbps Netflix, Rua Mares do Sol, 489, Jardim Santista, Santos São Paulo, CEP \n05453000”\n06\nDeve ser identificado como um botão e sua literal deve ser:\nBotão\n\"{Nome da assinatura} + {Endereço}\"Exemplo: ”Vivo Controle 34 GB, Rua Plínio Fernandes, 1.849, Vila Madalena, São Paulo São Paulo, CEP \n05453-000”\n\n[Página 21]\n002 Apos o clique no endereço de relacionamneto  o cliente visualiza a tela com imputs e clica no campo CEP\n      \n01\n09\n11\nTítulo da interface\nCampo de texto\npreenchido\nO título da Nav Bar ou Toolbar da tela, deve ser:\nInput de entrada de dados do tipo texto.\n”Endereço de relacionamento”\nO label deve estar corretamente associado ao respectivo campo.\n\"Insira o termo completo\"\n02\nLabel: \"Endereço\"\nBotão\nO valor do campo deve ser anunciado.\n12\nDeve ser identificado como um botão e sua literal deve ser:\nBotão desabilitado\n“Fechar janela”\nDeve ser identificado como um botão desabilitado e sua literal deve ser:\n03\n\"Confirmar endereço\"\nCabeçalho\nO botão deve ser perceptível ao leitor de tela, e indicar que está desativado. Em html utilize o atributo aria-disabled.\nDeve ser identificado como um título de:\nNível 2 ou H2\n\"Insira o termo completo\"\n05\n06\n10\nCampo de texto\npreenchido\nInput de entrada de dados do tipo texto.\nO label deve estar corretamente associado ao respectivo campo.\nLabel: \"Endereço\"\nO valor do campo deve ser anunciado.\n04\n07\nCampo numérico\npreenchido\nInput de entrada de dados do tipo números. Apenas números são aceitos.O label deve estar corretamente associado ao respectivo campo.\nLiteral\nLabel: \"Insira a label + {variável}\"\nO valor do campo deve ser anunciado.\n08\nCheckbox (caixa de seleção)\nDeve ser identificado como uma caixa de seleção e o label deve estar corretamente associado. Deve anunciar se está desmarcada ou marcada.\nDesmarcado por padrão\n09\n11\nCampo de texto\npreenchido\nInput de entrada de dados do tipo texto.\nO label deve estar corretamente associado ao respectivo campo.\nO valor do campo deve ser anunciado.\n12\nLabel: \"Endereço\"\nBotão desabilitado\nDeve ser identificado como um botão desabilitado e sua literal deve ser:\n\"Confirmar endereço\"\nO botão deve ser perceptível ao leitor de tela, e indicar que está desativado. Em html utilize o atributo aria-disabled.\n\n[Página 22]\n003 Ao clicar no input CEP\n01\nTítulo da interface\nO título da Nav Bar ou Toolbar da tela, deve ser:\n”Endereço de relacionamento”\n\"Insira o termo completo\"\n02\nBotão\nDeve ser identificado como um botão e sua literal deve ser:\n“Fechar janela”\n03\nCabeçalho\nDeve ser identificado como um título de:\nNível 2 ou H2\n\"Insira o termo completo\"\n04\nCampo numérico\npreenchido\nInput de entrada de dados do tipo números. Apenas números são aceitos.O label deve estar corretamente associado ao respectivo campo.\nLiteral\nO valor do campo deve ser anunciado.\nLabel: \"Insira a label + {variável}\"\n05\nSpinner\nDeve possuir um nome acessível. Sua literal deve ser:”Carregando”\n05 Após o carregamento do endereço automatico \nDeve ser identificado como um botão e sua literal deve ser:\nEndereço + {endereço encontrado}\"Exemplo: ”Endereço, Av. Doutor Chucri Zaidan, 2460, Vila Cordeiro, São Paulo São Paulo, CEP 04711-130”\nImagem decorativa\nA imagem deve ser ignorada pelo leitor de tela. Deve ser utilizado a tag alt com valor nulo (alt=\"\").\nLiteral\n06\nBotão desabilitado\nDeve ser identificado como um botão desabilitado e sua literal deve ser:\n\"Confirmar endereço\"\nO botão deve ser perceptível ao leitor de tela, e indicar que está desativado. Em html utilize o atributo aria-disabled.\n07\nTeclado nativo\nDeve ser interpretado em linguagem português (pt-BR)\n\n[Página 23]\n004 Após digitar o cep e confirmar o endereço, o cliente retorna para tela de endereço de assinatura para confimar a alteração\n01\n09\n11\nTítulo da interface\nCampo de texto\npreenchido\nO título da Nav Bar ou Toolbar da tela, deve ser:\nInput de entrada de dados do tipo texto.\n”Endereço de relacionamento”\nO label deve estar corretamente associado ao respectivo campo.\n\"Insira o termo completo\"\n02\nLabel: \"Endereço\"\nBotão\nO valor do campo deve ser anunciado.\n12\nDeve ser identificado como um botão e sua literal deve ser:\nBotão\n“Fechar janela”\nDeve ser identificado como um botão e sua literal deve ser:\n\"Confirmar endereço\"\n03\nCabeçalho\nDeve ser identificado como um título de:\nNível 2 ou H2\n\"Insira o termo completo\"\n05\n06\n10\nCampo de texto\npreenchido\nInput de entrada de dados do tipo texto.\nO label deve estar corretamente associado ao respectivo campo.\nLabel: \"Endereço\"\nO valor do campo deve ser anunciado.\n04\n07\nCampo numérico\npreenchido\nInput de entrada de dados do tipo números. Apenas números são aceitos.O label deve estar corretamente associado ao respectivo campo.\nLiteral\nLabel: \"Insira a label + {variável}\"\nO valor do campo deve ser anunciado.\n08\nCheckbox (caixa de seleção)\nDeve ser identificado como uma caixa de seleção e o label deve estar corretamente associado. Deve anunciar se está desmarcada ou marcada.\nDesmarcada por padrão\n09\n11\nCampo de texto\npreenchido\nInput de entrada de dados do tipo texto.\nO label deve estar corretamente associado ao respectivo campo.\nO valor do campo deve ser anunciado.\n12\nLabel: \"Endereço\"\nBotão\nDeve ser identificado como um botão e sua literal deve ser:\n\"Confirmar endereço\"\n\n[Página 24]\n005 Após  a confirmação da alteração o carregamento sera apresentado tela de sucesso para alteração de endereço. \n01\nImagem decorativa\nA imagem deve ser ignorada pelo leitor de tela. Deve ser utilizado a tag alt com valor nulo (alt=\"\").\n02\nTexto / Parágrafo\nDeve ser interpretado como texto ou <p>.\nLiteral\n\"Insira o termo completo\"\n006 01\nImagem decorativa\nA imagem deve ser ignorada pelo leitor de tela. Deve ser utilizado a tag alt com valor nulo (alt=\"\").\n02\nTexto / Parágrafo\nDeve ser interpretado como texto ou <p>.\nLiteral\n03\n\"Insira o termo completo\"\nBotão\nDeve ser identificado como um botão e sua literal deve ser:\n\"Ir pro início\"\n013 Regras de preenchimento: \nNão pode ser digitado caracteres especiais ou números;\nCEP Não encontrado\nBairro nao informado\nQuando selecionar Sem numero deve ser obrigatorio o complemento\nDado que usuário preencha no input uma informação que não atenda as regras, então deverá ser exibida uma notificação imediata.\nEntão o leitor deve identificar respectivamente cada um dos itens\nEntão deve ser identificado como notificação imediata e ser interpretado como texto, e caso renderizado na interface, deve notificar o usuário \nimediatamente, interrompendo a leitura de foco do usuário e descrevendo o conteúdo da notificação.",
+        "tables": [
+          {
+            "name": "Página 1 - Tabela 1",
+            "columns": [
+              "",
+              ""
+            ],
+            "rows_preview": [],
+            "row_count": 0
+          },
+          {
+            "name": "Página 2 - Tabela 1",
+            "columns": [
+              "",
+              "A sequência de leitura dos elementos em tela\ndeve seguir a numeração contida nos círculos.\nTextos não especificados devem seguir a leitura\npadrão dos leitores de tela.\nMarcador usado para destacar, na\ndocumentação, uma área de elementos como\numa lista de itens ou regiões da página.\nTextos envoltos por uma caixa preta,\ncomo neste exemplo, indicam o foco do leitor e\nagrupamentos de elementos que devem ser\nlidos de forma automática (juntos e em\nsequência).\nO ícone {audio-off} indica elementos\nque devem ser ignorados por leitores de tela.\nCamadas usadas para delimitar uma\nárea de clique ou toque. Componentes validados\nno design system não precisam ser delimitados.\nA sequência de leitura dos\nelementos em tela deve seguir a numeração\ncontida nos círculos. Textos não especificados\ndevem seguir a leitura padrão dos leitores de\ntela.\nSequência de leitura dos element os\nem tela e representa um cabeçalho (headings)."
+            ],
+            "rows_preview": [
+              [
+                "Entrypoint",
+                ""
+              ]
+            ],
+            "row_count": 1
+          },
+          {
+            "name": "Página 3 - Tabela 1",
+            "columns": [
+              "",
+              "Não estamos implementando acessibilidade no\nentrypoint \"Informações pessoais\" nesta entrega,\npois já deve possuir acessibiidade conforme\nlançamento do novo app."
+            ],
+            "rows_preview": [],
+            "row_count": 0
+          },
+          {
+            "name": "Página 4 - Tabela 1",
+            "columns": [
+              "",
+              ""
+            ],
+            "rows_preview": [
+              [
+                "",
+                "Ao clicar no entrypoint \"Informações\npessoais\", o usuário será direcionado para o\nSkeleton e então deve ler os componentes da\nseguinte forma:\n1- Botão: Deve ser identificado como um botão\ne sua literal deve ser: Voltar\n2- Cabeçalho: Deve ser identificado como um\ntítulo de Nível 1 ou H1.\n3- Skeleton: Deve possuir um nome acessível.\nSua literal deve ser: \"Carregando\""
+              ]
+            ],
+            "row_count": 1
+          },
+          {
+            "name": "Página 5 - Tabela 1",
+            "columns": [
+              "",
+              "Apos o carregamento do Skeleton deve ser\napresentado a morada de informações pessoais\n1- Botão: Deve ser identificado como um botão e\nsua literal deve ser \"Voltar\".\n2- Cabeçalho: Deve ser identificado como um\ntítulo de: Nível 1 ou H1\n3- Cabeçalho: Deve ser identificado como um\ntítulo de Nível 2 ou H2.\n4- Deve ser identificado como um botão e sua\nliteral deve ser: \"Sobre você, nome e dados de\ncontato\".\n5- Cabeçalho\nDeve ser identificado como um título de:\nNível 2 ou H2\nLista de botões\n6 - Lista não ordenada de itens contendo:\nBotões\n7- Deve ser identificado como um botão e sua\nliteral deve ser:\n\"Assinaturas, para envio de faturas e\nrelacionamento\"\n8 - Deve ser identificado como um botão e sua\nliteral deve ser:\n\"Entrega, das suas compras na loja online Vivo\""
+            ],
+            "rows_preview": [],
+            "row_count": 0
+          },
+          {
+            "name": "Página 6 - Tabela 1",
+            "columns": [
+              "",
+              "Ao clicar em \"Sobre você\"\n1- Botão: Deve ser identificado como um botão e\nsua literal deve ser \"Voltar\".\n2- Cabeçalho: Deve ser identificado como um\ntítulo de Nível 1 ou H1.\n3-Skeleton\nDeve possuir um nome acessível. Sua literal\ndeve ser: \"Carregando\""
+            ],
+            "rows_preview": [],
+            "row_count": 0
+          },
+          {
+            "name": "Página 7 - Tabela 1",
+            "columns": [
+              "",
+              "01\nBotão\nDeve ser identificado como um botão e sua\nliteral deve ser:\n“Voltar”\n02\nCabeçalho\nDeve ser identificado como um título de:\nNível 1 ou H1\n\"Insira o termo completo\"\n03 - Lista não ordenada de itens contendo:\nBotões\n04\n05\n06\nLista de itens\n04\nDeve ser identificado como um botão e sua\nliteral deve ser:\nBotão\nRelacionamento + {endereço}\"Exemplo: ”\nRelacionamento, Rua Pedro, 56, Centro,\nDiadema São Paulo, CEP 01357113”\n05\nDeve ser identificado como um botão e sua\nliteral deve ser:\nBotão\n\"{Nome da assinatura} + {Endereço}\"Exemplo: ”\nVivo Fibra 500 Mbps Netflix, Rua Mares do Sol,\n489, Jardim Santista, Santos São Paulo, CEP\n05453000”\n06\nDeve ser identificado como um botão e sua\nliteral deve ser:\nBotão\n\"{Nome da assinatura} + {Endereço}\"Exemplo: ”\nVivo Controle 34 GB, Rua Plínio Fernandes,\n1.849, Vila Madalena, São Paulo São Paulo,\nCEP 05453-000”"
+            ],
+            "rows_preview": [
+              [
+                "FLUXO Editar endereço",
+                ""
+              ],
+              [
+                "",
+                ""
+              ],
+              [
+                "",
+                ""
+              ]
+            ],
+            "row_count": 3
+          },
+          {
+            "name": "Página 8 - Tabela 1",
+            "columns": [
+              "",
+              ""
+            ],
+            "rows_preview": [
+              [
+                "",
+                "Apos o clique no endereço de\nrelacionamneto o cliente visualiza a tela\ncom imputs e clica no campo CEP\n01\n09\n11\nTítulo da interface\nCampo de texto\npreenchido\nO título da Nav Bar ou Toolbar da tela, deve\nser:\nInput de entrada de dados do tipo texto.\n”Endereço de relacionamento”\nO label deve estar corretamente associado\nao respectivo campo.\n\"Insira o termo completo\"\n02\nLabel: \"Endereço\"\nBotão\nO valor do campo deve ser anunciado.\n12\nDeve ser identificado como um botão e sua\nliteral deve ser:\nBotão desabilitado\n“Fechar janela”\nDeve ser identificado como um botão\ndesabilitado e sua literal deve ser:\n03\n\"Confirmar endereço\"\nCabeçalho\nO botão deve ser perceptível ao leitor de\ntela, e indicar que está desativado. Em html\nutilize o atributo aria-disabled.\nDeve ser identificado como um título de:\nNível 2 ou H2\n\"Insira o termo completo\"\n05\n06\n10\nCampo de texto\npreenchido\nInput de entrada de dados do tipo texto.\nO label deve estar corretamente associado\nao respectivo campo.\nLabel: \"Endereço\"\nO valor do campo deve ser anunciado.\n04\n07\nCampo numérico\npreenchido\nInput de entrada de dados do tipo\nnúmeros. Apenas números são aceitos.O\nlabel deve estar corretamente associado ao\nrespectivo campo.\nLiteral\nLabel: \"Insira a label + {variável}\"\nO valor do campo deve ser anunciado."
+              ],
+              [
+                "",
+                ""
+              ]
+            ],
+            "row_count": 2
+          },
+          {
+            "name": "Página 9 - Tabela 1",
+            "columns": [
+              "",
+              ""
+            ],
+            "rows_preview": [
+              [
+                "",
+                "08\nCheckbox (caixa de seleção)\nDeve ser identificado como uma caixa de\nseleção e o label deve estar corretamente\nassociado. Deve anunciar se está\ndesmarcada ou marcada.\nDesmarcado por padrão\n09\n11\nCampo de texto\npreenchido\nInput de entrada de dados do tipo texto.\nO label deve estar corretamente associado\nao respectivo campo.\nO valor do campo deve ser anunciado.\n12\nLabel: \"Endereço\"\nBotão desabilitado\nDeve ser identificado como um botão\ndesabilitado e sua literal deve ser:\n\"Confirmar endereço\"\nO botão deve ser perceptível ao leitor de\ntela, e indicar que está desativado. Em html\nutilize o atributo aria-disabled."
+              ],
+              [
+                "",
+                ""
+              ],
+              [
+                "",
+                ""
+              ]
+            ],
+            "row_count": 3
+          },
+          {
+            "name": "Página 10 - Tabela 1",
+            "columns": [
+              "",
+              "Ao clicar no input CEP\n01\nTítulo da interface\nO título da Nav Bar ou Toolbar da tela, deve ser:\n”Endereço de relacionamento”\n\"Insira o termo completo\"\n02\nBotão\nDeve ser identificado como um botão e sua\nliteral deve ser:\n“Fechar janela”\n03\nCabeçalho\nDeve ser identificado como um título de:\nNível 2 ou H2\n\"Insira o termo completo\"\n04\nCampo numérico\npreenchido\nInput de entrada de dados do tipo números.\nApenas números são aceitos.O label deve estar\ncorretamente associado ao respectivo campo.\nLiteral\nO valor do campo deve ser anunciado.\nLabel: \"Insira a label + {variável}\"\n05\nSpinner\nDeve possuir um nome acessível. Sua literal\ndeve ser:”Carregando”\n05 Após o carregamento do endereço\nautomatico\nDeve ser identificado como um botão e sua\nliteral deve ser:\nEndereço + {endereço encontrado}\"Exemplo: ”\nEndereço, Av. Doutor Chucri Zaidan, 2460, Vila\nCordeiro, São Paulo São Paulo, CEP 04711-130”\nImagem decorativa\nA imagem deve ser ignorada pelo leitor de tela.\nDeve ser utilizado a tag alt com valor nulo\n(alt=\"\").\nLiteral\n06\nBotão desabilitado\nDeve ser identificado como um botão\ndesabilitado e sua literal deve ser:\n\"Confirmar endereço\"\nO botão deve ser perceptível ao leitor de tela, e\nindicar que está desativado. Em html utilize o\natributo aria-disabled.\n07\nTeclado nativo\nDeve ser interpretado em linguagem português\n(pt-BR)"
+            ],
+            "rows_preview": [
+              [
+                "",
+                ""
+              ],
+              [
+                "",
+                ""
+              ]
+            ],
+            "row_count": 2
+          },
+          {
+            "name": "Página 11 - Tabela 1",
+            "columns": [
+              "",
+              ""
+            ],
+            "rows_preview": [
+              [
+                "",
+                ""
+              ],
+              [
+                "",
+                "Após digitar o cep e confirmar o endereço, o\ncliente retorna para tela de endereço de\nassinatura para confimar a alteração\n01\n09\n11\nTítulo da interface\nCampo de texto\npreenchido\nO título da Nav Bar ou Toolbar da tela, deve ser:\nInput de entrada de dados do tipo texto.\n”Endereço de relacionamento”\nO label deve estar corretamente associado ao\nrespectivo campo.\n\"Insira o termo completo\"\n02\nLabel: \"Endereço\"\nBotão\nO valor do campo deve ser anunciado.\n12\nDeve ser identificado como um botão e sua\nliteral deve ser:\nBotão\n“Fechar janela”\nDeve ser identificado como um botão e sua\nliteral deve ser:"
+              ],
+              [
+                "",
+                ""
+              ]
+            ],
+            "row_count": 3
+          },
+          {
+            "name": "Página 12 - Tabela 1",
+            "columns": [
+              "",
+              "\"Confirmar endereço\"\n03\nCabeçalho\nDeve ser identificado como um título de:\nNível 2 ou H2\n\"Insira o termo completo\"\n05\n06\n10\nCampo de texto\npreenchido\nInput de entrada de dados do tipo texto.\nO label deve estar corretamente associado ao\nrespectivo campo.\nLabel: \"Endereço\"\nO valor do campo deve ser anunciado.\n04\n07\nCampo numérico\npreenchido\nInput de entrada de dados do tipo números.\nApenas números são aceitos.O label deve estar\ncorretamente associado ao respectivo campo.\nLiteral\nLabel: \"Insira a label + {variável}\"\nO valor do campo deve ser anunciado.\n08\nCheckbox (caixa de seleção)\nDeve ser identificado como uma caixa de\nseleção e o label deve estar corretamente\nassociado. Deve anunciar se está desmarcada\nou marcada.\nDesmarcada por padrão\n09\n11\nCampo de texto\npreenchido\nInput de entrada de dados do tipo texto.\nO label deve estar corretamente associado ao\nrespectivo campo.\nO valor do campo deve ser anunciado.\n12\nLabel: \"Endereço\"\nBotão\nDeve ser identificado como um botão e sua\nliteral deve ser:\n\"Confirmar endereço\""
+            ],
+            "rows_preview": [
+              [
+                "",
+                ""
+              ]
+            ],
+            "row_count": 1
+          },
+          {
+            "name": "Página 13 - Tabela 1",
+            "columns": [
+              "",
+              "Após a confirmação da alteração o\ncarregamento sera apresentado tela de sucesso\npara alteração de endereço.\n01\nImagem decorativa\nA imagem deve ser ignorada pelo leitor de tela.\nDeve ser utilizado a tag alt com valor nulo\n(alt=\"\").\n02\nTexto / Parágrafo\nDeve ser interpretado como texto ou <p>.\nLiteral\n\"Insira o termo completo\""
+            ],
+            "rows_preview": [],
+            "row_count": 0
+          },
+          {
+            "name": "Página 14 - Tabela 1",
+            "columns": [
+              "",
+              "01\nImagem decorativa\nA imagem deve ser ignorada pelo leitor de tela.\nDeve ser utilizado a tag alt com valor nulo\n(alt=\"\").\n02\nTexto / Parágrafo\nDeve ser interpretado como texto ou <p>.\nLiteral\n03\n\"Insira o termo completo\"\nBotão\nDeve ser identificado como um botão e sua\nliteral deve ser:\n\"Ir pro início\""
+            ],
+            "rows_preview": [
+              [
+                "ERROS GENERICOS: ERRO AO ADICIONAR NOME",
+                ""
+              ]
+            ],
+            "row_count": 1
+          },
+          {
+            "name": "Página 15 - Tabela 1",
+            "columns": [
+              "",
+              "01\nImagem decorativa\nA imagem deve ser ignorada pelo leitor de tela.\nDeve ser utilizado a tag alt com valor nulo\n(alt=\"\").\n02\nCabeçalho\nDeve ser identificado como um título de:\nLiteral\nNível 2 ou H2\n\"Insira o termo completo\"\n03\nTexto / Parágrafo\nDeve ser interpretado como texto ou <p>.\n04\n\"Insira o termo completo\"\nBotão\nDeve ser identificado como um botão e sua\nliteral deve ser:\n”Tentar de novo\"\n05\nBotão\nDeve ser identificado como um botão e sua\nliteral deve ser:\n\"Ir para o início\""
+            ],
+            "rows_preview": [
+              [
+                "ERROS NOS INPUTS DE DIGITAÇÃO",
+                ""
+              ]
+            ],
+            "row_count": 1
+          },
+          {
+            "name": "Página 16 - Tabela 1",
+            "columns": [
+              "",
+              "01\nNotificação imediata\nDeve ser interpretado como um texto, e caso\nrenderizado na interface, deve notificar o usuário\nimediatamente, interrompendo a leitura de foco\ndo usuário e descrevendo o conteúdo da\nnotificação. Em html utilize a propriedade aria-\nlive=\"assertive\" ou role=\"alert\"."
+            ],
+            "rows_preview": [],
+            "row_count": 0
+          },
+          {
+            "name": "Página 17 - Tabela 1",
+            "columns": [
+              "\\",
+              "02\nNotificação imediata\nDeve ser interpretado como um texto, e caso\nrenderizado na interface, deve notificar o usuário\nimediatamente, interrompendo a leitura de foco\ndo usuário e descrevendo o conteúdo da\nnotificação. Em html utilize a propriedade aria-\nlive=\"assertive\" ou role=\"alert\"."
+            ],
+            "rows_preview": [],
+            "row_count": 0
+          },
+          {
+            "name": "Página 18 - Tabela 1",
+            "columns": [
+              "",
+              "01\n02\n03\n05\n06\nNotificação imediata\nDeve ser interpretado como um texto, e caso\nrenderizado na interface, deve notificar o usuário\nimediatamente, interrompendo a leitura de foco\ndo usuário e descrevendo o conteúdo da\nnotificação. Em html utilize a propriedade aria-\nlive=\"assertive\" ou role=\"alert\".\n04\nCheckbox (caixa de seleção)\nDeve ser identificado como uma caixa de\nseleção e o label deve estar corretamente\nassociado. Deve anunciar se está desmarcada\nou marcada.\nDesmarcado por padrão"
+            ],
+            "rows_preview": [],
+            "row_count": 0
+          },
+          {
+            "name": "Página 19 - Tabela 1",
+            "columns": [
+              "ID",
+              "DESCRIÇÃO DOS CRITÉRIOS DE ACEITE"
+            ],
+            "rows_preview": [],
+            "row_count": 0
+          },
+          {
+            "name": "Página 20 - Tabela 1",
+            "columns": [
+              "001",
+              "Dado que usuário esteja na tela de \"Endereços de assinatura\"\" e localiza o entrypoint com o seu endereço de relacionamento\nEntão:\n01\nBotão\nDeve ser identificado como um botão e sua literal deve ser:\n“Voltar”\n02\nCabeçalho\nDeve ser identificado como um título de:\nNível 1 ou H1\n\"Insira o termo completo\"\n03 - Lista não ordenada de itens contendo:\nBotões\n04\n05\n06\nLista de itens\n04\nDeve ser identificado como um botão e sua literal deve ser:\nBotão\nRelacionamento + {endereço}\"Exemplo: ”Relacionamento, Rua Pedro, 56, Centro, Diadema São Paulo, CEP 01357113”\n05\nDeve ser identificado como um botão e sua literal deve ser:\nBotão\n\"{Nome da assinatura} + {Endereço}\"Exemplo: ”Vivo Fibra 500 Mbps Netflix, Rua Mares do Sol, 489, Jardim Santista, Santos São Paulo, CEP\n05453000”\n06\nDeve ser identificado como um botão e sua literal deve ser:\nBotão\n\"{Nome da assinatura} + {Endereço}\"Exemplo: ”Vivo Controle 34 GB, Rua Plínio Fernandes, 1.849, Vila Madalena, São Paulo São Paulo, CEP\n05453-000”"
+            ],
+            "rows_preview": [],
+            "row_count": 0
+          }
+        ],
+        "fields": [
+          "013 Regras de preenchimento",
+          "1- Botão",
+          "1. Nome da História",
+          "2- Cabeçalho",
+          "2- Cabeçalho",
+          "3- Cabeçalho",
+          "6 - Lista não ordenada de itens contendo",
+          "Deve ser identificado como um título de",
+          "ERROS GENERICOS",
+          "Endereço + {endereço encontrado}\"Exemplo",
+          "Label",
+          "Link do Jira",
+          "Referência",
+          "Relacionamento + {endereço}\"Exemplo",
+          "Ser um cliente",
+          "Sua literal deve ser",
+          "desabilitado e sua literal deve ser",
+          "deve ser",
+          "e sua literal deve ser",
+          "literal deve ser",
+          "seguinte forma",
+          "ser",
+          "título de"
+        ],
+        "warnings": [],
+        "metadata": {
+          "file_type": ".pdf",
+          "pages_with_text": 24,
+          "tables": 20
+        }
+      }
+    }
+  ],
+  "analysis": {
+    "summary": "Foram analisados 3 arquivo(s), com 51039 caracteres extraídos e 46 tabela(s) detectada(s). Não houve alertas técnicos relevantes na leitura inicial.",
+    "documents_count": 3,
+    "filenames": [
+      "caderno2.pdf",
+      "Caderno vivo 1.pdf",
+      "vivo.pdf"
+    ],
+    "total_text_chars": 51039,
+    "total_tables": 46,
+    "common_fields": [
+      "Data",
+      "Link Figma 20/03/2025",
+      "10/mar",
+      "10/mar - Retorno do Rajadas",
+      "11/mar",
+      "12/mar",
+      "13/03 (00h)",
+      "Resultado esperado",
+      "ID",
+      "001",
+      "(adicional ou incluso)",
+      "CERT 2",
+      "CERT1",
+      "Execução",
+      "PROD",
+      "Resultado esperado 1",
+      "Resultado esperado 2",
+      "pages/dynamic-content?name=CERT1",
+      "Atividade",
+      "Responsável"
+    ],
+    "possible_entities": [
+      "cliente",
+      "contrato",
+      "valor",
+      "data",
+      "status",
+      "produto"
+    ],
+    "findings": [
+      "Total de arquivos analisados: 3.",
+      "Volume total de texto extraído: 51039 caracteres.",
+      "Total de tabelas identificadas: 46.",
+      "Entidades mais prováveis: cliente, contrato, valor, data, status.",
+      "Há massa textual suficiente para consultas via RAG e geração de resumo contextual.",
+      "Foram encontradas estruturas tabulares com potencial para extração e classificação de campos."
+    ],
+    "warnings": [],
+    "quality": {
+      "documents_with_text": 3,
+      "documents_with_tables": 3,
+      "average_information_density": 24679
+    }
+  },
+  "diagnostic": {
+    "objective_of_process": "Entender dados e documentos para identificar oportunidades de automação antes da implementação do workflow.",
+    "process_narrative": "O processo analisado parece depender de leitura e interpretação de 3 documento(s), com foco principal nas entidades cliente, contrato, valor, data. Foram observadas regras como 3. Pré-condições / Premissas. e pontos de atenção como 3.9.2 - Tela de Erro.. A automação deve começar pela organização do conhecimento, extração de campos e validação das exceções.",
+    "inputs": [
+      "caderno2.pdf",
+      "Caderno vivo 1.pdf",
+      "vivo.pdf"
+    ],
+    "outputs": [
+      "Resumo executivo",
+      "Achados principais",
+      "Regras identificadas",
+      "Exceções e inconsistências",
+      "Sugestões de automação",
+      "Blueprint inicial"
+    ],
+    "main_entities": [
+      "cliente",
+      "contrato",
+      "valor",
+      "data",
+      "status",
+      "produto"
+    ],
+    "decision_rules": [
+      "3. Pré-condições / Premissas.",
+      "O escopo desta história contempla apenas clientes Pós-pago, Vivo Total e Família;.",
+      "Segmento Base Produto.",
+      "Os entrypoints 'Principais dúvidas' encontram-se conforme segue:.",
+      "01 Premissa: Cliente Pós-pago que contenha um pacote contratado de forma Travel adicional.",
+      "Resultado esperado 1:.",
+      "Deverá exibir a FAQ principal detalhada nessa história, com as opções de todas as perguntas e respostas.",
+      "Resultado esperado 2:.",
+      "Deverá exibir cada tela final de FAQ a partir da tela principal.",
+      "02 Premissa: Cliente Pós-pago que contenha um pacote na assinaturaTravel incluso."
+    ],
+    "exceptions": [
+      "3.9.2 - Tela de Erro.",
+      "conteúdo de forma independente.",
+      "ERROS GENERICOS: ERRO AO ADICIONAR NOME.",
+      "ERROS NOS INPUTS DE DIGITAÇÃO.",
+      "imediatamente, interrompendo a leitura de foco.",
+      "CEP Não encontrado.",
+      "imediatamente, interrompendo a leitura de foco do usuário e descrevendo o conteúdo da notificação."
+    ],
+    "bottomlenecks": [
+      "Volume elevado de texto livre, exigindo classificação e segmentação antes da execução."
+    ],
+    "risks": [
+      "Exceções operacionais podem bloquear execução direta sem trilha de fallback humano.",
+      "Campos críticos ausentes ou inconsistentes podem reduzir a prontidão para automação."
+    ],
+    "automation_suggestions": [
+      "Criar base de conhecimento RAG com documentos e regras identificadas.",
+      "Gerar checklist de validação humana para casos ambíguos.",
+      "Criar fluxo de classificação e extração de campos antes da automação principal.",
+      "Modelar agente com foco nas entidades: cliente, contrato, valor, data.",
+      "Estruturar motor de decisão para regras recorrentes identificadas.",
+      "Separar tratamento de exceções em trilha específica com SLA e intervenção humana."
+    ],
+    "prioritized_opportunities": [
+      {
+        "title": "Criar base de conhecimento RAG com documentos e regras identificadas.",
+        "impact": "alto",
+        "effort": "baixo",
+        "priority": "alta",
+        "why": "Os documentos possuem muito conteúdo textual e regras que podem ser consultadas por busca contextual."
+      },
+      {
+        "title": "Gerar checklist de validação humana para casos ambíguos.",
+        "impact": "alto",
+        "effort": "baixo",
+        "priority": "alta",
+        "why": "Há risco de regras implícitas ou exceções que pedem conferência antes da execução automática."
+      },
+      {
+        "title": "Criar fluxo de classificação e extração de campos antes da automação principal.",
+        "impact": "alto",
+        "effort": "médio",
+        "priority": "alta",
+        "why": "Padronizar campos e identificar entidades reduz retrabalho e melhora a governança."
+      },
+      {
+        "title": "Modelar agente com foco nas entidades: cliente, contrato, valor, data.",
+        "impact": "médio",
+        "effort": "médio",
+        "priority": "média",
+        "why": "Um agente pode apoiar perguntas operacionais e interpretação de regras a partir das evidências."
+      },
+      {
+        "title": "Estruturar motor de decisão para regras recorrentes identificadas.",
+        "impact": "alto",
+        "effort": "médio",
+        "priority": "média",
+        "why": "Há volume suficiente de regras para transformar parte da lógica em decisões automatizadas."
+      },
+      {
+        "title": "Separar tratamento de exceções em trilha específica com SLA e intervenção humana.",
+        "impact": "médio",
+        "effort": "médio",
+        "priority": "média",
+        "why": "As exceções precisam de fluxo próprio para não travar a esteira principal."
+      }
+    ],
+    "recommended_capabilities": [
+      "RAG para perguntas sobre documentos e bases",
+      "Extração estruturada de campos",
+      "Classificação de documentos",
+      "Resumo automático",
+      "Workflow no n8n com validação humana"
+    ],
+    "readiness_score": 89,
+    "human_validation_checklist": [
+      "Confirmar quais campos são obrigatórios antes da execução automática.",
+      "Validar com a área de negócio as regras críticas identificadas no material.",
+      "Separar exceções que exigem aprovação humana ou tratamento manual.",
+      "Revisar documentos com baixa qualidade de leitura ou ambiguidades.",
+      "Priorizar validação da regra: 3. Pré-condições / Premissas.",
+      "Verificar o tratamento da exceção: 3.9.2 - Tela de Erro."
+    ]
+  },
+  "blueprint": {
+    "name": "Blueprint inicial de automação",
+    "objective": "Entender dados e documentos para identificar oportunidades de automação antes da implementação do workflow.",
+    "scope": "Automatizar etapas repetitivas com forte base documental e validação humana em pontos ambíguos.",
+    "inputs": [
+      "caderno2.pdf",
+      "Caderno vivo 1.pdf",
+      "vivo.pdf"
+    ],
+    "outputs": [
+      "Dados extraídos",
+      "Decisão classificada",
+      "Checklist de validação",
+      "Workflow disparado"
+    ],
+    "steps": [
+      {
+        "order": 1,
+        "name": "Receber arquivos",
+        "description": "Capturar documentos e bases relacionadas ao caso."
+      },
+      {
+        "order": 2,
+        "name": "Extrair conteúdo",
+        "description": "Transformar PDF, planilhas e documentos em texto e tabelas."
+      },
+      {
+        "order": 3,
+        "name": "Identificar regras",
+        "description": "Mapear premissas, condições e exceções."
+      },
+      {
+        "order": 4,
+        "name": "Classificar oportunidade",
+        "description": "Definir se o caso pede RAG, extração, classificação ou workflow."
+      },
+      {
+        "order": 5,
+        "name": "Validar com humano",
+        "description": "Confirmar regras sensíveis ou ambiguidades antes da automação."
+      },
+      {
+        "order": 6,
+        "name": "Executar automação",
+        "description": "Publicar conhecimento e disparar workflow n8n ou agente."
+      }
+    ],
+    "decision_points": [
+      "3. Pré-condições / Premissas.",
+      "O escopo desta história contempla apenas clientes Pós-pago, Vivo Total e Família;.",
+      "Segmento Base Produto.",
+      "Os entrypoints 'Principais dúvidas' encontram-se conforme segue:.",
+      "01 Premissa: Cliente Pós-pago que contenha um pacote contratado de forma Travel adicional.",
+      "Resultado esperado 1:.",
+      "Deverá exibir a FAQ principal detalhada nessa história, com as opções de todas as perguntas e respostas.",
+      "Resultado esperado 2:."
+    ],
+    "exceptions": [
+      "3.9.2 - Tela de Erro.",
+      "conteúdo de forma independente.",
+      "ERROS GENERICOS: ERRO AO ADICIONAR NOME.",
+      "ERROS NOS INPUTS DE DIGITAÇÃO.",
+      "imediatamente, interrompendo a leitura de foco.",
+      "CEP Não encontrado.",
+      "imediatamente, interrompendo a leitura de foco do usuário e descrevendo o conteúdo da notificação."
+    ]
+  },
+  "n8n_draft": {
+    "workflow_name": "Rascunho n8n - Entendimento Pré-Automação",
+    "summary": "Fluxo inicial proposto para transformar análise documental em automação controlada.",
+    "nodes": [
+      {
+        "name": "Trigger - Novo Caso",
+        "type": "manualTrigger",
+        "purpose": "Iniciar análise ao criar caso ou subir arquivos."
+      },
+      {
+        "name": "Ler Arquivos",
+        "type": "code",
+        "purpose": "Consumir storage e metadados dos documentos."
+      },
+      {
+        "name": "Extrair Conteúdo",
+        "type": "httpRequest",
+        "purpose": "Chamar serviço Python para parsing e estruturação."
+      },
+      {
+        "name": "Classificar Processo",
+        "type": "switch",
+        "purpose": "Definir se fluxo segue para RAG, extração ou workflow operacional."
+      },
+      {
+        "name": "Validação Humana",
+        "type": "form",
+        "purpose": "Validar exceções e campos sensíveis."
+      },
+      {
+        "name": "Persistir Resultado",
+        "type": "postgres",
+        "purpose": "Salvar diagnóstico e dados estruturados."
+      }
+    ],
+    "priority_rules": [
+      "3. Pré-condições / Premissas.",
+      "O escopo desta história contempla apenas clientes Pós-pago, Vivo Total e Família;.",
+      "Segmento Base Produto.",
+      "Os entrypoints 'Principais dúvidas' encontram-se conforme segue:.",
+      "01 Premissa: Cliente Pós-pago que contenha um pacote contratado de forma Travel adicional."
+    ],
+    "human_checkpoints": [
+      "Confirmar quais campos são obrigatórios antes da execução automática.",
+      "Validar com a área de negócio as regras críticas identificadas no material.",
+      "Separar exceções que exigem aprovação humana ou tratamento manual.",
+      "Revisar documentos com baixa qualidade de leitura ou ambiguidades.",
+      "Priorizar validação da regra: 3. Pré-condições / Premissas."
+    ]
+  },
+  "rag_seed": {
+    "collection_name": "gabbi-pre-automation-knowledge-base",
+    "entries": [
+      {
+        "document": "caderno2.pdf",
+        "category": "regra/documento",
+        "summary": "[Página 1]\nPTIECBC02-8051 - [Travel Tela Consumo] CMS - Principais \ndúvidas (MVP)\n1. História Funcional\n2. Fora de escopo\n3. Pré-condições / Premissas\n4. Clientes Impactados/Público\n5. Descrição da História\n6. Protótipo\n7. Critérios de aceite\n -   PTIECBC02-8051 Obtendo detalhes do item... STATUS\nData Atividade Responsável Pendencias\n03/12/2024  Escrita da história Luciana Melim Borges \n1. História Funcional\nEU COMO cliente vivo Pós pago, Total ou Família \nDESEJO ter acesso a FAQ do Travel \nPARA consultar informações de ajuda sobre o Travel\n2. Fora de escopo\nNão serão alterados dados de pacote",
+        "fields": [
+          "(adicional ou incluso)",
+          "CERT 2",
+          "CERT1",
+          "Execução",
+          "PROD",
+          "Resultado esperado",
+          "Resultado esperado 1",
+          "Resultado esperado 2",
+          "pages/dynamic-content?name=CERT1"
+        ]
+      },
+      {
+        "document": "Caderno vivo 1.pdf",
+        "category": "regra/documento",
+        "summary": "[Página 1]\nAtualização do Status de Pagamento da Fatura via Rajadas \n- App e Web\nID Jira: [PTIECBC02-9395] [SQUAD DIGIMON ]Status Online da fatura - Rajada - JIRAPROD - PTI-6722 - [SQUAD DIGIMON] - Evolução Fatura\nEpico - PTIECBC02-9394\nLink Figma: https://www.figma.com/design/BWbynHIysBf4mjNFbKL6Tl/Central-de-faturas?m=auto&node-id=12837-\n43875&t=aBclJyzmYycvgrMS-1\nSpec Acessibilidade: https://www.figma.com/design/BWbynHIysBf4mjNFbKL6Tl/Central-de-faturas?m=auto&node-id=1306-\n1105&t=7jRi7drZAR8v2FOw-1\nFormulário QD: https://forms.office.com/Pages/ResponseDetailPage.aspx?\nid=oDGTVFpL8EOQxOqu8n",
+        "fields": [
+          "001 App - Massa",
+          "002 App - Massa",
+          "004 Web - Massa",
+          "005 Web - Massa",
+          "010 Web Responsividade -  Massa",
+          "Ação",
+          "CLIENTES IMPACTADOS",
+          "Exemplo",
+          "Formulário QD",
+          "Funcionamento do Rajadas",
+          "Importante",
+          "Pré-condição",
+          "Resultado esperado",
+          "SISTEMAS IMPACTADOS"
+        ]
+      },
+      {
+        "document": "vivo.pdf",
+        "category": "regra/documento",
+        "summary": "[Página 1]\nAcessibilidade Master - Endereço de Assinatura: \nRelacionamento\nLink do Jira:  -   \nMDC-1316 Acessibilidade Geral app EXECUÇÃO\n1. Nome da História:\nAcessibilidade - Endereço de relacionamento\n2. Escopo da História\nEu como cliente Vivo quero utilizar ferramentas assistivas para acessar o fluxo \"Endereço de relacionamento\"  para que possa navegar e interagir com o \nconteúdo de forma independente.\n3. Fluxos de negócio\n acessa o app vivo; Cliente\n acessa a tab de assinaturas;Cliente\n clica no menuCliente\n clica no perfil;Cliente\n clica emCliente  Informações pessoais\nCliente visualiza M",
+        "fields": [
+          "013 Regras de preenchimento",
+          "1- Botão",
+          "1. Nome da História",
+          "2- Cabeçalho",
+          "2- Cabeçalho",
+          "3- Cabeçalho",
+          "6 - Lista não ordenada de itens contendo",
+          "Deve ser identificado como um título de",
+          "ERROS GENERICOS",
+          "Endereço + {endereço encontrado}\"Exemplo",
+          "Label",
+          "Link do Jira",
+          "Referência",
+          "Relacionamento + {endereço}\"Exemplo",
+          "Ser um cliente",
+          "Sua literal deve ser",
+          "desabilitado e sua literal deve ser",
+          "deve ser",
+          "e sua literal deve ser",
+          "literal deve ser",
+          "seguinte forma",
+          "ser",
+          "título de"
+        ]
+      }
+    ],
+    "recommended_tags": [
+      "cliente",
+      "contrato",
+      "valor",
+      "data",
+      "status",
+      "produto",
+      "regra",
+      "processo",
+      "automação"
+    ]
+  },
+  "agent_config": {
+    "agent_name": "Analista de Entendimento Pré-Automação",
+    "persona": "Especialista em análise de processos, regras de negócio e oportunidades de automação.",
+    "mission": "Ajudar o usuário a entender documentos, identificar gargalos e recomendar o melhor tipo de automação.",
+    "tools": [
+      "retrieval",
+      "document_summary",
+      "table_profiler",
+      "diagnostic_generator"
+    ],
+    "guardrails": [
+      "Sempre mostrar evidências usadas na resposta.",
+      "Não inferir regra crítica sem sinalizar necessidade de validação humana.",
+      "Separar claramente fato identificado de sugestão de automação."
+    ],
+    "recommended_capabilities": [
+      "RAG para perguntas sobre documentos e bases",
+      "Extração estruturada de campos",
+      "Classificação de documentos",
+      "Resumo automático",
+      "Workflow no n8n com validação humana"
+    ]
+  },
+  "chat_history": [
+    {
+      "id": "23f6b83adb54",
+      "created_at": "2026-04-15T17:59:06.489942",
+      "question": "Me explique sobre esses dados dos documentos",
+      "mode": "executive",
+      "answer": {
+        "mode": "executive",
+        "title": "Resposta para: Me explique sobre esses dados dos documentos",
+        "summary": "Com base no material recuperado, o processo parece centrado em regras operacionais e premissas documentadas. Trecho mais relevante: Tabela: Página 19 - Tabela 1 Colunas: ID, DESCRIÇÃO DOS CRITÉRIOS DE ACEITE",
+        "key_points": [
+          "Volume elevado de texto livre, exigindo classificação e segmentação antes da execução.",
+          "Criar base de conhecimento RAG com documentos e regras identificadas.",
+          "Gerar checklist de validação humana para casos ambíguos."
+        ],
+        "what_data_shows": [
+          "Total de arquivos analisados: 3.",
+          "Volume total de texto extraído: 51039 caracteres.",
+          "Total de tabelas identificadas: 46.",
+          "Entidades mais prováveis: cliente, contrato, valor, data, status."
+        ],
+        "recommended_actions": [
+          "Criar base de conhecimento RAG com documentos e regras identificadas.",
+          "Gerar checklist de validação humana para casos ambíguos.",
+          "Criar fluxo de classificação e extração de campos antes da automação principal."
+        ],
+        "rules_detected": [
+          "3. Pré-condições / Premissas.",
+          "O escopo desta história contempla apenas clientes Pós-pago, Vivo Total e Família;.",
+          "Segmento Base Produto.",
+          "Os entrypoints 'Principais dúvidas' encontram-se conforme segue:.",
+          "01 Premissa: Cliente Pós-pago que contenha um pacote contratado de forma Travel adicional."
+        ],
+        "exceptions": [
+          "3.9.2 - Tela de Erro.",
+          "conteúdo de forma independente.",
+          "ERROS GENERICOS: ERRO AO ADICIONAR NOME.",
+          "ERROS NOS INPUTS DE DIGITAÇÃO.",
+          "imediatamente, interrompendo a leitura de foco."
+        ],
+        "confidence": "alta",
+        "next_questions": [
+          "Quais regras de negócio aparecem com mais frequência?",
+          "Quais campos parecem obrigatórios para automação?",
+          "Que inconsistências ou exceções existem nesta base?",
+          "O que vale a pena automatizar primeiro e por quê?"
+        ],
+        "evidences": [
+          {
+            "filename": "vivo.pdf",
+            "chunk_id": "ea7a8b5d6e32_table_104",
+            "score": 0.8531,
+            "excerpt": "Tabela: Página 19 - Tabela 1 Colunas: ID, DESCRIÇÃO DOS CRITÉRIOS DE ACEITE"
+          },
+          {
+            "filename": "vivo.pdf",
+            "chunk_id": "ea7a8b5d6e32_table_87",
+            "score": 0.6449,
+            "excerpt": "Tabela: Página 2 - Tabela 1 Colunas: , A sequência de leitura dos elementos em tela deve seguir a numeração contida nos círculos. Textos não especificados devem seguir a leitura padrão dos leitores de tela. Marcador usado para destacar, na documentação, uma área de elementos como uma lista de itens ou regiões da página. Textos envoltos por uma caixa preta, como neste exemplo, indicam o foco do leitor e agrupamentos de elementos que devem ser lidos de forma automática (juntos e em sequência). O ícone {audio-off} indica elementos que devem ser ignorados por leitores de tela. Camadas usadas para delimitar uma área de clique ou toque. Componentes validados no design system não precisam ser delimitados. A sequência de leitura dos elementos em tela deve seguir a numeração contida nos círculos. T"
+          },
+          {
+            "filename": "vivo.pdf",
+            "chunk_id": "ea7a8b5d6e32_2",
+            "score": 0.6078,
+            "excerpt": "[Página 2] A dos elementos em tela sequência de leitura deve seguir a numeração contida nos círculos. Textos não especificados devem seguir a leitura padrão dos leitores de tela. Marcador usado para destacar, na documentação, uma área de elementos como uma lista de itens ou regiões da página. Textos envoltos por uma caixa preta, como neste exemplo, indicam o foco do leitor e agrupamentos de elementos que devem ser lidos de forma automática (juntos e em sequência). O ícone {audio-off} indica elementos que devem ser ignorados por leitores de tela. Camadas usadas para delimitar uma área de clique ou toque. Componentes validados no design system não precisam ser delimitados. A sequência de leitura dos elementos em tela deve seguir a numeração contida nos círculos. Textos não"
+          },
+          {
+            "filename": "vivo.pdf",
+            "chunk_id": "ea7a8b5d6e32_table_90",
+            "score": 0.5718,
+            "excerpt": "Tabela: Página 5 - Tabela 1 Colunas: , Apos o carregamento do Skeleton deve ser apresentado a morada de informações pessoais 1- Botão: Deve ser identificado como um botão e sua literal deve ser \"Voltar\". 2- Cabeçalho: Deve ser identificado como um título de: Nível 1 ou H1 3- Cabeçalho: Deve ser identificado como um título de Nível 2 ou H2. 4- Deve ser identificado como um botão e sua literal deve ser: \"Sobre você, nome e dados de contato\". 5- Cabeçalho Deve ser identificado como um título de: Nível 2 ou H2 Lista de botões 6 - Lista não ordenada de itens contendo: Botões 7- Deve ser identificado como um botão e sua literal deve ser: \"Assinaturas, para envio de faturas e relacionamento\" 8 - Deve ser identificado como um botão e sua literal deve ser: \"Entrega, das suas compras na loja online"
+          },
+          {
+            "filename": "vivo.pdf",
+            "chunk_id": "ea7a8b5d6e32_table_91",
+            "score": 0.5604,
+            "excerpt": "Tabela: Página 6 - Tabela 1 Colunas: , Ao clicar em \"Sobre você\" 1- Botão: Deve ser identificado como um botão e sua literal deve ser \"Voltar\". 2- Cabeçalho: Deve ser identificado como um título de Nível 1 ou H1. 3-Skeleton Deve possuir um nome acessível. Sua literal deve ser: \"Carregando\""
+          }
+        ],
+        "llm": {
+          "enabled": false,
+          "provider": "openai-error-fallback",
+          "model": "gpt-5.1-2025-11-13",
+          "error": "OpenAI HTTP 429: {\n    \"error\": {\n        \"message\": \"Your account is not active, please check your billing details on our website.\",\n        \"type\": \"billing_not_active\",\n        \"param\": null,\n        \"code\": \"billing_not_active\"\n    }\n}\n"
+        }
+      },
+      "evidences": [
+        {
+          "filename": "vivo.pdf",
+          "chunk_id": "ea7a8b5d6e32_table_104",
+          "score": 0.8531,
+          "excerpt": "Tabela: Página 19 - Tabela 1 Colunas: ID, DESCRIÇÃO DOS CRITÉRIOS DE ACEITE"
+        },
+        {
+          "filename": "vivo.pdf",
+          "chunk_id": "ea7a8b5d6e32_table_87",
+          "score": 0.6449,
+          "excerpt": "Tabela: Página 2 - Tabela 1 Colunas: , A sequência de leitura dos elementos em tela deve seguir a numeração contida nos círculos. Textos não especificados devem seguir a leitura padrão dos leitores de tela. Marcador usado para destacar, na documentação, uma área de elementos como uma lista de itens ou regiões da página. Textos envoltos por uma caixa preta, como neste exemplo, indicam o foco do leitor e agrupamentos de elementos que devem ser lidos de forma automática (juntos e em sequência). O ícone {audio-off} indica elementos que devem ser ignorados por leitores de tela. Camadas usadas para delimitar uma área de clique ou toque. Componentes validados no design system não precisam ser delimitados. A sequência de leitura dos elementos em tela deve seguir a numeração contida nos círculos. T"
+        },
+        {
+          "filename": "vivo.pdf",
+          "chunk_id": "ea7a8b5d6e32_2",
+          "score": 0.6078,
+          "excerpt": "[Página 2] A dos elementos em tela sequência de leitura deve seguir a numeração contida nos círculos. Textos não especificados devem seguir a leitura padrão dos leitores de tela. Marcador usado para destacar, na documentação, uma área de elementos como uma lista de itens ou regiões da página. Textos envoltos por uma caixa preta, como neste exemplo, indicam o foco do leitor e agrupamentos de elementos que devem ser lidos de forma automática (juntos e em sequência). O ícone {audio-off} indica elementos que devem ser ignorados por leitores de tela. Camadas usadas para delimitar uma área de clique ou toque. Componentes validados no design system não precisam ser delimitados. A sequência de leitura dos elementos em tela deve seguir a numeração contida nos círculos. Textos não"
+        },
+        {
+          "filename": "vivo.pdf",
+          "chunk_id": "ea7a8b5d6e32_table_90",
+          "score": 0.5718,
+          "excerpt": "Tabela: Página 5 - Tabela 1 Colunas: , Apos o carregamento do Skeleton deve ser apresentado a morada de informações pessoais 1- Botão: Deve ser identificado como um botão e sua literal deve ser \"Voltar\". 2- Cabeçalho: Deve ser identificado como um título de: Nível 1 ou H1 3- Cabeçalho: Deve ser identificado como um título de Nível 2 ou H2. 4- Deve ser identificado como um botão e sua literal deve ser: \"Sobre você, nome e dados de contato\". 5- Cabeçalho Deve ser identificado como um título de: Nível 2 ou H2 Lista de botões 6 - Lista não ordenada de itens contendo: Botões 7- Deve ser identificado como um botão e sua literal deve ser: \"Assinaturas, para envio de faturas e relacionamento\" 8 - Deve ser identificado como um botão e sua literal deve ser: \"Entrega, das suas compras na loja online"
+        },
+        {
+          "filename": "vivo.pdf",
+          "chunk_id": "ea7a8b5d6e32_table_91",
+          "score": 0.5604,
+          "excerpt": "Tabela: Página 6 - Tabela 1 Colunas: , Ao clicar em \"Sobre você\" 1- Botão: Deve ser identificado como um botão e sua literal deve ser \"Voltar\". 2- Cabeçalho: Deve ser identificado como um título de Nível 1 ou H1. 3-Skeleton Deve possuir um nome acessível. Sua literal deve ser: \"Carregando\""
+        }
+      ]
+    },
+    {
+      "id": "ed30f3bb8c7e",
+      "created_at": "2026-04-15T18:02:13.560919",
+      "question": "interpretação do documento",
+      "mode": "executive",
+      "answer": {
+        "mode": "executive",
+        "title": "Resposta para: interpretação do documento",
+        "summary": "Com base no material recuperado, o processo parece centrado em regras operacionais e premissas documentadas. Trecho mais relevante: ompendo a leitura de foco do usuário e descrevendo o conteúdo da notificação.",
+        "key_points": [
+          "Volume elevado de texto livre, exigindo classificação e segmentação antes da execução.",
+          "Criar base de conhecimento RAG com documentos e regras identificadas.",
+          "Gerar checklist de validação humana para casos ambíguos."
+        ],
+        "what_data_shows": [
+          "Total de arquivos analisados: 3.",
+          "Volume total de texto extraído: 51039 caracteres.",
+          "Total de tabelas identificadas: 46.",
+          "Entidades mais prováveis: cliente, contrato, valor, data, status."
+        ],
+        "recommended_actions": [
+          "Criar base de conhecimento RAG com documentos e regras identificadas.",
+          "Gerar checklist de validação humana para casos ambíguos.",
+          "Criar fluxo de classificação e extração de campos antes da automação principal."
+        ],
+        "rules_detected": [
+          "3. Pré-condições / Premissas.",
+          "O escopo desta história contempla apenas clientes Pós-pago, Vivo Total e Família;.",
+          "Segmento Base Produto.",
+          "Os entrypoints 'Principais dúvidas' encontram-se conforme segue:.",
+          "01 Premissa: Cliente Pós-pago que contenha um pacote contratado de forma Travel adicional."
+        ],
+        "exceptions": [
+          "3.9.2 - Tela de Erro.",
+          "conteúdo de forma independente.",
+          "ERROS GENERICOS: ERRO AO ADICIONAR NOME.",
+          "ERROS NOS INPUTS DE DIGITAÇÃO.",
+          "imediatamente, interrompendo a leitura de foco."
+        ],
+        "confidence": "alta",
+        "next_questions": [
+          "Quais regras de negócio aparecem com mais frequência?",
+          "Quais campos parecem obrigatórios para automação?",
+          "Que inconsistências ou exceções existem nesta base?",
+          "O que vale a pena automatizar primeiro e por quê?"
+        ],
+        "evidences": [
+          {
+            "filename": "vivo.pdf",
+            "chunk_id": "ea7a8b5d6e32_24",
+            "score": 0.5105,
+            "excerpt": "ompendo a leitura de foco do usuário e descrevendo o conteúdo da notificação."
+          },
+          {
+            "filename": "Caderno vivo 1.pdf",
+            "chunk_id": "5d6264e21c16_4",
+            "score": 0.386,
+            "excerpt": "[Página 2] Pagamentos via Bancos Não Conveniados Quando o pagamento é feito por bancos (ex: bancos digitais), o repasse ocorre via intermediários. não conveniados Se o repasse for feito por um banco conveniado, o poderá atuar normalmente. Rajadas Caso contrário, o status será atualizado apenas após a , sem exibição do status intermediário - de acordo com a regra baixa bancária oficial existente atualmente para o App e Web, apresentando o status \"Pronta para pagar\" ou \"Atrasada\" após o vencimento. 2. Escopo da História Eu como PO desejo que seja exibido o status nas páginas \"Processando Pagamento\" \"Central de Faturas\", \"Detalhes da Assinatura\" e \"Histórico (App e Web), ao realizar o pagamento da fatura via ou , utilizando dados do sistema com os bancos de Faturas\" Pix Código de"
+          },
+          {
+            "filename": "vivo.pdf",
+            "chunk_id": "ea7a8b5d6e32_11",
+            "score": 0.3749,
+            "excerpt": "[Página 12] \"Confirmar endereço\" 03 Cabeçalho Deve ser identificado como um título de: Nível 2 ou H2 \"Insira o termo completo\" 05 06 10 Campo de texto preenchido Input de entrada de dados do tipo texto. O label deve estar corretamente associado ao respectivo campo. Label: \"Endereço\" O valor do campo deve ser anunciado. 04 07 Campo numérico preenchido Input de entrada de dados do tipo números. Apenas números são aceitos.O label deve estar corretamente associado ao respectivo campo. Literal Label: \"Insira a label + {variável}\" O valor do campo deve ser anunciado. 08 Checkbox (caixa de seleção) Deve ser identificado como uma caixa de seleção e o label deve estar corretamente associado. Deve anunciar se está desmarcada ou marcada. Desmarcada por padrão 09 11 Campo de texto preenchido Inp"
+          },
+          {
+            "filename": "vivo.pdf",
+            "chunk_id": "ea7a8b5d6e32_table_97",
+            "score": 0.3714,
+            "excerpt": "Tabela: Página 12 - Tabela 1 Colunas: , \"Confirmar endereço\" 03 Cabeçalho Deve ser identificado como um título de: Nível 2 ou H2 \"Insira o termo completo\" 05 06 10 Campo de texto preenchido Input de entrada de dados do tipo texto. O label deve estar corretamente associado ao respectivo campo. Label: \"Endereço\" O valor do campo deve ser anunciado. 04 07 Campo numérico preenchido Input de entrada de dados do tipo números. Apenas números são aceitos.O label deve estar corretamente associado ao respectivo campo. Literal Label: \"Insira a label + {variável}\" O valor do campo deve ser anunciado. 08 Checkbox (caixa de seleção) Deve ser identificado como uma caixa de seleção e o label deve estar corretamente associado. Deve anunciar se está desmarcada ou marcada. Desmarcada por padrão 09 11 Campo d"
+          },
+          {
+            "filename": "Caderno vivo 1.pdf",
+            "chunk_id": "5d6264e21c16_8",
+            "score": 0.3695,
+            "excerpt": "ocessando Pagamento\" A baixa efetiva no pagamento onde deve constar a informação de \"Paga\" somente após a baixa efetiva do pagamento - fluxo atual"
+          }
+        ],
+        "llm": {
+          "enabled": false,
+          "provider": "openai-error-fallback",
+          "model": "gpt-5.1-2025-11-13",
+          "error": "OpenAI HTTP 429: {\n    \"error\": {\n        \"message\": \"Your account is not active, please check your billing details on our website.\",\n        \"type\": \"billing_not_active\",\n        \"param\": null,\n        \"code\": \"billing_not_active\"\n    }\n}\n"
+        }
+      },
+      "evidences": [
+        {
+          "filename": "vivo.pdf",
+          "chunk_id": "ea7a8b5d6e32_24",
+          "score": 0.5105,
+          "excerpt": "ompendo a leitura de foco do usuário e descrevendo o conteúdo da notificação."
+        },
+        {
+          "filename": "Caderno vivo 1.pdf",
+          "chunk_id": "5d6264e21c16_4",
+          "score": 0.386,
+          "excerpt": "[Página 2] Pagamentos via Bancos Não Conveniados Quando o pagamento é feito por bancos (ex: bancos digitais), o repasse ocorre via intermediários. não conveniados Se o repasse for feito por um banco conveniado, o poderá atuar normalmente. Rajadas Caso contrário, o status será atualizado apenas após a , sem exibição do status intermediário - de acordo com a regra baixa bancária oficial existente atualmente para o App e Web, apresentando o status \"Pronta para pagar\" ou \"Atrasada\" após o vencimento. 2. Escopo da História Eu como PO desejo que seja exibido o status nas páginas \"Processando Pagamento\" \"Central de Faturas\", \"Detalhes da Assinatura\" e \"Histórico (App e Web), ao realizar o pagamento da fatura via ou , utilizando dados do sistema com os bancos de Faturas\" Pix Código de"
+        },
+        {
+          "filename": "vivo.pdf",
+          "chunk_id": "ea7a8b5d6e32_11",
+          "score": 0.3749,
+          "excerpt": "[Página 12] \"Confirmar endereço\" 03 Cabeçalho Deve ser identificado como um título de: Nível 2 ou H2 \"Insira o termo completo\" 05 06 10 Campo de texto preenchido Input de entrada de dados do tipo texto. O label deve estar corretamente associado ao respectivo campo. Label: \"Endereço\" O valor do campo deve ser anunciado. 04 07 Campo numérico preenchido Input de entrada de dados do tipo números. Apenas números são aceitos.O label deve estar corretamente associado ao respectivo campo. Literal Label: \"Insira a label + {variável}\" O valor do campo deve ser anunciado. 08 Checkbox (caixa de seleção) Deve ser identificado como uma caixa de seleção e o label deve estar corretamente associado. Deve anunciar se está desmarcada ou marcada. Desmarcada por padrão 09 11 Campo de texto preenchido Inp"
+        },
+        {
+          "filename": "vivo.pdf",
+          "chunk_id": "ea7a8b5d6e32_table_97",
+          "score": 0.3714,
+          "excerpt": "Tabela: Página 12 - Tabela 1 Colunas: , \"Confirmar endereço\" 03 Cabeçalho Deve ser identificado como um título de: Nível 2 ou H2 \"Insira o termo completo\" 05 06 10 Campo de texto preenchido Input de entrada de dados do tipo texto. O label deve estar corretamente associado ao respectivo campo. Label: \"Endereço\" O valor do campo deve ser anunciado. 04 07 Campo numérico preenchido Input de entrada de dados do tipo números. Apenas números são aceitos.O label deve estar corretamente associado ao respectivo campo. Literal Label: \"Insira a label + {variável}\" O valor do campo deve ser anunciado. 08 Checkbox (caixa de seleção) Deve ser identificado como uma caixa de seleção e o label deve estar corretamente associado. Deve anunciar se está desmarcada ou marcada. Desmarcada por padrão 09 11 Campo d"
+        },
+        {
+          "filename": "Caderno vivo 1.pdf",
+          "chunk_id": "5d6264e21c16_8",
+          "score": 0.3695,
+          "excerpt": "ocessando Pagamento\" A baixa efetiva no pagamento onde deve constar a informação de \"Paga\" somente após a baixa efetiva do pagamento - fluxo atual"
+        }
+      ]
+    },
+    {
+      "id": "551f894299d4",
+      "created_at": "2026-04-15T18:02:53.768168",
+      "question": "interpretação do documento",
+      "mode": "executive",
+      "answer": {
+        "mode": "executive",
+        "title": "Resposta para: interpretação do documento",
+        "summary": "Com base no material recuperado, o processo parece centrado em regras operacionais e premissas documentadas. Trecho mais relevante: ompendo a leitura de foco do usuário e descrevendo o conteúdo da notificação.",
+        "key_points": [
+          "Volume elevado de texto livre, exigindo classificação e segmentação antes da execução.",
+          "Criar base de conhecimento RAG com documentos e regras identificadas.",
+          "Gerar checklist de validação humana para casos ambíguos."
+        ],
+        "what_data_shows": [
+          "Total de arquivos analisados: 3.",
+          "Volume total de texto extraído: 51039 caracteres.",
+          "Total de tabelas identificadas: 46.",
+          "Entidades mais prováveis: cliente, contrato, valor, data, status."
+        ],
+        "recommended_actions": [
+          "Criar base de conhecimento RAG com documentos e regras identificadas.",
+          "Gerar checklist de validação humana para casos ambíguos.",
+          "Criar fluxo de classificação e extração de campos antes da automação principal."
+        ],
+        "rules_detected": [
+          "3. Pré-condições / Premissas.",
+          "O escopo desta história contempla apenas clientes Pós-pago, Vivo Total e Família;.",
+          "Segmento Base Produto.",
+          "Os entrypoints 'Principais dúvidas' encontram-se conforme segue:.",
+          "01 Premissa: Cliente Pós-pago que contenha um pacote contratado de forma Travel adicional."
+        ],
+        "exceptions": [
+          "3.9.2 - Tela de Erro.",
+          "conteúdo de forma independente.",
+          "ERROS GENERICOS: ERRO AO ADICIONAR NOME.",
+          "ERROS NOS INPUTS DE DIGITAÇÃO.",
+          "imediatamente, interrompendo a leitura de foco."
+        ],
+        "confidence": "alta",
+        "next_questions": [
+          "Quais regras de negócio aparecem com mais frequência?",
+          "Quais campos parecem obrigatórios para automação?",
+          "Que inconsistências ou exceções existem nesta base?",
+          "O que vale a pena automatizar primeiro e por quê?"
+        ],
+        "evidences": [
+          {
+            "filename": "vivo.pdf",
+            "chunk_id": "ea7a8b5d6e32_24",
+            "score": 0.5105,
+            "excerpt": "ompendo a leitura de foco do usuário e descrevendo o conteúdo da notificação."
+          },
+          {
+            "filename": "Caderno vivo 1.pdf",
+            "chunk_id": "5d6264e21c16_4",
+            "score": 0.386,
+            "excerpt": "[Página 2] Pagamentos via Bancos Não Conveniados Quando o pagamento é feito por bancos (ex: bancos digitais), o repasse ocorre via intermediários. não conveniados Se o repasse for feito por um banco conveniado, o poderá atuar normalmente. Rajadas Caso contrário, o status será atualizado apenas após a , sem exibição do status intermediário - de acordo com a regra baixa bancária oficial existente atualmente para o App e Web, apresentando o status \"Pronta para pagar\" ou \"Atrasada\" após o vencimento. 2. Escopo da História Eu como PO desejo que seja exibido o status nas páginas \"Processando Pagamento\" \"Central de Faturas\", \"Detalhes da Assinatura\" e \"Histórico (App e Web), ao realizar o pagamento da fatura via ou , utilizando dados do sistema com os bancos de Faturas\" Pix Código de"
+          },
+          {
+            "filename": "vivo.pdf",
+            "chunk_id": "ea7a8b5d6e32_11",
+            "score": 0.3749,
+            "excerpt": "[Página 12] \"Confirmar endereço\" 03 Cabeçalho Deve ser identificado como um título de: Nível 2 ou H2 \"Insira o termo completo\" 05 06 10 Campo de texto preenchido Input de entrada de dados do tipo texto. O label deve estar corretamente associado ao respectivo campo. Label: \"Endereço\" O valor do campo deve ser anunciado. 04 07 Campo numérico preenchido Input de entrada de dados do tipo números. Apenas números são aceitos.O label deve estar corretamente associado ao respectivo campo. Literal Label: \"Insira a label + {variável}\" O valor do campo deve ser anunciado. 08 Checkbox (caixa de seleção) Deve ser identificado como uma caixa de seleção e o label deve estar corretamente associado. Deve anunciar se está desmarcada ou marcada. Desmarcada por padrão 09 11 Campo de texto preenchido Inp"
+          },
+          {
+            "filename": "vivo.pdf",
+            "chunk_id": "ea7a8b5d6e32_table_97",
+            "score": 0.3714,
+            "excerpt": "Tabela: Página 12 - Tabela 1 Colunas: , \"Confirmar endereço\" 03 Cabeçalho Deve ser identificado como um título de: Nível 2 ou H2 \"Insira o termo completo\" 05 06 10 Campo de texto preenchido Input de entrada de dados do tipo texto. O label deve estar corretamente associado ao respectivo campo. Label: \"Endereço\" O valor do campo deve ser anunciado. 04 07 Campo numérico preenchido Input de entrada de dados do tipo números. Apenas números são aceitos.O label deve estar corretamente associado ao respectivo campo. Literal Label: \"Insira a label + {variável}\" O valor do campo deve ser anunciado. 08 Checkbox (caixa de seleção) Deve ser identificado como uma caixa de seleção e o label deve estar corretamente associado. Deve anunciar se está desmarcada ou marcada. Desmarcada por padrão 09 11 Campo d"
+          },
+          {
+            "filename": "Caderno vivo 1.pdf",
+            "chunk_id": "5d6264e21c16_8",
+            "score": 0.3695,
+            "excerpt": "ocessando Pagamento\" A baixa efetiva no pagamento onde deve constar a informação de \"Paga\" somente após a baixa efetiva do pagamento - fluxo atual"
+          }
+        ],
+        "llm": {
+          "enabled": false,
+          "provider": "openai-error-fallback",
+          "model": "gpt-5.1-2025-11-13",
+          "error": "OpenAI HTTP 429: {\n    \"error\": {\n        \"message\": \"Your account is not active, please check your billing details on our website.\",\n        \"type\": \"billing_not_active\",\n        \"param\": null,\n        \"code\": \"billing_not_active\"\n    }\n}\n"
+        }
+      },
+      "evidences": [
+        {
+          "filename": "vivo.pdf",
+          "chunk_id": "ea7a8b5d6e32_24",
+          "score": 0.5105,
+          "excerpt": "ompendo a leitura de foco do usuário e descrevendo o conteúdo da notificação."
+        },
+        {
+          "filename": "Caderno vivo 1.pdf",
+          "chunk_id": "5d6264e21c16_4",
+          "score": 0.386,
+          "excerpt": "[Página 2] Pagamentos via Bancos Não Conveniados Quando o pagamento é feito por bancos (ex: bancos digitais), o repasse ocorre via intermediários. não conveniados Se o repasse for feito por um banco conveniado, o poderá atuar normalmente. Rajadas Caso contrário, o status será atualizado apenas após a , sem exibição do status intermediário - de acordo com a regra baixa bancária oficial existente atualmente para o App e Web, apresentando o status \"Pronta para pagar\" ou \"Atrasada\" após o vencimento. 2. Escopo da História Eu como PO desejo que seja exibido o status nas páginas \"Processando Pagamento\" \"Central de Faturas\", \"Detalhes da Assinatura\" e \"Histórico (App e Web), ao realizar o pagamento da fatura via ou , utilizando dados do sistema com os bancos de Faturas\" Pix Código de"
+        },
+        {
+          "filename": "vivo.pdf",
+          "chunk_id": "ea7a8b5d6e32_11",
+          "score": 0.3749,
+          "excerpt": "[Página 12] \"Confirmar endereço\" 03 Cabeçalho Deve ser identificado como um título de: Nível 2 ou H2 \"Insira o termo completo\" 05 06 10 Campo de texto preenchido Input de entrada de dados do tipo texto. O label deve estar corretamente associado ao respectivo campo. Label: \"Endereço\" O valor do campo deve ser anunciado. 04 07 Campo numérico preenchido Input de entrada de dados do tipo números. Apenas números são aceitos.O label deve estar corretamente associado ao respectivo campo. Literal Label: \"Insira a label + {variável}\" O valor do campo deve ser anunciado. 08 Checkbox (caixa de seleção) Deve ser identificado como uma caixa de seleção e o label deve estar corretamente associado. Deve anunciar se está desmarcada ou marcada. Desmarcada por padrão 09 11 Campo de texto preenchido Inp"
+        },
+        {
+          "filename": "vivo.pdf",
+          "chunk_id": "ea7a8b5d6e32_table_97",
+          "score": 0.3714,
+          "excerpt": "Tabela: Página 12 - Tabela 1 Colunas: , \"Confirmar endereço\" 03 Cabeçalho Deve ser identificado como um título de: Nível 2 ou H2 \"Insira o termo completo\" 05 06 10 Campo de texto preenchido Input de entrada de dados do tipo texto. O label deve estar corretamente associado ao respectivo campo. Label: \"Endereço\" O valor do campo deve ser anunciado. 04 07 Campo numérico preenchido Input de entrada de dados do tipo números. Apenas números são aceitos.O label deve estar corretamente associado ao respectivo campo. Literal Label: \"Insira a label + {variável}\" O valor do campo deve ser anunciado. 08 Checkbox (caixa de seleção) Deve ser identificado como uma caixa de seleção e o label deve estar corretamente associado. Deve anunciar se está desmarcada ou marcada. Desmarcada por padrão 09 11 Campo d"
+        },
+        {
+          "filename": "Caderno vivo 1.pdf",
+          "chunk_id": "5d6264e21c16_8",
+          "score": 0.3695,
+          "excerpt": "ocessando Pagamento\" A baixa efetiva no pagamento onde deve constar a informação de \"Paga\" somente após a baixa efetiva do pagamento - fluxo atual"
+        }
+      ]
+    },
+    {
+      "id": "66a981a4e068",
+      "created_at": "2026-04-15T18:03:53.294596",
+      "question": "Analise profundamente o documento enviado, explique qual é o objetivo principal dele, quais processos de negócio ele descreve, quais regras importantes estão implícitas, quais riscos operacionais existem e o que faria mais sentido automatizar primeiro. Responda de forma executiva e organizada.",
+      "mode": "executive",
+      "answer": {
+        "mode": "executive",
+        "title": "Resposta para: Analise profundamente o documento enviado, explique qual é o objetivo principal ",
+        "summary": "Os dados indicam uma boa oportunidade para começar por organização do conhecimento, classificação de documentos e extração de campos, deixando decisões ambíguas com validação humana. A prioridade inicial recomendada é: Criar base de conhecimento RAG com documentos e regras identificadas.",
+        "key_points": [
+          "Volume elevado de texto livre, exigindo classificação e segmentação antes da execução.",
+          "Criar base de conhecimento RAG com documentos e regras identificadas.",
+          "Gerar checklist de validação humana para casos ambíguos."
+        ],
+        "what_data_shows": [
+          "Total de arquivos analisados: 3.",
+          "Volume total de texto extraído: 51039 caracteres.",
+          "Total de tabelas identificadas: 46.",
+          "Entidades mais prováveis: cliente, contrato, valor, data, status."
+        ],
+        "recommended_actions": [
+          "Criar base de conhecimento RAG com documentos e regras identificadas.",
+          "Gerar checklist de validação humana para casos ambíguos.",
+          "Criar fluxo de classificação e extração de campos antes da automação principal."
+        ],
+        "rules_detected": [
+          "3. Pré-condições / Premissas.",
+          "O escopo desta história contempla apenas clientes Pós-pago, Vivo Total e Família;.",
+          "Segmento Base Produto.",
+          "Os entrypoints 'Principais dúvidas' encontram-se conforme segue:.",
+          "01 Premissa: Cliente Pós-pago que contenha um pacote contratado de forma Travel adicional."
+        ],
+        "exceptions": [
+          "3.9.2 - Tela de Erro.",
+          "conteúdo de forma independente.",
+          "ERROS GENERICOS: ERRO AO ADICIONAR NOME.",
+          "ERROS NOS INPUTS DE DIGITAÇÃO.",
+          "imediatamente, interrompendo a leitura de foco."
+        ],
+        "confidence": "alta",
+        "next_questions": [
+          "Qual seria o blueprint inicial do processo automatizado?",
+          "Quais regras de negócio aparecem com mais frequência?",
+          "Quais campos parecem obrigatórios para automação?",
+          "Que inconsistências ou exceções existem nesta base?",
+          "O que vale a pena automatizar primeiro e por quê?"
+        ],
+        "evidences": [
+          {
+            "filename": "caderno2.pdf",
+            "chunk_id": "7a6ccc655c54_7",
+            "score": 2.3979,
+            "excerpt": "[Página 8] 04 Premissa: Cliente Pós-pago, Vivo Total ou Família que possua pacote Travel Américas, Europa ou Mundo Execução: Na tela de consumo, clicar em Em cada uma das FAQs, clicar no botão '< ' (voltar) Resultado esperado: Voltar para a tela anterior - FAQ principal - Vivo Travel detalhada nessa história 05 : Cliente Pós-pago, Vivo Total ou Família que possua pacote Travel Américas, Europa ou Mundo Premissa :Execução Na tela de consumo, clicar em Acessar FAQ que possua link para o chat ao clicar no link do chat Resultado esperado: Cliente é direcionado para o chat da Aura 06 Premissa: Cliente Pós-pago que contenha mais de um pacote contratado de forma Travel adicional ou incluso Execução: Na tela de seleção de pacotes (header), clicar em Resultado esperado 1: Deverá exibir a"
+          },
+          {
+            "filename": "caderno2.pdf",
+            "chunk_id": "7a6ccc655c54_table_19",
+            "score": 2.3112,
+            "excerpt": "Tabela: Página 8 - Tabela 1 Colunas: 04, Premissa: Cliente Pós-pago, Vivo Total ou Família que possua pacote Travel Américas, Europa ou Mundo Execução: Na tela de consumo, clicar em Em cada uma das FAQs, clicar no botão '< ' (voltar) Resultado esperado: Voltar para a tela anterior - FAQ principal - Vivo Travel detalhada nessa história 05 | Premissa: Cliente Pós-pago, Vivo Total ou Família que possua pacote Travel Américas, Europa ou Mundo Execução: Na tela de consumo, clicar em Acessar FAQ que possua link para o chat ao clicar no link do chat Resultado esperado: Cliente é direcionado para o chat da Aura 06 | Premissa: Cliente Pós-pago que contenha mais de um pacote Travel contratado de forma adicional ou incluso Execução: Na tela de seleção de pacotes (header), clicar em Resultado esperado"
+          },
+          {
+            "filename": "caderno2.pdf",
+            "chunk_id": "7a6ccc655c54_10",
+            "score": 2.2139,
+            "excerpt": "vulsas', clicar no link Exibir internet por país > Na tela 'Cobertura', clicar em Resultado esperado 1: Deverá exibir a FAQ principal detalhada nessa história, com as opções de todas as perguntas e respostas Resultado esperado 2: Deverá exibir cada tela final de FAQ a partir da tela principal 'Sim' e 'Não' direcionam para a FAQ principal - ' ' Vivo Travel 11 Premissa: Cliente Pós-pago ou Total que contenha mais de um pacote contratado de forma Travel adicional ou incluso Execução: Na tela de seleção de pacotes, clicar no link Exibir todos os países > Na tela 'Cobertura', clicar em Resultado esperado 1: Deverá exibir a FAQ principal detalhada nessa história, com as opções de todas as perguntas e respostas Resultado esperado 2: Deverá exibir cada tela final de FAQ a partir da tela prin"
+          },
+          {
+            "filename": "caderno2.pdf",
+            "chunk_id": "7a6ccc655c54_table_20",
+            "score": 2.0614,
+            "excerpt": "Tabela: Página 9 - Tabela 1 Colunas: 08, Premissa: Cliente Pós-pago que contenha pelo menos um pacote Travel contratado de forma adicional ou incluso Execução: Na tela de consumo, clicar no componente 'Ligações' Na tela de Ligações/SMS, clicar em Resultado esperado 1: Deverá exibir a FAQ principal detalhada nessa história, com as opções de todas as perguntas e respostas Resultado esperado 2: Deverá exibir cada tela final de FAQ a partir da tela principal 'Sim' e 'Não' direcionam para a FAQ principal - 'Vivo Travel' 09 | Premissa: Cliente Pós-pago ou Total que contenha pelo menos um pacote Travel contratado de forma adicional ou incluso Execução: Na tela de consumo, clicar no componente 'Internet' Na tela de Cobertura, clicar em Resultado esperado 1: Deverá exibir a FAQ principal detalhada"
+          },
+          {
+            "filename": "caderno2.pdf",
+            "chunk_id": "7a6ccc655c54_9",
+            "score": 2.0591,
+            "excerpt": "[Página 9] 08 Premissa: Cliente Pós-pago que contenha pelo menos um pacote contratado de forma Travel adicional ou incluso Execução: Na tela de consumo, clicar no componente 'Ligações' Na tela de Ligações/SMS, clicar em Resultado esperado 1: Deverá exibir a FAQ principal detalhada nessa história, com as opções de todas as perguntas e respostas Resultado esperado 2: Deverá exibir cada tela final de FAQ a partir da tela principal 'Sim' e 'Não' direcionam para a FAQ principal - ' ' Vivo Travel 09 Premissa: Cliente Pós-pago ou Total que contenha pelo menos um pacote contratado de forma Travel adicional ou incluso Execução: Na tela de consumo, clicar no componente 'Internet' Na tela de Cobertura, clicar em Resultado esperado 1: Deverá exibir a FAQ principal detalhada nessa história, com"
+          }
+        ],
+        "llm": {
+          "enabled": false,
+          "provider": "openai-error-fallback",
+          "model": "gpt-5.1-2025-11-13",
+          "error": "OpenAI HTTP 429: {\n    \"error\": {\n        \"message\": \"Your account is not active, please check your billing details on our website.\",\n        \"type\": \"billing_not_active\",\n        \"param\": null,\n        \"code\": \"billing_not_active\"\n    }\n}\n"
+        }
+      },
+      "evidences": [
+        {
+          "filename": "caderno2.pdf",
+          "chunk_id": "7a6ccc655c54_7",
+          "score": 2.3979,
+          "excerpt": "[Página 8] 04 Premissa: Cliente Pós-pago, Vivo Total ou Família que possua pacote Travel Américas, Europa ou Mundo Execução: Na tela de consumo, clicar em Em cada uma das FAQs, clicar no botão '< ' (voltar) Resultado esperado: Voltar para a tela anterior - FAQ principal - Vivo Travel detalhada nessa história 05 : Cliente Pós-pago, Vivo Total ou Família que possua pacote Travel Américas, Europa ou Mundo Premissa :Execução Na tela de consumo, clicar em Acessar FAQ que possua link para o chat ao clicar no link do chat Resultado esperado: Cliente é direcionado para o chat da Aura 06 Premissa: Cliente Pós-pago que contenha mais de um pacote contratado de forma Travel adicional ou incluso Execução: Na tela de seleção de pacotes (header), clicar em Resultado esperado 1: Deverá exibir a"
+        },
+        {
+          "filename": "caderno2.pdf",
+          "chunk_id": "7a6ccc655c54_table_19",
+          "score": 2.3112,
+          "excerpt": "Tabela: Página 8 - Tabela 1 Colunas: 04, Premissa: Cliente Pós-pago, Vivo Total ou Família que possua pacote Travel Américas, Europa ou Mundo Execução: Na tela de consumo, clicar em Em cada uma das FAQs, clicar no botão '< ' (voltar) Resultado esperado: Voltar para a tela anterior - FAQ principal - Vivo Travel detalhada nessa história 05 | Premissa: Cliente Pós-pago, Vivo Total ou Família que possua pacote Travel Américas, Europa ou Mundo Execução: Na tela de consumo, clicar em Acessar FAQ que possua link para o chat ao clicar no link do chat Resultado esperado: Cliente é direcionado para o chat da Aura 06 | Premissa: Cliente Pós-pago que contenha mais de um pacote Travel contratado de forma adicional ou incluso Execução: Na tela de seleção de pacotes (header), clicar em Resultado esperado"
+        },
+        {
+          "filename": "caderno2.pdf",
+          "chunk_id": "7a6ccc655c54_10",
+          "score": 2.2139,
+          "excerpt": "vulsas', clicar no link Exibir internet por país > Na tela 'Cobertura', clicar em Resultado esperado 1: Deverá exibir a FAQ principal detalhada nessa história, com as opções de todas as perguntas e respostas Resultado esperado 2: Deverá exibir cada tela final de FAQ a partir da tela principal 'Sim' e 'Não' direcionam para a FAQ principal - ' ' Vivo Travel 11 Premissa: Cliente Pós-pago ou Total que contenha mais de um pacote contratado de forma Travel adicional ou incluso Execução: Na tela de seleção de pacotes, clicar no link Exibir todos os países > Na tela 'Cobertura', clicar em Resultado esperado 1: Deverá exibir a FAQ principal detalhada nessa história, com as opções de todas as perguntas e respostas Resultado esperado 2: Deverá exibir cada tela final de FAQ a partir da tela prin"
+        },
+        {
+          "filename": "caderno2.pdf",
+          "chunk_id": "7a6ccc655c54_table_20",
+          "score": 2.0614,
+          "excerpt": "Tabela: Página 9 - Tabela 1 Colunas: 08, Premissa: Cliente Pós-pago que contenha pelo menos um pacote Travel contratado de forma adicional ou incluso Execução: Na tela de consumo, clicar no componente 'Ligações' Na tela de Ligações/SMS, clicar em Resultado esperado 1: Deverá exibir a FAQ principal detalhada nessa história, com as opções de todas as perguntas e respostas Resultado esperado 2: Deverá exibir cada tela final de FAQ a partir da tela principal 'Sim' e 'Não' direcionam para a FAQ principal - 'Vivo Travel' 09 | Premissa: Cliente Pós-pago ou Total que contenha pelo menos um pacote Travel contratado de forma adicional ou incluso Execução: Na tela de consumo, clicar no componente 'Internet' Na tela de Cobertura, clicar em Resultado esperado 1: Deverá exibir a FAQ principal detalhada"
+        },
+        {
+          "filename": "caderno2.pdf",
+          "chunk_id": "7a6ccc655c54_9",
+          "score": 2.0591,
+          "excerpt": "[Página 9] 08 Premissa: Cliente Pós-pago que contenha pelo menos um pacote contratado de forma Travel adicional ou incluso Execução: Na tela de consumo, clicar no componente 'Ligações' Na tela de Ligações/SMS, clicar em Resultado esperado 1: Deverá exibir a FAQ principal detalhada nessa história, com as opções de todas as perguntas e respostas Resultado esperado 2: Deverá exibir cada tela final de FAQ a partir da tela principal 'Sim' e 'Não' direcionam para a FAQ principal - ' ' Vivo Travel 09 Premissa: Cliente Pós-pago ou Total que contenha pelo menos um pacote contratado de forma Travel adicional ou incluso Execução: Na tela de consumo, clicar no componente 'Internet' Na tela de Cobertura, clicar em Resultado esperado 1: Deverá exibir a FAQ principal detalhada nessa história, com"
+        }
+      ]
+    }
+  ],
+  "created_at": "2026-04-15T17:57:38.161195",
+  "updated_at": "2026-04-15T18:03:53.312838"
+}

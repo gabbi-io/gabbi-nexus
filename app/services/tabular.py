@@ -58,7 +58,7 @@ class TabularQueryService:
             "tables_count": len(tables),
         }
 
-    def answer_question(self, case_id: str, question: str, documents: list[dict[str, Any]], mode: str = "executive", specialist_role: str | None = None) -> dict[str, Any] | None:
+    def answer_question(self, case_id: str, question: str, documents: list[dict[str, Any]], mode: str = "executive") -> dict[str, Any] | None:
         tables = self._catalog_cache.get(case_id) or self._load_tables(documents)
         self._catalog_cache[case_id] = tables
         if not tables:
@@ -80,7 +80,7 @@ class TabularQueryService:
                 "evidences": [],
                 "evidence_files": [],
             }
-        answer = self._format_answer(question, plan, execution, mode, specialist_role=specialist_role)
+        answer = self._format_answer(question, plan, execution, mode)
         return {
             "route": "tabular",
             "query_type": plan.get("intent"),
@@ -221,13 +221,11 @@ class TabularQueryService:
             if value is None or value == "":
                 continue
             applied_filters.append({"column": column, "operator": op, "value": value})
-            series = filtered[column].astype(str).fillna("").str.strip()
-            norm_series = series.str.upper().str.replace(r'\s+', ' ', regex=True)
-            norm_value = str(value).strip().upper()
+            series = filtered[column].astype(str).fillna("")
             if op == "eq":
-                filtered = filtered[norm_series == norm_value]
+                filtered = filtered[series.str.lower() == str(value).lower()]
             elif op == "contains":
-                filtered = filtered[norm_series.str.contains(norm_value, case=False, na=False)]
+                filtered = filtered[series.str.contains(str(value), case=False, na=False)]
             elif op == "gte":
                 filtered = filtered[series >= str(value)]
             elif op == "lte":
@@ -293,9 +291,9 @@ class TabularQueryService:
             "evidence_files": [target.filename],
         }
 
-    def _format_answer(self, question: str, plan: dict[str, Any], execution: dict[str, Any], mode: str, specialist_role: str | None = None) -> str:
+    def _format_answer(self, question: str, plan: dict[str, Any], execution: dict[str, Any], mode: str) -> str:
         if self.llm_service and self.llm_service.status().get("enabled"):
-            answer = self._format_with_llm(question, plan, execution, mode, specialist_role=specialist_role)
+            answer = self._format_with_llm(question, plan, execution, mode)
             if answer:
                 return answer
         table = execution["table"]
@@ -323,9 +321,9 @@ class TabularQueryService:
             f"### Registros\n{self._records_to_markdown(execution.get('results', []))}"
         )
 
-    def _format_with_llm(self, question: str, plan: dict[str, Any], execution: dict[str, Any], mode: str, specialist_role: str | None = None) -> str | None:
+    def _format_with_llm(self, question: str, plan: dict[str, Any], execution: dict[str, Any], mode: str) -> str | None:
         system_prompt = (
-            f"Você é um {specialist_role or 'analista sênior do GABBI'} no GABBI. Receba o resultado de uma consulta tabular já executada e redija a resposta em markdown bem formatado. "
+            "Você é um analista sênior do GABBI. Receba o resultado de uma consulta tabular já executada e redija a resposta em markdown bem formatado. "
             "Nunca invente números. Use exatamente os resultados recebidos. "
             "Explique de forma humana, objetiva e organizada. "
             "Sempre inclua: resposta direta, cobertura da consulta, filtros aplicados e observações úteis."

@@ -1,0 +1,14 @@
+{
+  "id": "16c1704850",
+  "name": "Caso de teste",
+  "description": "Teste de entendimento híbrido entre documentos e planilhas.",
+  "documents": [],
+  "analysis": null,
+  "diagnostic": null,
+  "chat_history": [],
+  "vector_publication": null,
+  "blueprint": null,
+  "workflow_export": null,
+  "agent_config": null,
+  "tabular_catalog": null
+}

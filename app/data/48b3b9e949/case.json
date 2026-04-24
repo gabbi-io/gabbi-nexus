@@ -1,0 +1,128 @@
+{
+  "id": "48b3b9e949",
+  "name": "Caso de teste",
+  "description": "Validação da PoC de entendimento de dados",
+  "documents": [
+    {
+      "id": "c846a2bcc3ee",
+      "filename": "caderno2.pdf",
+      "path": "C:\\Users\\bruno.santos\\Desktop\\gabbi_poc_LangGhap\\gabbi_poc\\app\\data\\48b3b9e949\\files\\caderno2.pdf",
+      "content_type": "application/pdf",
+      "parsed": {
+        "text": "PTIECBC02-8051 - [Travel Tela Consumo] CMS - Principais \ndúvidas (MVP)\n1. História Funcional\n2. Fora de escopo\n3. Pré-condições / Premissas\n4. Clientes Impactados/Público\n5. Descrição da História\n6. Protótipo\n7. Critérios de aceite\n -   PTIECBC02-8051 Obtendo detalhes do item... STATUS\nData Atividade Responsável Pendencias\n03/12/2024  Escrita da história Luciana Melim Borges \n1. História Funcional\nEU COMO cliente vivo Pós pago, Total ou Família \nDESEJO ter acesso a FAQ do Travel \nPARA consultar informações de ajuda sobre o Travel\n2. Fora de escopo\nNão serão alterados dados de pacotes individuais (Pré-pago e Controle).Travel \nNão serão tratados públicos de portfólios diferentes de: Pós-pago, Total e Família.\nNão será alterada a jornada de permissão de compra de pacotes Travel para plano Família.\nNão será alterada a jornada de cancelamento de Travel.\n3. Pré-condições / Premissas\nCliente com acesso ao novo App Vivo;\nJornada light estar desativada;\nCliente atender ao público definido\nCliente possua pacote  contratado de forma adicional ou incluso na assinaturaTravel\n4. Clientes Impactados/Público\nO escopo desta história contempla apenas clientes Pós-pago, Vivo Total e Família;\nSegmento Base Produto\nMóvel AMDOCS\nPós-Pago\nPós-Pago Família\nFuncional/Gerencial\nVivo Total\nVivo Total Família\n5. Descrição da História\n\n\nEssa história irá descrever sobre o direcionamento da ação ' ' disponível nas páginas descritas abaixo:Principais dúvidas\n: header e açõesT  PTIECBC02-8418 - [Travel] Tela Seleção de Pacotes (MVP): detalhada na históriaela de seleção de pacotes\n(adicional ou incluso): detalhada nas histórias:Tela de consumo \nPTIECBC02-8042 - [Travel] Tela de consumo: Pacote Adicional (MVP)\nPTIECBC02-8043 - [Travel] Tela de consumo: Pacote Incluso (MVP)\n Tela de Ligações e SMS\nTela Cobertura (países)\n5.1 Entrypoints 'Principais dúvidas' \nOs entrypoints 'Principais dúvidas' encontram-se conforme segue:\nTela seleção pacotes/ Header Tela seleção pacotes/ Ações Tela consumo (Ex: adicional)\n- header >  Tela seleção pacotes \n- seção Ações > Tela seleção pacotes \nPrincipais dúvidas\n - seção Ações > Principais Tela 'Consumo'\ndúvidas\n \n5.1 Direcionamento 'Principais dúvidas' \nAo clicar em um dos  o cliente será direcionado para a tela principal de FAQ do travel.entrypoints\n\n\nPágina principal da FAQ\nVivo Travel\nPage 1\nComo funciona o Vivo Travel?\nPage 2\nComo funciona a renovação diária do Vivo Travel?\nOs textos de FAQ serão inseridos nas telas em CMS.\n\n   Link Figma 20/03/2025\nLink Figma   20/03/2025\nLink Figma   20/03/2025\nCERT1: https://web-cert1.vivo.com.br/consumptions/modular-screen/faq-\n  vivotravel-pacotestravel-pos-total-principais-duvidas 24/03/2025\npages/dynamic-content?name=CERT1: https://web-cert1.vivo.com.br/ faq-\nvivotravel-pacotestravel-pos-total-como-funciona-vivo-travel  \nCERT1: https://web-cert1.vivo.com.br/pages/dynamic-content?name=faq-\nvivotravel-pacotestravel-pos-total-como-funciona-renovacao-diaria-travel\n\n\nCERT 2: https://web-cert2.vivo.com.br/consumptions/modular-screen/faq-\n  vivotravel-pacotestravel-pos-total-principais-duvidas 24/03/2025\nCERT 2: https://web-cert2.vivo.com.br/pages/dynamic-content?name=faq-\n  vivotravel-pacotestravel-pos-total-como-funciona-vivo-travel\nCERT 2: https://web-cert2.vivo.com.br/pages/dynamic-content?name=faq-\nvivotravel-pacotestravel-pos-total-como-funciona-renovacao-diaria-travel\nPROD: https://web.vivo.com.br/consumptions/modular-screen/faq-vivotravel-\n pacotestravel-pos-total-principais-duvidas 24/03/2025\nPROD: https://web.vivo.com.br/pages/dynamic-content?name=faq-vivotravel-\n  pacotestravel-pos-total-como-funciona-vivo-travel\nPROD: https://web.vivo.com.br/pages/dynamic-content?name=faq-vivotravel-\npacotestravel-pos-total-como-funciona-renovacao-diaria-travel\nTodos os links \"sim\" e \"não\" direcionam o cliente para a página principal de FAQ - Vivo Travel\nPágina principal de FAQ\n\n\nLink Figma  20/03/2025\n\n\n6. Protótipo\nVivo Travel - Pós - Consumo – Figma\n7. Critérios de aceite\nID Critérios de aceite\n01 Premissa: Cliente Pós-pago que contenha um pacote  contratado de forma Travel adicional\nExecução:\nNa tela de consumo, clicar em   \nResultado esperado 1:\nDeverá exibir a FAQ principal detalhada nessa história, com as opções de todas as perguntas e respostas\nResultado esperado 2:\nDeverá exibir cada tela final de FAQ a partir da tela principal\n02 Premissa: Cliente Pós-pago que contenha um pacote  na assinaturaTravel incluso\nExecução:\nNa tela de consumo, clicar em   \nResultado esperado 1:\nDeverá exibir a FAQ principal detalhada nessa história, com as opções de todas as perguntas e respostas\nResultado esperado 2:\nDeverá exibir cada tela final de FAQ a partir da tela principal\n03 Premissa: Cliente Pós-pago, Vivo Total ou Família que possua pacote Travel Américas, Europa ou Mundo\nExecução:\nNa tela de consumo, clicar em   \nEm cada uma das FAQs, clicar em 'Sim' e 'Não'\nResultado esperado:\nDeverá exibir a página de FAQ principal - Vivo Travel\n\n\n04 Premissa: Cliente Pós-pago, Vivo Total ou Família que possua pacote Travel Américas, Europa ou Mundo\nExecução:\nNa tela de consumo, clicar em   \nEm cada uma das FAQs, clicar no botão '< ' (voltar)\nResultado esperado:\nVoltar para a tela anterior - FAQ principal - Vivo Travel detalhada nessa história\n05 : Cliente Pós-pago, Vivo Total ou Família que possua pacote Travel Américas, Europa ou Mundo  Premissa\n:Execução\nNa tela de consumo, clicar em   \nAcessar FAQ que possua link para o chat\nao clicar no link do chat\nResultado esperado:\nCliente é direcionado para o chat da Aura\n06 Premissa: Cliente Pós-pago que contenha mais de um pacote  contratado de forma Travel adicional ou incluso\nExecução:\nNa tela de seleção de pacotes (header), clicar em   \nResultado esperado 1:\nDeverá exibir a FAQ principal detalhada nessa história, com as opções de todas as perguntas e respostas\nResultado esperado 2:\nDeverá exibir cada tela final de FAQ a partir da tela principal \n07 Premissa: Cliente Pós-pago que contenha mais de um pacote  contratado de forma Travel adicional ou incluso\nExecução:\nNa tela de seleção de pacotes (Ações), clicar em   \nResultado esperado 1:\nDeverá exibir a FAQ principal detalhada nessa história, com as opções de todas as perguntas e respostas\nResultado esperado 2:\nDeverá exibir cada tela final de FAQ a partir da tela principal \n'Sim' e 'Não' direcionam para a FAQ principal -   'Vivo Travel'\n\n\n08 Premissa: Cliente Pós-pago que contenha pelo menos um pacote contratado de forma Travel adicional ou incluso\nExecução:\nNa tela de consumo, clicar no componente 'Ligações'\nNa tela de Ligações/SMS, clicar em   \nResultado esperado 1:\nDeverá exibir a FAQ principal detalhada nessa história, com as opções de todas as perguntas e respostas\nResultado esperado 2:\nDeverá exibir cada tela final de FAQ a partir da tela principal  \n'Sim' e 'Não' direcionam para a FAQ principal - ' ' Vivo Travel\n09 Premissa: Cliente Pós-pago ou Total que contenha pelo menos um pacote contratado de forma Travel adicional ou incluso\nExecução:\nNa tela de consumo, clicar no componente 'Internet'\nNa tela de Cobertura, clicar em   \nResultado esperado 1:\nDeverá exibir a FAQ principal detalhada nessa história, com as opções de todas as perguntas e respostas\nResultado esperado 2:\nDeverá exibir cada tela final de FAQ a partir da tela principal  \n'Sim' e 'Não' direcionam para a FAQ principal - ' '  Vivo Travel\n10 Premissa: Cliente Pós-pago ou Total que contenha pelo menos um pacote contratado de forma Travel adicional ou incluso\nExecução:\nNa tela de consumo, clicar na ação 'Diárias avulsas'\nNa tela 'Diárias avulsas', clicar no link Exibir internet por país >\nNa tela 'Cobertura', clicar em \nResultado esperado 1:\nDeverá exibir a FAQ principal detalhada nessa história, com as opções de todas as perguntas e respostas\nResultado esperado 2:\nDeverá exibir cada tela final de FAQ a partir da tela principal  \n'Sim' e 'Não' direcionam para a FAQ principal - ' '  Vivo Travel\n11 Premissa: Cliente Pós-pago ou Total que contenha mais de um pacote  contratado de forma Travel adicional ou incluso\nExecução:\nNa tela de seleção de pacotes, clicar no link Exibir todos os países >\nNa tela 'Cobertura', clicar em \nResultado esperado 1:\nDeverá exibir a FAQ principal detalhada nessa história, com as opções de todas as perguntas e respostas\nResultado esperado 2:\nDeverá exibir cada tela final de FAQ a partir da tela principal  \n'Sim' e 'Não' direcionam para a FAQ principal - ' '  Vivo Travel  \n\n\n12 Premissa: Cliente Pós-pago que contenha um pacote  na assinaturaTravel adicional ou  incluso\nExecução:\nNa tela de consumo, clicar em   \nNa tela de Princpais dúvidas - Vivo Travel (Modular) clicar na FAQ  'Como acessar a internet no exterior?'\nResultado esperado 1:\nDeverá exibir a FAQ 'Como acessar a internet no exterior?' conforme detalhado nessa história\nResultado esperado 2:\nAo clicar no link: 'É só clicar e conferir' o cliente será direcionado para a FAQ 12 - 'Como faço para ativar ou desativar o roaming de dados no \ncelular?'\n",
+        "tables": [],
+        "metadata": {
+          "parser": "pdf",
+          "warning": null
+        }
+      }
+    }
+  ],
+  "analysis": {
+    "summary": "Foram analisados 1 arquivo(s) com foco em entendimento pré-automação. Não houve alertas técnicos relevantes na leitura inicial.",
+    "documents_count": 1,
+    "filenames": [
+      "caderno2.pdf"
+    ],
+    "total_text_chars": 8977,
+    "total_tables": 0,
+    "common_fields": [],
+    "possible_entities": [
+      "cliente"
+    ],
+    "findings": [
+      "Total de tabelas identificadas: 0",
+      "Volume total de texto extraído: 8977 caracteres"
+    ],
+    "warnings": []
+  },
+  "diagnostic": {
+    "objective_of_process": "Entender dados e documentos para identificar oportunidades de automação antes da implementação do workflow.",
+    "inputs": [
+      "caderno2.pdf"
+    ],
+    "outputs": [
+      "Resumo executivo",
+      "Achados principais",
+      "Regras identificadas",
+      "Exceções e inconsistências",
+      "Sugestões de automação"
+    ],
+    "main_entities": [
+      "cliente"
+    ],
+    "decision_rules": [
+      "As regras ainda parecem majoritariamente implícitas e devem ser refinadas com validação humana."
+    ],
+    "exceptions": [
+      "Nenhuma exceção técnica evidente foi encontrada na análise inicial."
+    ],
+    "bottlenecks": [
+      "Dependência de leitura manual de documentos extensos",
+      "Possível baixa padronização de campos entre arquivos",
+      "Risco de inconsistência em bases tabulares"
+    ],
+    "risks": [
+      "Campos críticos ausentes ou inconsistentes",
+      "Arquivos PDF escaneados sem texto extraível",
+      "Regras de negócio implícitas e não documentadas"
+    ],
+    "automation_suggestions": [
+      "Criar base de conhecimento RAG com os documentos e regras identificadas.",
+      "Gerar checklist de validação humana para casos ambíguos.",
+      "Criar fluxo de classificação e extração de campos antes da automação principal.",
+      "Modelar agentes e regras com foco nas entidades: cliente."
+    ],
+    "recommended_capabilities": [
+      "RAG para perguntas sobre documentos e bases",
+      "Extração estruturada de campos",
+      "Classificação de documentos",
+      "Resumo automático",
+      "Workflow no n8n com validação humana"
+    ]
+  },
+  "chat_history": [
+    {
+      "id": "706463cb0018",
+      "question": "O que esses dados mostram e o que vale a pena automatizar primeiro?",
+      "answer": "O material sugere boa oportunidade para automatizar atividades repetitivas de leitura, consolidação, classificação e validação inicial dos dados. Também há potencial para RAG e workflows guiados por regras.\n\nBase usada na resposta:\n[caderno2.pdf]\n FAQ principal - ' '  Vivo Travel  \n\n\n12 Premissa: Cliente Pós-pago que contenha um pacote  na assinaturaTravel adicional ou  incluso\nExecução:\nNa tela de consumo, clicar em   \nNa tela de Princpais dúvidas - Vivo Travel (Modular) clicar na FAQ  'Como acessar a internet no exterior?'\nResultado esperado 1:\nDeverá exibir a FAQ 'Como acessar a internet no exterior?' conforme detalhado nessa história\nResultado esperado 2:\nAo clicar no link: 'É só clicar e conferir' o cliente será direcionado para a FAQ 12 - 'Como faço para ativar ou desativar o roaming de dados no \ncelular?'\n\n[caderno2.pdf]\nistória\n05 : Cliente Pós-pago, Vivo Total ou Família que possua pacote Travel Américas, Europa ou Mundo  Premissa\n:Execução\nNa tela de consumo, clicar em   \nAcessar FAQ que possua link para o chat\nao clicar no link do chat\nResultado esperado:\nCliente é direcionado para o chat da Aura\n06 Premissa: Cliente Pós-pago que contenha mais de um pacote  contratado de forma Travel adicional ou incluso\nExecução:\nNa tela de seleção de pacotes (header), clicar em   \nResultado esperado 1:\nDeverá exibir a FAQ principal detalhada nessa história, com as opções de todas as perguntas e respostas\nResultado esperado 2:\nDeverá exibir cada tela final de FAQ a partir da tela principal \n07 Premissa: Cliente Pós-pago que contenha mais de um pacote  contratado de forma Travel adicional ou incluso\nExecução:\nNa tela de seleção de pacotes (Ações), clicar em   \nResultado esperado 1:\nDeverá exibir a FAQ principal detalhada nessa história, com as opções de todas as perguntas e respostas\nResultado esperado 2:\nDeverá exibir cada tela final de FAQ a partir da tela principal \n'Sim' e 'Não' direcionam para a FAQ principal -   'Vivo Travel'\n\n\n08 Premissa: Cliente Pós-pago que contenha pelo menos um pacote contratado de \n\n[caderno2.pdf]\no Travel\n10 Premissa: Cliente Pós-pago ou Total que contenha pelo menos um pacote contratado de forma Travel adicional ou incluso\nExecução:\nNa tela de consumo, clicar na ação 'Diárias avulsas'\nNa tela 'Diárias avulsas', clicar no link Exibir internet por país >\nNa tela 'Cobertura', clicar em \nResultado esperado 1:\nDeverá exibir a FAQ principal detalhada nessa história, com as opções de todas as perguntas e respostas\nResultado esperado 2:\nDeverá exibir cada tela final de FAQ a partir da tela principal  \n'Sim' e 'Não' direcionam para a FAQ principal - ' '  Vivo Travel\n11 Premissa: Cliente Pós-pago ou Total que contenha mais de um pacote  contratado de forma Travel adic",
+      "evidences": [
+        {
+          "filename": "caderno2.pdf",
+          "chunk_id": "c846a2bcc3ee_8",
+          "type": "text",
+          "score": 0.2117,
+          "excerpt": " FAQ principal - ' '  Vivo Travel  \n\n\n12 Premissa: Cliente Pós-pago que contenha um pacote  na assinaturaTravel adicional ou  incluso\nExecução:\nNa tela de consumo, clicar em   \nNa tela de Princpais dúvidas - Vivo Travel (Modular) clicar na FAQ  'Como acessar a internet no exterior?'\nResultado esperado 1:\nDeverá exibir a FAQ 'Como acessar a internet no exterior?' conforme detalhado nessa história\nResultado esperado 2:\nAo clicar no link: 'É só clicar e conferir' o cliente será direcionado para a FAQ 12 - 'Como faço para ativar ou desativar o roaming de dados no \ncelular?'"
+        },
+        {
+          "filename": "caderno2.pdf",
+          "chunk_id": "c846a2bcc3ee_5",
+          "type": "text",
+          "score": 0.1889,
+          "excerpt": "istória\n05 : Cliente Pós-pago, Vivo Total ou Família que possua pacote Travel Américas, Europa ou Mundo  Premissa\n:Execução\nNa tela de consumo, clicar em   \nAcessar FAQ que possua link para o chat\nao clicar no link do chat\nResultado esperado:\nCliente é direcionado para o chat da Aura\n06 Premissa: Cliente Pós-pago que contenha mais de um pacote  contratado de forma Travel adicional ou incluso\nExecução:\nNa tela de seleção de pacotes (header), clicar em   \nResultado esperado 1:\nDeverá exibir a FAQ principal detalhada nessa história, com as opções de todas as perguntas e respostas\nResultado esperado 2:\nDeverá exibir cada tela final de FAQ a partir da tela principal \n07 Premissa: Cliente Pós-pago que contenha mais de um pacote  contratado de forma Travel adicional ou incluso\nExecução:\nNa tela de seleção de pacotes (Ações), clicar em   \nResultado esperado 1:\nDeverá exibir a FAQ principal detalhada nessa história, com as opções de todas as perguntas e respostas\nResultado esperado 2:\nDeverá exibir cada tela final de FAQ a partir da tela principal \n'Sim' e 'Não' direcionam para a FAQ principal -   'Vivo Travel'\n\n\n08 Premissa: Cliente Pós-pago que contenha pelo menos um pacote contratado de "
+        },
+        {
+          "filename": "caderno2.pdf",
+          "chunk_id": "c846a2bcc3ee_7",
+          "type": "text",
+          "score": 0.1569,
+          "excerpt": "o Travel\n10 Premissa: Cliente Pós-pago ou Total que contenha pelo menos um pacote contratado de forma Travel adicional ou incluso\nExecução:\nNa tela de consumo, clicar na ação 'Diárias avulsas'\nNa tela 'Diárias avulsas', clicar no link Exibir internet por país >\nNa tela 'Cobertura', clicar em \nResultado esperado 1:\nDeverá exibir a FAQ principal detalhada nessa história, com as opções de todas as perguntas e respostas\nResultado esperado 2:\nDeverá exibir cada tela final de FAQ a partir da tela principal  \n'Sim' e 'Não' direcionam para a FAQ principal - ' '  Vivo Travel\n11 Premissa: Cliente Pós-pago ou Total que contenha mais de um pacote  contratado de forma Travel adicional ou incluso\nExecução:\nNa tela de seleção de pacotes, clicar no link Exibir todos os países >\nNa tela 'Cobertura', clicar em \nResultado esperado 1:\nDeverá exibir a FAQ principal detalhada nessa história, com as opções de todas as perguntas e respostas\nResultado esperado 2:\nDeverá exibir cada tela final de FAQ a partir da tela principal  \n'Sim' e 'Não' direcionam para a FAQ principal - ' '  Vivo Travel  \n\n\n12 Premissa: Cliente Pós-pago que contenha um pacote  na assinaturaTravel adicional ou  incluso\nExecução:\nNa tel"
+        },
+        {
+          "filename": "caderno2.pdf",
+          "chunk_id": "c846a2bcc3ee_6",
+          "type": "text",
+          "score": 0.1501,
+          "excerpt": "ipal \n'Sim' e 'Não' direcionam para a FAQ principal -   'Vivo Travel'\n\n\n08 Premissa: Cliente Pós-pago que contenha pelo menos um pacote contratado de forma Travel adicional ou incluso\nExecução:\nNa tela de consumo, clicar no componente 'Ligações'\nNa tela de Ligações/SMS, clicar em   \nResultado esperado 1:\nDeverá exibir a FAQ principal detalhada nessa história, com as opções de todas as perguntas e respostas\nResultado esperado 2:\nDeverá exibir cada tela final de FAQ a partir da tela principal  \n'Sim' e 'Não' direcionam para a FAQ principal - ' ' Vivo Travel\n09 Premissa: Cliente Pós-pago ou Total que contenha pelo menos um pacote contratado de forma Travel adicional ou incluso\nExecução:\nNa tela de consumo, clicar no componente 'Internet'\nNa tela de Cobertura, clicar em   \nResultado esperado 1:\nDeverá exibir a FAQ principal detalhada nessa história, com as opções de todas as perguntas e respostas\nResultado esperado 2:\nDeverá exibir cada tela final de FAQ a partir da tela principal  \n'Sim' e 'Não' direcionam para a FAQ principal - ' '  Vivo Travel\n10 Premissa: Cliente Pós-pago ou Total que contenha pelo menos um pacote contratado de forma Travel adicional ou incluso\nExecução:\nNa tela de"
+        },
+        {
+          "filename": "caderno2.pdf",
+          "chunk_id": "c846a2bcc3ee_4",
+          "type": "text",
+          "score": 0.1359,
+          "excerpt": "nessa história, com as opções de todas as perguntas e respostas\nResultado esperado 2:\nDeverá exibir cada tela final de FAQ a partir da tela principal\n02 Premissa: Cliente Pós-pago que contenha um pacote  na assinaturaTravel incluso\nExecução:\nNa tela de consumo, clicar em   \nResultado esperado 1:\nDeverá exibir a FAQ principal detalhada nessa história, com as opções de todas as perguntas e respostas\nResultado esperado 2:\nDeverá exibir cada tela final de FAQ a partir da tela principal\n03 Premissa: Cliente Pós-pago, Vivo Total ou Família que possua pacote Travel Américas, Europa ou Mundo\nExecução:\nNa tela de consumo, clicar em   \nEm cada uma das FAQs, clicar em 'Sim' e 'Não'\nResultado esperado:\nDeverá exibir a página de FAQ principal - Vivo Travel\n\n\n04 Premissa: Cliente Pós-pago, Vivo Total ou Família que possua pacote Travel Américas, Europa ou Mundo\nExecução:\nNa tela de consumo, clicar em   \nEm cada uma das FAQs, clicar no botão '< ' (voltar)\nResultado esperado:\nVoltar para a tela anterior - FAQ principal - Vivo Travel detalhada nessa história\n05 : Cliente Pós-pago, Vivo Total ou Família que possua pacote Travel Américas, Europa ou Mundo  Premissa\n:Execução\nNa tela de consumo, clicar"
+        }
+      ]
+    }
+  ]
+}

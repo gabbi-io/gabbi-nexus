@@ -156,6 +156,45 @@ Benefícios:
 
 ---
 
+
+## 🚀 Instalação
+
+```bash
+git clone https://github.com/gabbi-io/gabbi-nexus.git
+cd gabbi-nexus
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+```
+
+## ▶️ Executar
+
+```bash
+uvicorn app.main:app --reload --host 0.0.0.0 --port 8080
+```
+
+## 📚 URLs
+
+- http://127.0.0.1:8080
+- http://127.0.0.1:8080/docs
+- http://127.0.0.1:8080/redoc
+
+## 🏢 Produção
+
+```bash
+nohup .venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8080 > nexus.log 2>&1 &
+```
+
+## 🪟 Windows
+
+```bash
+python -m venv .venv
+.venv\Scripts\activate
+pip install -r requirements.txt
+uvicorn app.main:app --reload --port 8080
+```
+
+
 # Slogan
 
 **Transformando informação em decisão confiável.**
