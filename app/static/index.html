@@ -22,7 +22,7 @@
     .tabs{display:flex;gap:10px;flex-wrap:wrap;margin:18px 0}.tab{padding:10px 14px;border-radius:999px;border:1px solid var(--line);background:#fff;color:#4E405E;cursor:pointer;font-weight:850;box-shadow:none}.tab.active{background:linear-gradient(135deg,var(--spread-purple),var(--spread-purple-2));color:#fff;border-color:transparent}.tab-content{display:none}.tab-content.active{display:block;animation:fade .22s ease}@keyframes fade{from{opacity:.45;transform:translateY(4px)}to{opacity:1;transform:none}}
     .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}.stat{padding:18px;border:1px solid var(--line);border-radius:20px;background:linear-gradient(180deg,#FFFFFF 0%,#FCF9FF 100%);position:relative;overflow:hidden}.stat:before{content:"";position:absolute;inset:0 0 auto 0;height:4px;background:linear-gradient(90deg,var(--spread-purple),var(--spread-orange))}.stat .v{font-size:30px;font-weight:950;color:var(--spread-purple);letter-spacing:-.04em}.stat .l{color:var(--muted);font-size:13px;margin-top:4px}.two{display:grid;grid-template-columns:1fr 1fr;gap:16px}.three{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}.list-box{padding:18px;border:1px solid var(--line);border-radius:20px;background:rgba(255,255,255,.9);box-shadow:var(--shadow-soft)}.list-box h3{margin:0 0 10px;font-size:17px;letter-spacing:-.02em}.list{display:grid;gap:9px}.section-title{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:12px}
     .chat{display:grid;gap:12px}.msg{padding:16px;border:1px solid var(--line);border-radius:18px;background:#fff;box-shadow:var(--shadow-soft)}.msg.user{background:linear-gradient(135deg,#FFF4E7,#FFFFFF);border-color:#FFE0B8}.msg.ai{background:linear-gradient(180deg,#fff,#FCFAFF)}.msg .head{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;font-size:13px;font-weight:900;color:#4C3B5F}.chat-markdown{line-height:1.68}.chat-markdown h1,.chat-markdown h2,.chat-markdown h3{margin:16px 0 8px}.chat-markdown p{margin:10px 0}.chat-markdown ul,.chat-markdown ol{margin:10px 0 10px 20px}.chat-markdown table{width:100%;border-collapse:collapse;margin:12px 0}.chat-markdown th,.chat-markdown td{border:1px solid var(--line);padding:8px 10px;text-align:left;vertical-align:top}.chat-markdown th{background:#F8F3FF}.chat-markdown pre{background:#201633;color:#F4ECFF;padding:14px;border-radius:14px;overflow:auto}.chat-markdown code{background:#F7F0FF;padding:2px 6px;border-radius:7px}.chat-markdown pre code{background:transparent;padding:0}.evidence{margin-top:10px;padding:12px;border-radius:14px;background:#FBF8FF;border:1px solid var(--line)}pre.raw{white-space:pre-wrap;word-break:break-word;background:#1F1830;color:#F3EEFC;padding:16px;border-radius:16px;overflow:auto}.catalog-table{width:100%;border-collapse:separate;border-spacing:0}.catalog-table th,.catalog-table td{padding:12px;border-bottom:1px solid var(--line);text-align:left}.catalog-table th{font-size:12px;color:#6E6390;text-transform:uppercase;background:#FAF6FF}.catalog-table tr:hover td{background:#FFFCF7}
-    .upload-zone{border:1px dashed #CBB7E3;background:#FCF9FF;border-radius:18px;padding:14px}.footer-brand{display:flex;justify-content:space-between;gap:12px;margin-top:18px;color:var(--muted);font-size:12px;padding-top:14px;border-top:1px solid var(--line)}
+    .upload-zone{border:1px dashed #CBB7E3;background:#FCF9FF;border-radius:18px;padding:14px}.postgres-zone{border:1px dashed #D8B16A;background:linear-gradient(180deg,#FFFDF8,#FFF7EC);border-radius:18px;padding:14px}.source-title{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:10px}.mini-divider{height:1px;background:var(--line);margin:4px 0}.inline-check{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted);font-weight:700;text-transform:none;letter-spacing:0}.inline-check input{width:auto}.footer-brand{display:flex;justify-content:space-between;gap:12px;margin-top:18px;color:var(--muted);font-size:12px;padding-top:14px;border-top:1px solid var(--line)}
     @media(max-width:1120px){.app-shell{grid-template-columns:1fr}.side{position:relative;height:auto}.stats,.two,.three{grid-template-columns:1fr 1fr}.topbar{flex-direction:column}.top-actions{justify-content:flex-start}}
     @media(max-width:760px){.wrap{padding:14px}.stats,.two,.three{grid-template-columns:1fr}.hero-title{font-size:26px}.row{display:grid}.side-content,.main{padding:16px}}
 </style>
@@ -61,13 +61,60 @@
         </div>
         <div class="item"><strong>Banco vetorial</strong><br><span id="vectorStatus" class="muted">-</span></div>
         <div class="upload-zone">
-          <label>Arquivos para análise</label>
+          <div class="source-title">
+            <label style="margin:0">Opção 1 — Arquivos para análise</label>
+            <span class="badge info">upload</span>
+          </div>
           <input id="filesInput" type="file" multiple />
           <div id="uploadInfo" class="hint">Nenhum arquivo enviado.</div>
         </div>
         <div class="row">
           <button class="accent" onclick="uploadFiles()">Enviar arquivos</button>
           <button class="ghost" onclick="loadCatalog()">Atualizar catálogo</button>
+        </div>
+
+        <div class="postgres-zone">
+          <div class="source-title">
+            <label style="margin:0">Opção 2 — Base Gabbi PostgreSQL</label>
+            <span class="badge soft">Article + Chat</span>
+          </div>
+          <div class="hint" style="margin-top:0;margin-bottom:10px">
+            Use esta opção quando o Gabbi chamar o Nexus usando a conversa atual.
+            O <strong>conversationId</strong> identifica a conversa e o <strong>topicId</strong> filtra os artigos da base de conhecimento.
+          </div>
+          <div class="stack">
+            <div>
+              <label>Conversation ID</label>
+              <input id="gabbiConversationId" placeholder="Valor de Chat.conversationId" />
+            </div>
+            <div>
+              <label>Session ID opcional</label>
+              <input id="gabbiSessionId" placeholder="Valor de Chat.sessionId, se disponível" />
+            </div>
+            <div class="row">
+              <div>
+                <label>Topic ID opcional</label>
+                <input id="gabbiTopicId" type="number" placeholder="Article.topicId" />
+              </div>
+              <div>
+                <label>Limite artigos</label>
+                <input id="gabbiArticleLimit" type="number" value="100" min="1" max="5000" />
+              </div>
+            </div>
+            <div>
+              <label>Pergunta inicial</label>
+              <textarea id="gabbiInitialQuestion">Use a base de conhecimento do Gabbi para responder a conversa atual e indique as principais evidências encontradas.</textarea>
+            </div>
+            <label class="inline-check">
+              <input id="gabbiForceReindex" type="checkbox" />
+              Forçar reindexação dos artigos
+            </label>
+            <div id="postgresInfo" class="hint">Nenhuma ingestão PostgreSQL executada.</div>
+          </div>
+        </div>
+        <div class="row">
+          <button class="accent" onclick="ingestFromGabbiPostgres()">Consumir PostgreSQL</button>
+          <button class="ghost" onclick="copyGabbiCaseToChat()">Usar pergunta no chat</button>
         </div>
         <div class="row">
           <button class="ghost" onclick="loadAnalysis()">Recarregar análise</button>
@@ -86,12 +133,13 @@
         <div>
           <div class="hero-eyebrow">Gabbi Enterprise V5</div>
           <h1 class="hero-title">Painel inteligente de entendimento, evidência e automação</h1>
-          <p class="hero-subtitle">Interface redesenhada para uma experiência mais limpa, executiva e profissional, alinhada à paleta Spread e preparada para demonstrar valor de negócio com segurança e rastreabilidade.</p>
+          <p class="hero-subtitle">Interface redesenhada para uma experiência mais limpa, executiva e profissional, com duas fontes de ingestão: upload de arquivos ou consulta direta ao PostgreSQL do Gabbi por conversationId e topicId.</p>
         </div>
         <div class="top-actions">
           <div class="status-chip">LangChain + RAG</div>
           <div class="status-chip">LangGraph Orchestrator</div>
           <div class="status-chip">Banco Vetorial</div>
+          <div class="status-chip">PostgreSQL Gabbi</div>
         </div>
       </div>
       <div class="tabs">
@@ -314,6 +362,78 @@
         document.getElementById('chatBox').appendChild(ev);
       }
       j('rawBox', data);
+      document.querySelector('[data-tab="chat"]').click();
+    }
+
+    function getGabbiPostgresPayload(){
+      const conversationId = document.getElementById('gabbiConversationId').value.trim();
+      const sessionId = document.getElementById('gabbiSessionId').value.trim();
+      const topicIdRaw = document.getElementById('gabbiTopicId').value.trim();
+      const articleLimitRaw = document.getElementById('gabbiArticleLimit').value.trim();
+      const question = document.getElementById('gabbiInitialQuestion').value.trim();
+      const mode = document.getElementById('chatMode').value || 'executive';
+      const forceReindex = document.getElementById('gabbiForceReindex').checked;
+
+      if(!conversationId){throw new Error('Informe o Conversation ID da tabela Chat.conversationId.');}
+      if(!question){throw new Error('Informe uma pergunta inicial para acionar o fluxo do Nexus.');}
+
+      const payload = {
+        conversation_id: conversationId,
+        question,
+        mode,
+        article_limit: Number(articleLimitRaw || 100),
+        force_reindex: forceReindex
+      };
+
+      if(sessionId){payload.session_id = sessionId;}
+      if(topicIdRaw){payload.topic_id = Number(topicIdRaw);}
+      return payload;
+    }
+
+    async function ingestFromGabbiPostgres(){
+      let payload;
+      try { payload = getGabbiPostgresPayload(); }
+      catch(err){ alert(err.message); return; }
+
+      document.getElementById('postgresInfo').textContent = 'Consultando PostgreSQL do Gabbi, ingerindo artigos e executando RAG...';
+      addChatMsg('user', payload.question, `Gabbi PostgreSQL · conversationId=${payload.conversation_id}`, '');
+
+      const res = await fetch('/integrations/gabbi/chat/ask', {
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify(payload)
+      });
+
+      const data = await res.json();
+      if(!res.ok){
+        document.getElementById('postgresInfo').textContent = `Erro na ingestão PostgreSQL: ${data.detail || res.status}`;
+        j('rawBox', data);
+        document.querySelector('[data-tab="raw"]').click();
+        return;
+      }
+
+      currentCaseId = data.case_id;
+      document.getElementById('currentCase').textContent = currentCaseId;
+      document.getElementById('postgresInfo').textContent = `PostgreSQL consumido com sucesso. Case ${currentCaseId} · artigos disponíveis: ${data.documents_available ?? '-'} · topicId: ${data.topic_id ?? 'todos'}`;
+
+      if(data.tabular_catalog){renderCatalog(data.tabular_catalog);}
+      addChatMsg('ai', data.answer_text || data.summary || 'Base PostgreSQL ingerida com sucesso.', `${data.source || 'gabbi_chat'} / ${data.route || '-'} / ${data.query_type || '-'}`, document.getElementById('llmModel').textContent);
+
+      if(data.evidences?.length){
+        const ev = document.createElement('div'); ev.className = 'msg ai';
+        ev.innerHTML = `<div class="head"><span>Evidências PostgreSQL</span><span>${escapeHtml((data.evidence_files || []).join(', '))}</span></div>` +
+          data.evidences.map(e => `<div class="evidence"><strong>${escapeHtml(e.filename || 'Article')}</strong>${e.sheet_name ? ' / ' + escapeHtml(e.sheet_name) : ''}<div class="muted">${escapeHtml(e.excerpt || '')}</div></div>`).join('');
+        document.getElementById('chatBox').appendChild(ev);
+      }
+
+      j('rawBox', data);
+      try { await loadAnalysis(); } catch(e) {}
+      document.querySelector('[data-tab="chat"]').click();
+    }
+
+    function copyGabbiCaseToChat(){
+      const q = document.getElementById('gabbiInitialQuestion').value.trim();
+      if(q){document.getElementById('questionInput').value = q;}
       document.querySelector('[data-tab="chat"]').click();
     }
 
