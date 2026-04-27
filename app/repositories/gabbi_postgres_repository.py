@@ -33,7 +33,9 @@ class GabbiArticleRecord:
     article: str
     counter: int | float | None
     published: bool | None
-    topic_id: int | float | None
+    topic_id: str | None
+    topic_name: str | None
+    topic_description: str | None
     created_on: datetime | None
     updated_on: datetime | None
     created_by: str | None
@@ -42,14 +44,6 @@ class GabbiArticleRecord:
 
 
 class GabbiPostgresRepository:
-    """
-    Integração com PostgreSQL Gabbi.
-
-    Convenção:
-    - Chat.conversationId = chave externa da conversa
-    - Article.topicId = filtro de conhecimento
-    """
-
     def __init__(self, database_url: str | None = None):
         self.database_url = database_url or settings.resolved_gabbi_database_url
 
@@ -64,14 +58,8 @@ class GabbiPostgresRepository:
     def test_connection(self) -> dict[str, Any]:
         with self.engine.connect() as conn:
             version = conn.execute(text("SELECT version();")).scalar()
-
-            total_articles = conn.execute(
-                text('SELECT COUNT(*) FROM "Article";')
-            ).scalar()
-
-            total_chats = conn.execute(
-                text('SELECT COUNT(*) FROM "Chat";')
-            ).scalar()
+            total_articles = conn.execute(text('SELECT COUNT(*) FROM "Article";')).scalar()
+            total_chats = conn.execute(text('SELECT COUNT(*) FROM "Chat";')).scalar()
 
         return {
             "status": "ok",
@@ -84,10 +72,7 @@ class GabbiPostgresRepository:
             "total_chats": normalize_decimal(total_chats),
         }
 
-    def get_chat_by_conversation_id(
-        self,
-        conversation_id: str,
-    ) -> GabbiChatRecord | None:
+    def get_chat_by_conversation_id(self, conversation_id: str) -> GabbiChatRecord | None:
         query = text(
             """
             SELECT
@@ -104,10 +89,7 @@ class GabbiPostgresRepository:
         )
 
         with self.engine.connect() as conn:
-            row = conn.execute(
-                query,
-                {"conversation_id": conversation_id},
-            ).mappings().first()
+            row = conn.execute(query, {"conversation_id": conversation_id}).mappings().first()
 
         if not row:
             return None
@@ -123,7 +105,7 @@ class GabbiPostgresRepository:
     def list_articles_for_ingestion(
         self,
         *,
-        topic_id: int | None = None,
+        topic_id: str | None = None,
         limit: int = 100,
         updated_after: datetime | None = None,
     ) -> list[GabbiArticleRecord]:
@@ -135,12 +117,15 @@ class GabbiPostgresRepository:
                 a."counter",
                 a."published",
                 a."topicId" AS topic_id,
+                t."name" AS topic_name,
+                t."description" AS topic_description,
                 a."createdOn" AS created_on,
                 a."updatedOn" AS updated_on,
                 a."createdBy" AS created_by,
                 a."updatedBy" AS updated_by,
                 a."document"
             FROM "Article" a
+            LEFT JOIN "Topic" t ON t."id" = a."topicId"
             WHERE COALESCE(a."deleted", false) = false
               AND COALESCE(a."published", true) = true
               AND NULLIF(TRIM(a."article"), '') IS NOT NULL
@@ -148,11 +133,11 @@ class GabbiPostgresRepository:
 
         params: dict[str, Any] = {"limit": limit}
 
-        if topic_id is not None:
+        if topic_id:
             sql += ' AND a."topicId" = :topic_id '
             params["topic_id"] = topic_id
 
-        if updated_after is not None:
+        if updated_after:
             sql += ' AND a."updatedOn" >= :updated_after '
             params["updated_after"] = updated_after
 
@@ -168,7 +153,9 @@ class GabbiPostgresRepository:
                 article=row.get("article") or "",
                 counter=normalize_decimal(row.get("counter")),
                 published=row.get("published"),
-                topic_id=normalize_decimal(row.get("topic_id")),
+                topic_id=str(row["topic_id"]) if row.get("topic_id") is not None else None,
+                topic_name=row.get("topic_name"),
+                topic_description=row.get("topic_description"),
                 created_on=row.get("created_on"),
                 updated_on=row.get("updated_on"),
                 created_by=row.get("created_by"),

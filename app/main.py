@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import json
 from datetime import datetime
-from functools import lru_cache
 from pathlib import Path
 from uuid import uuid4
 
@@ -22,7 +21,7 @@ from app.repositories.gabbi_postgres_repository import GabbiPostgresRepository
 from app.services.analysis import AnalysisService
 from app.services.automation import AutomationService
 from app.services.graph import AnalysisGraphService
-from app.services.gabbi_chat_ingestion import GabbiChatIngestionService
+from app.services.gabbi_postgres_ingestion import GabbiPostgresIngestionService
 from app.services.parsers import ParserService
 from app.services.retrieval import RetrievalService
 
@@ -203,10 +202,6 @@ TAGS_METADATA = [
         "name": "08. Exportações",
         "description": "Geração e download de artefatos como workflow n8n e blueprint JSON.",
     },
-    {
-        "name": "09. Integrações Gabbi",
-        "description": "Endpoints para integração direta com o Gabbi, usando conversationId como chave externa e Article como base de conhecimento.",
-    },
 ]
 
 
@@ -251,13 +246,8 @@ retrieval_service = RetrievalService()
 analysis_service = AnalysisService()
 graph_service = AnalysisGraphService(retrieval_service=retrieval_service, analysis_service=analysis_service)
 automation_service = AutomationService()
-
-
-@lru_cache(maxsize=1)
-def get_gabbi_chat_ingestion_service() -> GabbiChatIngestionService:
-    """Cria a integração com o PostgreSQL do Gabbi sob demanda."""
-    repository = GabbiPostgresRepository()
-    return GabbiChatIngestionService(repository=repository)
+gabbi_postgres_repository = GabbiPostgresRepository()
+gabbi_postgres_ingestion_service = GabbiPostgresIngestionService(repository=gabbi_postgres_repository)
 
 
 class CreateCaseRequest(BaseModel):
@@ -318,120 +308,91 @@ class AskRequest(BaseModel):
     }
 
 
-class GabbiChatAskRequest(BaseModel):
-    """Payload para pergunta vinda do Gabbi usando a conversa atual como chave externa."""
+class GabbiPostgresIngestRequest(BaseModel):
+    """Payload para ingestão de artigos do PostgreSQL do Gabbi em um caso existente."""
 
     conversation_id: str = Field(
         ...,
         min_length=1,
-        description="Valor da coluna Chat.conversationId no banco do Gabbi. É a chave externa da conversa em andamento.",
-        examples=["conv_123456"],
+        description="Valor de Chat.conversationId no banco PostgreSQL do Gabbi. É a chave externa da conversa em andamento.",
+        examples=["conversation_123"],
     )
-    question: str = Field(
-        ...,
-        min_length=3,
-        description="Pergunta feita pelo usuário no Gabbi.",
-        examples=["Como faço uma transação SAP personalizada?"],
+    topic_id: str | None = Field(
+        default=None,
+        description="Opcional. Valor de Article.topicId para restringir a ingestão a um tópico/base de conhecimento específica.",
+        examples=["topic_abc123"],
     )
-    session_id: str | None = Field(default=None, description="Opcional. Valor da coluna Chat.sessionId.")
-    topic_id: int | None = Field(default=None, description="Opcional. Filtro usando Article.topicId. Não é a chave da conversa.")
-    mode: str = Field(default="executive", description="Modo de resposta: executive, analytical ou technical.")
-    article_limit: int = Field(default=100, ge=1, le=5000, description="Quantidade máxima de artigos a ingerir.")
-    updated_after: datetime | None = Field(default=None, description="Opcional. Ingestão incremental por Article.updatedOn.")
-    force_reindex: bool = Field(default=False, description="Força releitura dos artigos e reconstrução do índice vetorial.")
+    limit: int = Field(
+        default=100,
+        ge=1,
+        le=10000,
+        description="Quantidade máxima de artigos a ingerir do PostgreSQL do Gabbi.",
+        examples=[100],
+    )
+    updated_after: datetime | None = Field(
+        default=None,
+        description="Opcional. Sincroniza apenas artigos com Article.updatedOn maior ou igual a esta data.",
+        examples=["2026-04-25T00:00:00"],
+    )
 
     model_config = {
         "json_schema_extra": {
             "example": {
-                "conversation_id": "conv_123456",
-                "question": "Como faço uma transação SAP personalizada?",
-                "topic_id": 10,
-                "mode": "executive",
-                "article_limit": 100,
-                "force_reindex": False,
+                "conversation_id": "conversation_123",
+                "topic_id": "topic_abc123",
+                "limit": 100,
             }
         }
     }
 
 
-def find_case_by_external_conversation_id(conversation_id: str) -> dict | None:
-    """Localiza um caso Nexus previamente vinculado ao Chat.conversationId do Gabbi."""
-    for item in repo.list_cases():
-        case_id = item.get("id") or item.get("case_id")
-        if not case_id:
-            continue
-        case = repo.get_case(case_id)
-        if case and case.get("external_conversation_id") == conversation_id:
-            return case
-    return None
+class GabbiPostgresAutoIngestRequest(BaseModel):
+    """Payload para criar caso automaticamente e ingerir artigos do PostgreSQL do Gabbi."""
 
+    conversation_id: str = Field(
+        ...,
+        min_length=1,
+        description="Valor de Chat.conversationId no banco PostgreSQL do Gabbi.",
+        examples=["conversation_123"],
+    )
+    topic_id: str | None = Field(
+        default=None,
+        description="Opcional. Valor de Article.topicId para filtrar artigos.",
+        examples=["topic_abc123"],
+    )
+    case_name: str = Field(
+        default="Base de Conhecimento Gabbi - PostgreSQL",
+        min_length=3,
+        max_length=120,
+        description="Nome do caso criado automaticamente no Nexus.",
+    )
+    description: str | None = Field(
+        default="Caso criado automaticamente a partir da base Article do Gabbi via PostgreSQL.",
+        max_length=2000,
+        description="Descrição opcional do caso criado automaticamente.",
+    )
+    limit: int = Field(
+        default=100,
+        ge=1,
+        le=10000,
+        description="Quantidade máxima de artigos a ingerir.",
+    )
+    updated_after: datetime | None = Field(
+        default=None,
+        description="Opcional. Sincroniza apenas artigos atualizados após esta data.",
+    )
 
-def create_gabbi_conversation_case(*, conversation_id: str, session_id: str | None, chat_metadata: dict, topic_id: int | None) -> dict:
-    """Cria um case Nexus amarrado à conversa atual do Gabbi."""
-    case_id = uuid4().hex[:10]
-    case_data = {
-        "id": case_id,
-        "name": f"Gabbi Chat - {conversation_id}",
-        "description": "Caso criado automaticamente a partir de uma conversa do Gabbi.",
-        "documents": [],
-        "analysis": None,
-        "diagnostic": None,
-        "chat_history": [],
-        "vector_publication": None,
-        "blueprint": None,
-        "workflow_export": None,
-        "agent_config": None,
-        "tabular_catalog": None,
-        "source": "gabbi_chat",
-        "external_conversation_id": conversation_id,
-        "external_session_id": session_id or chat_metadata.get("session_id"),
-        "gabbi_chat_metadata": chat_metadata,
-        "topic_id": topic_id,
+    model_config = {
+        "json_schema_extra": {
+            "example": {
+                "conversation_id": "conversation_123",
+                "topic_id": "topic_abc123",
+                "case_name": "Base de Conhecimento Gabbi - Atendimento",
+                "description": "Ingestão PostgreSQL da base Article do Gabbi para conversa ativa.",
+                "limit": 100,
+            }
+        }
     }
-    repo.create_case(case_id, case_data)
-    return case_data
-
-
-def ensure_gabbi_articles_indexed(*, case: dict, conversation_id: str, topic_id: int | None, article_limit: int, updated_after: datetime | None, force_reindex: bool) -> tuple[dict, list[dict], dict, dict, dict]:
-    """Garante que os artigos do Gabbi estejam no caso e no índice vetorial."""
-    case_id = case["id"]
-    existing_documents = case.get("documents", []) or []
-    should_ingest = force_reindex or not existing_documents
-
-    if should_ingest:
-        gabbi_service = get_gabbi_chat_ingestion_service()
-        documents_from_db = gabbi_service.build_documents_from_articles(
-            conversation_id=conversation_id,
-            topic_id=topic_id,
-            limit=article_limit,
-            updated_after=updated_after,
-        )
-        if not documents_from_db:
-            raise HTTPException(status_code=404, detail="Nenhum artigo publicado e válido foi encontrado para a conversa/tópico informado.")
-        if force_reindex:
-            repo.update_case(case_id, {"documents": documents_from_db})
-        else:
-            for document in documents_from_db:
-                repo.add_document(case_id, document)
-
-    case = repo.get_case(case_id)
-    documents = case.get("documents", []) or []
-    if not documents:
-        raise HTTPException(status_code=400, detail="No documents available after Gabbi ingestion")
-
-    must_rebuild = force_reindex or not case.get("vector_publication") or not case.get("analysis")
-    if must_rebuild:
-        publication = retrieval_service.build_case_index(case_id, documents)
-        analysis = analysis_service.generate_initial_analysis(documents)
-        tabular_catalog = graph_service.build_tabular_catalog(case_id, documents)
-        repo.update_case(case_id, {"analysis": analysis, "vector_publication": publication, "tabular_catalog": tabular_catalog, "topic_id": topic_id})
-        case = repo.get_case(case_id)
-    else:
-        publication = case.get("vector_publication") or {}
-        analysis = case.get("analysis") or {}
-        tabular_catalog = case.get("tabular_catalog") or {}
-
-    return case, documents, publication, analysis, tabular_catalog
 
 
 def custom_swagger_html() -> str:
@@ -1389,6 +1350,293 @@ async def upload_files(case_id: str, files: list[UploadFile] = File(..., descrip
 
 
 @app.get(
+    "/integrations/gabbi/postgres/status",
+    tags=["03. Documentos"],
+    summary="Testar conexão com PostgreSQL do Gabbi",
+    description="""
+Testa a conexão com o PostgreSQL do Gabbi usando as variáveis configuradas no backend.
+
+Quando usar:
+- Validar se o Nexus consegue acessar o banco Gabbi.
+- Diagnosticar credenciais, rede, DNS, porta e permissões.
+- Conferir contagem básica das tabelas `Article` e `Chat`.
+""",
+)
+async def gabbi_postgres_status():
+    try:
+        return gabbi_postgres_repository.test_connection()
+    except Exception as exc:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Erro ao conectar no PostgreSQL do Gabbi: {str(exc)}",
+        )
+
+
+@app.post(
+    "/cases/{case_id}/ingest/gabbi-postgres",
+    tags=["03. Documentos"],
+    summary="Ingerir artigos do PostgreSQL do Gabbi em um caso existente",
+    description="""
+Consulta a tabela `Article` do PostgreSQL do Gabbi, opcionalmente filtrando por `topic_id`,
+e transforma cada artigo em um documento lógico do Nexus.
+
+Importante:
+- `conversation_id` deve receber o valor de `Chat.conversationId` do Gabbi.
+- `topic_id` é opcional e representa `Article.topicId`.
+- Cada artigo é salvo internamente como `.txt` no diretório do caso, evitando erro de `path=None` no pipeline existente.
+- O fluxo atual de upload continua funcionando normalmente.
+
+Fluxo executado:
+1. Valida o caso existente.
+2. Consulta o chat por `conversation_id`.
+3. Consulta artigos publicados, não deletados e com texto.
+4. Salva cada artigo como `.txt` interno no caso.
+5. Registra os documentos no repositório do caso.
+6. Recria o índice vetorial.
+7. Gera análise inicial.
+8. Atualiza catálogo tabular.
+""",
+    responses={
+        404: {"description": "Caso não encontrado ou nenhum artigo localizado."},
+        500: {"description": "Erro interno ao consultar banco ou processar ingestão."},
+    },
+)
+async def ingest_gabbi_postgres(case_id: str, payload: GabbiPostgresIngestRequest):
+    try:
+        case = repo.get_case(case_id)
+
+        if not case:
+            raise HTTPException(status_code=404, detail="Case not found")
+
+        documents_from_db = gabbi_postgres_ingestion_service.build_documents_from_articles(
+            conversation_id=payload.conversation_id,
+            topic_id=payload.topic_id,
+            limit=payload.limit,
+            updated_after=payload.updated_after,
+        )
+
+        if not documents_from_db:
+            raise HTTPException(
+                status_code=404,
+                detail="Nenhum artigo encontrado para ingestão.",
+            )
+
+        saved_count = 0
+        uploaded = []
+
+        for document in documents_from_db:
+            text_content = document.get("parsed", {}).get("text", "")
+
+            if not text_content or not text_content.strip():
+                continue
+
+            filename = document.get("filename") or f"gabbi_article_{document.get('external_id')}.txt"
+
+            saved_path = repo.save_uploaded_file(
+                case_id,
+                filename,
+                text_content.encode("utf-8"),
+            )
+
+            document["filename"] = filename
+            document["path"] = saved_path
+            document["content_type"] = "text/database-record"
+
+            repo.add_document(case_id, document)
+            saved_count += 1
+
+            uploaded.append(
+                {
+                    "filename": filename,
+                    "path": saved_path,
+                    "content_type": "text/database-record",
+                    "source": "gabbi_postgres_article",
+                    "external_id": document.get("external_id"),
+                    "text_length": len(text_content),
+                }
+            )
+
+        if saved_count == 0:
+            raise HTTPException(
+                status_code=404,
+                detail="Nenhum artigo válido encontrado para salvar.",
+            )
+
+        case = repo.get_case(case_id)
+        documents = case.get("documents", [])
+
+        publication = retrieval_service.build_case_index(case_id, documents)
+        analysis = analysis_service.generate_initial_analysis(documents)
+        tabular_catalog = graph_service.build_tabular_catalog(case_id, documents)
+
+        repo.update_case(
+            case_id,
+            {
+                "analysis": analysis,
+                "vector_publication": publication,
+                "tabular_catalog": tabular_catalog,
+                "source": "gabbi_postgres_article",
+                "external_conversation_id": payload.conversation_id,
+                "external_topic_id": payload.topic_id,
+            },
+        )
+
+        return {
+            "case_id": case_id,
+            "source": "gabbi_postgres_article",
+            "conversation_id": payload.conversation_id,
+            "topic_id": payload.topic_id,
+            "ingested_count": saved_count,
+            "uploaded": uploaded,
+            "analysis": analysis,
+            "vector_publication": publication,
+            "tabular_catalog": tabular_catalog,
+        }
+
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Erro ao ingerir artigos do Gabbi: {str(exc)}",
+        )
+
+
+@app.post(
+    "/integrations/gabbi/postgres/ingest",
+    tags=["03. Documentos"],
+    summary="Criar caso e ingerir artigos do PostgreSQL do Gabbi",
+    description="""
+Cria automaticamente um caso no Nexus e ingere artigos do PostgreSQL do Gabbi.
+
+Use este endpoint quando uma aplicação externa quiser consumir o Nexus sem primeiro chamar `POST /cases`.
+O fluxo por upload de arquivos permanece inalterado.
+""",
+    responses={
+        404: {"description": "Nenhum artigo localizado."},
+        500: {"description": "Erro interno ao consultar banco ou processar ingestão."},
+    },
+)
+async def create_case_and_ingest_gabbi_postgres(payload: GabbiPostgresAutoIngestRequest):
+    case_id = uuid4().hex[:10]
+
+    case_data = {
+        "id": case_id,
+        "name": payload.case_name,
+        "description": payload.description,
+        "documents": [],
+        "analysis": None,
+        "diagnostic": None,
+        "chat_history": [],
+        "vector_publication": None,
+        "blueprint": None,
+        "workflow_export": None,
+        "agent_config": None,
+        "tabular_catalog": None,
+        "source": "gabbi_postgres_article",
+        "external_conversation_id": payload.conversation_id,
+        "external_topic_id": payload.topic_id,
+    }
+
+    repo.create_case(case_id, case_data)
+
+    try:
+        documents_from_db = gabbi_postgres_ingestion_service.build_documents_from_articles(
+            conversation_id=payload.conversation_id,
+            topic_id=payload.topic_id,
+            limit=payload.limit,
+            updated_after=payload.updated_after,
+        )
+
+        if not documents_from_db:
+            raise HTTPException(
+                status_code=404,
+                detail="Nenhum artigo encontrado para ingestão.",
+            )
+
+        saved_count = 0
+        uploaded = []
+
+        for document in documents_from_db:
+            text_content = document.get("parsed", {}).get("text", "")
+
+            if not text_content or not text_content.strip():
+                continue
+
+            filename = document.get("filename") or f"gabbi_article_{document.get('external_id')}.txt"
+
+            saved_path = repo.save_uploaded_file(
+                case_id,
+                filename,
+                text_content.encode("utf-8"),
+            )
+
+            document["filename"] = filename
+            document["path"] = saved_path
+            document["content_type"] = "text/database-record"
+
+            repo.add_document(case_id, document)
+            saved_count += 1
+
+            uploaded.append(
+                {
+                    "filename": filename,
+                    "path": saved_path,
+                    "content_type": "text/database-record",
+                    "source": "gabbi_postgres_article",
+                    "external_id": document.get("external_id"),
+                    "text_length": len(text_content),
+                }
+            )
+
+        if saved_count == 0:
+            raise HTTPException(
+                status_code=404,
+                detail="Nenhum artigo válido encontrado para salvar.",
+            )
+
+        case = repo.get_case(case_id)
+        documents = case.get("documents", [])
+
+        publication = retrieval_service.build_case_index(case_id, documents)
+        analysis = analysis_service.generate_initial_analysis(documents)
+        tabular_catalog = graph_service.build_tabular_catalog(case_id, documents)
+
+        repo.update_case(
+            case_id,
+            {
+                "analysis": analysis,
+                "vector_publication": publication,
+                "tabular_catalog": tabular_catalog,
+                "source": "gabbi_postgres_article",
+                "external_conversation_id": payload.conversation_id,
+                "external_topic_id": payload.topic_id,
+            },
+        )
+
+        return {
+            "case_id": case_id,
+            "message": "Caso criado e artigos do Gabbi ingeridos com sucesso.",
+            "source": "gabbi_postgres_article",
+            "conversation_id": payload.conversation_id,
+            "topic_id": payload.topic_id,
+            "ingested_count": saved_count,
+            "uploaded": uploaded,
+            "analysis": analysis,
+            "vector_publication": publication,
+            "tabular_catalog": tabular_catalog,
+        }
+
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Erro ao ingerir artigos do Gabbi: {str(exc)}",
+        )
+
+
+@app.get(
     "/cases/{case_id}/analysis",
     tags=["04. Análise e Catálogo"],
     summary="Consultar análise inicial do caso",
@@ -1528,94 +1776,6 @@ async def ask_case(case_id: str, payload: AskRequest):
     }
     repo.append_chat_history(case_id, chat_item)
     return {"case_id": case_id, **result}
-
-
-@app.post(
-    "/integrations/gabbi/chat/ask",
-    tags=["09. Integrações Gabbi"],
-    summary="Perguntar ao Nexus usando a conversa atual do Gabbi",
-    description="""
-Endpoint para ser chamado pelo Gabbi durante uma conversa em andamento.
-
-Chave externa adotada:
-- `conversation_id` deve receber o valor de `Chat.conversationId`.
-
-Papel dos demais campos:
-- `topic_id` é filtro opcional sobre `Article.topicId`;
-- `question` é a pergunta atual do usuário;
-- `force_reindex` força nova leitura da tabela `Article` e reconstrução do índice vetorial.
-""",
-)
-async def gabbi_chat_ask(payload: GabbiChatAskRequest):
-    try:
-        gabbi_service = get_gabbi_chat_ingestion_service()
-        chat_metadata = gabbi_service.get_chat_metadata(payload.conversation_id)
-    except RuntimeError as exc:
-        raise HTTPException(status_code=500, detail=str(exc)) from exc
-    except Exception as exc:
-        raise HTTPException(status_code=500, detail=f"Erro ao consultar o banco PostgreSQL do Gabbi: {exc}") from exc
-
-    case = find_case_by_external_conversation_id(payload.conversation_id)
-    if not case:
-        case = create_gabbi_conversation_case(
-            conversation_id=payload.conversation_id,
-            session_id=payload.session_id,
-            chat_metadata=chat_metadata,
-            topic_id=payload.topic_id,
-        )
-
-    try:
-        case, documents, publication, analysis, tabular_catalog = ensure_gabbi_articles_indexed(
-            case=case,
-            conversation_id=payload.conversation_id,
-            topic_id=payload.topic_id,
-            article_limit=payload.article_limit,
-            updated_after=payload.updated_after,
-            force_reindex=payload.force_reindex,
-        )
-    except RuntimeError as exc:
-        raise HTTPException(status_code=500, detail=str(exc)) from exc
-    except HTTPException:
-        raise
-    except Exception as exc:
-        raise HTTPException(status_code=500, detail=f"Erro ao ingerir artigos do Gabbi: {exc}") from exc
-
-    result = graph_service.ask(
-        case_id=case["id"],
-        question=payload.question,
-        analysis=case.get("analysis", analysis),
-        documents=documents,
-        chat_history=case.get("chat_history", []),
-        mode=payload.mode,
-    )
-
-    chat_item = {
-        "id": uuid4().hex[:12],
-        "source": "gabbi_chat",
-        "external_conversation_id": payload.conversation_id,
-        "external_session_id": payload.session_id or chat_metadata.get("session_id"),
-        "topic_id": payload.topic_id,
-        "question": payload.question,
-        "mode": payload.mode,
-        "route": result.get("route"),
-        "query_type": result.get("query_type"),
-        "answer_text": result.get("answer_text") or result.get("summary", ""),
-        "evidence_files": result.get("evidence_files", []),
-    }
-    repo.append_chat_history(case["id"], chat_item)
-
-    return {
-        "case_id": case["id"],
-        "source": "gabbi_chat",
-        "conversation_id": payload.conversation_id,
-        "session_id": payload.session_id or chat_metadata.get("session_id"),
-        "chat_found_in_gabbi": chat_metadata.get("found", False),
-        "topic_id": payload.topic_id,
-        "documents_available": len(documents),
-        "vector_publication": publication,
-        "tabular_catalog": tabular_catalog,
-        **result,
-    }
 
 
 @app.post(
