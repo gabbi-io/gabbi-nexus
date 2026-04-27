@@ -2012,3 +2012,11 @@ async def download_blueprint(case_id: str):
         filename=f"gabbi_{case_id}_blueprint.json",
         media_type="application/json",
     )
+
+@app.post(
+    "/integrations/gabbi/chat/ask",
+    tags=["09. Integrações Gabbi"],
+    summary="Alias para ingestão PostgreSQL via conversa Gabbi",
+)
+async def gabbi_chat_ask_alias(payload: GabbiPostgresAutoIngestRequest):
+    return await create_case_and_ingest_gabbi_postgres(payload)
