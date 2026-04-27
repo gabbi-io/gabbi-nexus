@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime
+from decimal import Decimal
 from typing import Any
 
 from sqlalchemy import create_engine, text
@@ -10,14 +11,20 @@ from sqlalchemy.engine import Engine
 from app.settings import settings
 
 
+def normalize_decimal(value):
+    if isinstance(value, Decimal):
+        return int(value) if value == value.to_integral_value() else float(value)
+    return value
+
+
 @dataclass(slots=True)
 class GabbiArticleRecord:
     id: str
-    ref_id: int | None
+    ref_id: int | float | None
     article: str
-    counter: int | None
+    counter: int | float | None
     published: bool | None
-    topic_id: int | None
+    topic_id: int | float | None
     topic_name: str | None
     created_on: datetime | None
     updated_on: datetime | None
@@ -53,7 +60,7 @@ class GabbiArticleRepository:
             "database": settings.PG_DB,
             "user": settings.PG_USER,
             "postgres_version": version,
-            "total_articles": total_articles,
+            "total_articles": normalize_decimal(total_articles),
         }
 
     def list_published_articles(
@@ -102,17 +109,17 @@ class GabbiArticleRepository:
         return [
             GabbiArticleRecord(
                 id=str(row["id"]),
-                ref_id=row.get("ref_id"),
+                ref_id=normalize_decimal(row.get("ref_id")),
                 article=row.get("article") or "",
-                counter=row.get("counter"),
+                counter=normalize_decimal(row.get("counter")),
                 published=row.get("published"),
-                topic_id=row.get("topic_id"),
+                topic_id=normalize_decimal(row.get("topic_id")),
                 topic_name=row.get("topic_name"),
                 created_on=row.get("created_on"),
                 updated_on=row.get("updated_on"),
                 created_by=row.get("created_by"),
                 updated_by=row.get("updated_by"),
-                document=row.get("document"),
+                document=str(row.get("document")) if row.get("document") is not None else None,
             )
             for row in rows
         ]

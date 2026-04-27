@@ -2,12 +2,19 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime
+from decimal import Decimal
 from typing import Any
 
 from sqlalchemy import create_engine, text
 from sqlalchemy.engine import Engine
 
 from app.settings import settings
+
+
+def normalize_decimal(value):
+    if isinstance(value, Decimal):
+        return int(value) if value == value.to_integral_value() else float(value)
+    return value
 
 
 @dataclass(slots=True)
@@ -22,11 +29,11 @@ class GabbiChatRecord:
 @dataclass(slots=True)
 class GabbiArticleRecord:
     id: str
-    ref_id: int | None
+    ref_id: int | float | None
     article: str
-    counter: int | None
+    counter: int | float | None
     published: bool | None
-    topic_id: int | None
+    topic_id: int | float | None
     created_on: datetime | None
     updated_on: datetime | None
     created_by: str | None
@@ -58,6 +65,14 @@ class GabbiPostgresRepository:
         with self.engine.connect() as conn:
             version = conn.execute(text("SELECT version();")).scalar()
 
+            total_articles = conn.execute(
+                text('SELECT COUNT(*) FROM "Article";')
+            ).scalar()
+
+            total_chats = conn.execute(
+                text('SELECT COUNT(*) FROM "Chat";')
+            ).scalar()
+
         return {
             "status": "ok",
             "host": settings.PG_HOST,
@@ -65,6 +80,8 @@ class GabbiPostgresRepository:
             "database": settings.PG_DB,
             "user": settings.PG_USER,
             "postgres_version": version,
+            "total_articles": normalize_decimal(total_articles),
+            "total_chats": normalize_decimal(total_chats),
         }
 
     def get_chat_by_conversation_id(
@@ -97,7 +114,7 @@ class GabbiPostgresRepository:
 
         return GabbiChatRecord(
             id=str(row["id"]),
-            session_id=row.get("session_id"),
+            session_id=str(row["session_id"]) if row.get("session_id") is not None else None,
             conversation_id=str(row["conversation_id"]),
             created_on=row.get("created_on"),
             updated_on=row.get("updated_on"),
@@ -147,16 +164,16 @@ class GabbiPostgresRepository:
         return [
             GabbiArticleRecord(
                 id=str(row["id"]),
-                ref_id=row.get("ref_id"),
+                ref_id=normalize_decimal(row.get("ref_id")),
                 article=row.get("article") or "",
-                counter=row.get("counter"),
+                counter=normalize_decimal(row.get("counter")),
                 published=row.get("published"),
-                topic_id=row.get("topic_id"),
+                topic_id=normalize_decimal(row.get("topic_id")),
                 created_on=row.get("created_on"),
                 updated_on=row.get("updated_on"),
                 created_by=row.get("created_by"),
                 updated_by=row.get("updated_by"),
-                document=row.get("document"),
+                document=str(row.get("document")) if row.get("document") is not None else None,
             )
             for row in rows
         ]
