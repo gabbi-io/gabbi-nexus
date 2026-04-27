@@ -36,29 +36,43 @@ class GabbiArticleRecord:
 
 class GabbiPostgresRepository:
     """
-    Repository de integração com o banco PostgreSQL do Gabbi.
+    Integração com PostgreSQL Gabbi.
 
-    Convenção adotada:
-    - Chat.conversationId é a chave externa da conversa em andamento.
-    - Article.topicId é filtro opcional de conhecimento.
-    - Article.article é a fonte principal de texto para RAG/embeddings.
+    Convenção:
+    - Chat.conversationId = chave externa da conversa
+    - Article.topicId = filtro de conhecimento
     """
 
     def __init__(self, database_url: str | None = None):
-        self.database_url = database_url or settings.GABBI_DATABASE_URL
-        if not self.database_url:
-            raise RuntimeError("GABBI_DATABASE_URL não configurada no .env")
+        self.database_url = database_url or settings.resolved_gabbi_database_url
 
         self.engine: Engine = create_engine(
             self.database_url,
             pool_pre_ping=True,
             pool_size=5,
             max_overflow=10,
+            connect_args={"connect_timeout": 10},
         )
 
-    def get_chat_by_conversation_id(self, conversation_id: str) -> GabbiChatRecord | None:
+    def test_connection(self) -> dict[str, Any]:
+        with self.engine.connect() as conn:
+            version = conn.execute(text("SELECT version();")).scalar()
+
+        return {
+            "status": "ok",
+            "host": settings.PG_HOST,
+            "port": settings.PG_PORT,
+            "database": settings.PG_DB,
+            "user": settings.PG_USER,
+            "postgres_version": version,
+        }
+
+    def get_chat_by_conversation_id(
+        self,
+        conversation_id: str,
+    ) -> GabbiChatRecord | None:
         query = text(
-            '''
+            """
             SELECT
                 c."id",
                 c."sessionId" AS session_id,
@@ -69,11 +83,14 @@ class GabbiPostgresRepository:
             WHERE c."conversationId" = :conversation_id
             ORDER BY c."updatedOn" DESC NULLS LAST
             LIMIT 1
-            '''
+            """
         )
 
         with self.engine.connect() as conn:
-            row = conn.execute(query, {"conversation_id": conversation_id}).mappings().first()
+            row = conn.execute(
+                query,
+                {"conversation_id": conversation_id},
+            ).mappings().first()
 
         if not row:
             return None
@@ -93,20 +110,7 @@ class GabbiPostgresRepository:
         limit: int = 100,
         updated_after: datetime | None = None,
     ) -> list[GabbiArticleRecord]:
-        """
-        Busca artigos válidos para ingestão.
-
-        Filtros fixos:
-        - não deletado;
-        - publicado;
-        - campo article preenchido.
-
-        Filtros opcionais:
-        - topic_id: restringe a base de conhecimento ao tópico da conversa;
-        - updated_after: permite sincronização incremental.
-        """
-
-        sql = '''
+        sql = """
             SELECT
                 a."id",
                 a."refId" AS ref_id,
@@ -123,7 +127,7 @@ class GabbiPostgresRepository:
             WHERE COALESCE(a."deleted", false) = false
               AND COALESCE(a."published", true) = true
               AND NULLIF(TRIM(a."article"), '') IS NOT NULL
-        '''
+        """
 
         params: dict[str, Any] = {"limit": limit}
 

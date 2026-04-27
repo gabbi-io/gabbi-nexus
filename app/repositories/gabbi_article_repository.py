@@ -10,7 +10,7 @@ from sqlalchemy.engine import Engine
 from app.settings import settings
 
 
-@dataclass
+@dataclass(slots=True)
 class GabbiArticleRecord:
     id: str
     ref_id: int | None
@@ -28,21 +28,39 @@ class GabbiArticleRecord:
 
 class GabbiArticleRepository:
     def __init__(self, database_url: str | None = None):
-        self.database_url = database_url or settings.GABBI_DATABASE_URL
-        if not self.database_url:
-            raise RuntimeError("GABBI_DATABASE_URL não configurada no .env")
+        self.database_url = database_url or settings.resolved_gabbi_database_url
 
         self.engine: Engine = create_engine(
             self.database_url,
             pool_pre_ping=True,
             pool_size=5,
             max_overflow=10,
+            connect_args={"connect_timeout": 10},
         )
+
+    def test_connection(self) -> dict[str, Any]:
+        with self.engine.connect() as conn:
+            version = conn.execute(text("SELECT version();")).scalar()
+
+            total_articles = conn.execute(
+                text('SELECT COUNT(*) FROM "Article";')
+            ).scalar()
+
+        return {
+            "status": "ok",
+            "host": settings.PG_HOST,
+            "port": settings.PG_PORT,
+            "database": settings.PG_DB,
+            "user": settings.PG_USER,
+            "postgres_version": version,
+            "total_articles": total_articles,
+        }
 
     def list_published_articles(
         self,
         limit: int = 1000,
         updated_after: datetime | None = None,
+        topic_id: int | None = None,
     ) -> list[GabbiArticleRecord]:
         query = """
             SELECT
@@ -59,7 +77,8 @@ class GabbiArticleRepository:
                 a."updatedBy" AS updated_by,
                 a."document"
             FROM "Article" a
-            LEFT JOIN "Topic" t ON t."id" = a."topicId"
+            LEFT JOIN "Topic" t
+                ON t."id" = a."topicId"
             WHERE COALESCE(a."deleted", false) = false
               AND COALESCE(a."published", true) = true
               AND NULLIF(TRIM(a."article"), '') IS NOT NULL
@@ -70,6 +89,10 @@ class GabbiArticleRepository:
         if updated_after:
             query += ' AND a."updatedOn" >= :updated_after '
             params["updated_after"] = updated_after
+
+        if topic_id is not None:
+            query += ' AND a."topicId" = :topic_id '
+            params["topic_id"] = topic_id
 
         query += ' ORDER BY a."updatedOn" DESC NULLS LAST LIMIT :limit '
 
