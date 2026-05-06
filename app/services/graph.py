@@ -31,11 +31,13 @@ class AnalysisGraphService:
     ) -> dict[str, Any]:
         # 1) Inteligência tabular/analítica primeiro, sem conhecimento externo.
         tabular_result = self.tabular_service.answer_question(case_id, question, documents, mode=mode)
-        if tabular_result:
+        if tabular_result and not tabular_result.get("should_fallback_to_rag"):
             return tabular_result
 
-        # 2) RAG/document QA somente quando a pergunta não for resolvida por consulta estruturada.
-        evidences = self.retrieval_service.search(case_id, question, top_k=8)
+        # 2) RAG/document QA limpo quando:
+        # - a pergunta não for tabular; ou
+        # - a tentativa tabular zerar por contexto/follow-up potencialmente contaminado.
+        evidences = self.retrieval_service.search(case_id, question, top_k=12)
         formatted = self.analysis_service.format_answer(question, evidences, analysis, mode=mode)
         history = []
         for item in chat_history or []:

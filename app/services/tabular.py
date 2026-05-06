@@ -84,7 +84,20 @@ class TabularQueryService:
                 "evidence_files": [],
             }
 
-        # Salva contexto apenas quando houve consulta útil com filtros confiáveis ou resultado tabular claro.
+        # Quando uma tentativa tabular retorna zero por follow-up/contexto, não prende a conversa.
+        # O graph.py pode cair no RAG limpo antes de afirmar que não encontrou.
+        if self._should_fallback_to_rag(plan, execution):
+            return {
+                "route": "tabular",
+                "query_type": plan.get("intent"),
+                "answer_text": "",
+                "summary": "",
+                "technical": {"plan": plan, "execution": execution},
+                "evidences": execution.get("evidences", []),
+                "evidence_files": execution.get("evidence_files", []),
+                "should_fallback_to_rag": True,
+            }
+
         self._remember_context(case_id, question, plan, execution)
 
         answer = self._format_answer(question, plan, execution, mode)
@@ -97,6 +110,21 @@ class TabularQueryService:
             "evidences": execution.get("evidences", []),
             "evidence_files": execution.get("evidence_files", []),
         }
+
+    def _should_fallback_to_rag(self, plan: dict[str, Any], execution: dict[str, Any]) -> bool:
+        """Evita que o modo tabular responda 'não encontrei' quando o contexto herdado pode estar errado."""
+        if execution.get("type") == "describe_base":
+            return False
+        rows_filtered = int(execution.get("rows_filtered") or execution.get("count") or 0)
+        if rows_filtered > 0:
+            return False
+        # Count explícito com filtros estruturais confiáveis pode responder zero.
+        if plan.get("intent") == "count" and not plan.get("followup") and plan.get("filters"):
+            return False
+        # Lookup/list sem resultado ou follow-up zerado: deixar o grafo tentar RAG limpo.
+        if plan.get("followup") or plan.get("intent") in {"list", "lookup"}:
+            return True
+        return False
 
     def _planned_to_dict(self, planned: PlannedQuery, target: TableRef) -> dict[str, Any]:
         return {
@@ -116,10 +144,17 @@ class TabularQueryService:
     def _remember_context(self, case_id: str, question: str, plan: dict[str, Any], execution: dict[str, Any]) -> None:
         intent = plan.get("intent")
         if intent == "describe_base":
-            # Contexto geral não deve contaminar follow-ups operacionais.
+            return
+        rows_filtered = int(execution.get("rows_filtered") or execution.get("count") or 0)
+        if rows_filtered <= 0:
+            # Resultado vazio não vira contexto para não contaminar perguntas futuras.
             return
         filters = plan.get("filters") or []
-        valid_filters = [f for f in filters if float(f.get("confidence") or 0) >= 0.7 or f.get("source") in {"entity_synonym", "month", "explicit_type", "explicit_code", "code_prefix"}]
+        valid_filters = [
+            f for f in filters
+            if f.get("source") in {"entity_synonym", "month", "explicit_type", "explicit_code", "code_prefix"}
+            or float(f.get("confidence") or 0) >= 0.80
+        ]
         if not valid_filters and intent not in {"count", "group", "list"}:
             return
         self._last_context[case_id] = {
@@ -127,7 +162,7 @@ class TabularQueryService:
             "intent": intent,
             "filters": valid_filters,
             "table": execution.get("table"),
-            "rows_filtered": execution.get("rows_filtered"),
+            "rows_filtered": rows_filtered,
             "updated_at": pd.Timestamp.utcnow().isoformat(),
         }
 

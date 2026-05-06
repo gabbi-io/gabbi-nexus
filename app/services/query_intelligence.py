@@ -110,6 +110,32 @@ class QueryIntelligenceService:
             return "lookup"
         return "document"
 
+    def has_followup_reference(self, question: str) -> bool:
+        """Retorna True somente quando a pergunta depende claramente de um resultado anterior."""
+        q = self.norm(question)
+        strong_markers = [
+            "cada uma delas", "cada um deles", "descreva eles", "descreva elas",
+            "detalhe eles", "detalhe elas", "liste eles", "liste elas",
+            "essas changes", "esses incidentes", "esses registros", "essas linhas",
+            "delas", "deles", "destas", "destes", "dessas", "desses",
+            "elas", "eles", "os mesmos", "as mesmas",
+        ]
+        return any(marker in q for marker in strong_markers)
+
+    def is_independent_question(self, question: str) -> bool:
+        """Perguntas independentes não devem herdar filtros anteriores."""
+        q = self.norm(question)
+        starters = (
+            "qual ", "quais ", "quanto ", "quantos ", "quantas ",
+            "me explique", "explique", "fale sobre", "o que ", "do que ",
+            "contexto", "sobre o que", "me fale sobre", "liste o total",
+        )
+        if q.startswith(starters):
+            return True
+        if self.is_base_context_question(question):
+            return True
+        return False
+
     def should_use_tabular(self, question: str, columns: list[str]) -> bool:
         intent = self.infer_intent(question)
         if intent in {"count", "list", "group", "describe_base", "lookup"}:
@@ -314,22 +340,25 @@ class QueryIntelligenceService:
     def build_plan(self, question: str, df: pd.DataFrame, last_context: dict[str, Any] | None = None) -> PlannedQuery:
         columns = list(df.columns)
         intent = self.infer_intent(question)
-        followup = self.is_followup(question)
+
+        # Follow-up só é verdadeiro quando a pergunta faz referência clara ao resultado anterior.
+        # Perguntas independentes, mesmo depois de uma consulta tabular, não herdam filtros.
+        followup = bool(last_context) and self.has_followup_reference(question) and not self.is_independent_question(question)
+
         filters: list[dict[str, Any]] = []
-        reason_parts = []
+        reason_parts: list[str] = []
 
         if intent == "document" and not self.should_use_tabular(question, columns):
             return PlannedQuery(False, "document", [], confidence=0.2, reason="not_tabular")
 
-        # Contexto geral da base não deve herdar filtros anteriores.
+        # Pergunta sobre o contexto/base: sempre consulta ampla, sem herdar filtros.
         if intent == "describe_base":
-            return PlannedQuery(True, "describe_base", [], limit=150, confidence=0.8, reason="base_context")
+            return PlannedQuery(True, "describe_base", [], limit=150, confidence=0.9, reason="base_context")
 
         code_filters = self.detect_code_filters(question, df)
         if code_filters:
             filters.extend(code_filters)
             reason_parts.append("explicit_code")
-            # Código explícito muda o assunto; não reaproveitar filtros anteriores incompatíveis.
             followup = False
 
         entity_filter = self.detect_entity_filter(question, df)
@@ -347,29 +376,38 @@ class QueryIntelligenceService:
             filters.append(type_filter)
             reason_parts.append("type")
 
-        # Follow-up: herdar somente filtros válidos e somente se a pergunta não trouxer filtros novos incompatíveis.
+        # Se a pergunta trouxe filtros novos explícitos, ela é uma consulta nova, não continuação.
+        has_new_structured_filter = bool(code_filters or entity_filter or month_filter or type_filter)
+        if has_new_structured_filter and not self.has_followup_reference(question):
+            followup = False
+
+        # Follow-up: reaproveita apenas filtros estruturais e confiáveis do último resultado útil.
+        # Nunca herda filtros acidentais, filtros que zeraram resultado, nem contexto se a entidade mudou.
         if followup and last_context and last_context.get("filters"):
             previous = last_context.get("filters") or []
-            # Se pergunta tem entidade nova explícita, não herda entidade antiga diferente.
-            current_entity_values = {str(f.get("value")).upper() for f in filters if f.get("source") in {"entity_synonym", "code_prefix"}}
+            current_entity_values = {
+                str(f.get("value")).upper()
+                for f in filters
+                if f.get("source") in {"entity_synonym", "code_prefix"}
+            }
             for f in previous:
                 source = f.get("source")
                 value = str(f.get("value") or "")
+                col = f.get("column")
+                if not col or col not in df.columns:
+                    continue
                 if current_entity_values and str(value).upper() in {"INC", "CHG", "REQ"} and str(value).upper() not in current_entity_values:
                     continue
-                # herda apenas filtros de alta confiança ou estruturais
-                if float(f.get("confidence") or 0) >= 0.75 or source in {"entity_synonym", "month", "explicit_type", "explicit_code", "code_prefix"}:
+                if source in {"entity_synonym", "month", "explicit_type", "explicit_code", "code_prefix"} or float(f.get("confidence") or 0) >= 0.80:
                     filters.append(dict(f))
             reason_parts.append("followup")
 
         filters = self.sanitize_filters(filters, df)
 
-        # Se perguntou "total de incidentes"/"total de INC" e não extraiu nada, ainda não inventa filtro.
-        # Mas se há entidade genérica detectável, já foi extraída acima.
         group_by = self.detect_group_by(question, columns)
         if group_by:
             intent = "group"
-        elif intent in {"lookup"}:
+        elif intent == "lookup":
             intent = "list"
         elif intent == "document" and filters:
             intent = "list"
@@ -379,4 +417,13 @@ class QueryIntelligenceService:
         limit = 20
         if intent in {"list", "describe_base"}:
             limit = 150
-        return PlannedQuery(True, intent, filters, group_by=group_by, limit=limit, followup=followup, confidence=0.8, reason="+".join(reason_parts) or "heuristic")
+        return PlannedQuery(
+            True,
+            intent,
+            filters,
+            group_by=group_by,
+            limit=limit,
+            followup=followup,
+            confidence=0.88 if filters or intent in {"describe_base", "group"} else 0.65,
+            reason="+".join(reason_parts) or "heuristic",
+        )
