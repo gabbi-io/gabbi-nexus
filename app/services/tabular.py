@@ -51,7 +51,26 @@ class TabularQueryService:
             "tables_count": len(tables),
         }
 
-    def answer_question(self, case_id: str, question: str, documents: list[dict[str, Any]], mode: str = "executive") -> dict[str, Any] | None:
+    def clear_context(self, context_key: str) -> None:
+        """Limpa apenas o estado conversacional/tabular da conversa atual.
+
+        A base indexada, o CSV do agente e o catálogo tabular permanecem intactos.
+        Deve ser usado quando uma nova conversa começa ou quando o roteador
+        identifica uma troca de contexto forte.
+        """
+        if context_key:
+            self._last_context.pop(context_key, None)
+
+
+    def answer_question(
+        self,
+        case_id: str,
+        question: str,
+        documents: list[dict[str, Any]],
+        mode: str = "executive",
+        context_key: str | None = None,
+        reset_context: bool = False,
+    ) -> dict[str, Any] | None:
         tables = self._catalog_cache.get(case_id) or self._load_tables(documents)
         self._catalog_cache[case_id] = tables
         if not tables:
@@ -65,7 +84,10 @@ class TabularQueryService:
         if df.empty:
             return None
 
-        last = self._last_context.get(case_id)
+        memory_key = context_key or case_id
+        if reset_context:
+            self.clear_context(memory_key)
+        last = self._last_context.get(memory_key)
         planned = self.qi.build_plan(question, df, last_context=last)
         if not planned.use_tabular:
             return None
@@ -98,7 +120,7 @@ class TabularQueryService:
                 "should_fallback_to_rag": True,
             }
 
-        self._remember_context(case_id, question, plan, execution)
+        self._remember_context(memory_key, question, plan, execution)
 
         answer = self._format_answer(question, plan, execution, mode)
         return {

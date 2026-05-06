@@ -29,8 +29,28 @@ class AnalysisGraphService:
         chat_history: list[dict[str, Any]] | None = None,
         mode: str = "executive",
     ) -> dict[str, Any]:
+        # Contexto conversacional deve ser isolado por conversa, não apenas por case/agent.
+        # A base indexada e os CSVs permanecem compartilhados no case; somente filtros/follow-up
+        # tabulares são resetados quando a conversa começa limpa.
+        history = []
+        for item in chat_history or []:
+            if item.get("question"):
+                history.append({"role": "user", "content": item["question"]})
+            if item.get("answer_text"):
+                history.append({"role": "assistant", "content": item["answer_text"]})
+
+        conversation_key = self._conversation_context_key(case_id, chat_history or [])
+        reset_context = len(chat_history or []) == 0
+
         # 1) Inteligência tabular/analítica primeiro, sem conhecimento externo.
-        tabular_result = self.tabular_service.answer_question(case_id, question, documents, mode=mode)
+        tabular_result = self.tabular_service.answer_question(
+            case_id,
+            question,
+            documents,
+            mode=mode,
+            context_key=conversation_key,
+            reset_context=reset_context,
+        )
         if tabular_result and not tabular_result.get("should_fallback_to_rag"):
             return tabular_result
 
@@ -39,12 +59,6 @@ class AnalysisGraphService:
         # - a tentativa tabular zerar por contexto/follow-up potencialmente contaminado.
         evidences = self.retrieval_service.search(case_id, question, top_k=12)
         formatted = self.analysis_service.format_answer(question, evidences, analysis, mode=mode)
-        history = []
-        for item in chat_history or []:
-            if item.get("question"):
-                history.append({"role": "user", "content": item["question"]})
-            if item.get("answer_text"):
-                history.append({"role": "assistant", "content": item["answer_text"]})
         if self.llm_service.status()["enabled"]:
             answer = self._ask_openai(question, analysis, evidences, history, mode)
             if answer:
@@ -57,6 +71,28 @@ class AnalysisGraphService:
         formatted["route"] = "document"
         formatted["query_type"] = "document_qa"
         return formatted
+
+    def _conversation_context_key(self, case_id: str, chat_history: list[dict[str, Any]]) -> str:
+        """Gera chave de memória tabular por conversa.
+
+        Se o front iniciar uma nova conversa e enviar histórico vazio, a chave volta limpa.
+        Quando houver histórico, usamos as primeiras mensagens para diferenciar conversas mesmo
+        quando o mesmo case_id/agent é reaproveitado para a base.
+        """
+        if not chat_history:
+            return f"{case_id}:fresh"
+        seeds = []
+        for item in chat_history[:4]:
+            q = item.get("question") or ""
+            a = item.get("answer_text") or ""
+            seeds.append((q + "|" + a)[:250])
+        raw = "\n".join(seeds)
+        try:
+            import hashlib
+            digest = hashlib.sha1(raw.encode("utf-8", errors="ignore")).hexdigest()[:12]
+        except Exception:
+            digest = str(abs(hash(raw)))[:12]
+        return f"{case_id}:{digest}"
 
     def _ask_openai(self, question: str, analysis: dict[str, Any], evidences: list[dict[str, Any]], history: list[dict[str, str]], mode: str) -> str | None:
         evidence_blob = "\n\n".join([f"[{e.get('filename')} | score={e.get('score')}]\n{e.get('excerpt')}" for e in evidences])[:16000]
