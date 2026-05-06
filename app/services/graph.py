@@ -29,14 +29,13 @@ class AnalysisGraphService:
         chat_history: list[dict[str, Any]] | None = None,
         mode: str = "executive",
     ) -> dict[str, Any]:
-        # Mantém comportamento V1: consultas tabulares/analíticas são avaliadas antes do RAG.
-        # A diferença está no tabular.py, que agora guarda contexto da última consulta por case_id
-        # para responder follow-ups como "me descreva cada uma delas" sem perder filtros.
+        # 1) Inteligência tabular/analítica primeiro, sem conhecimento externo.
         tabular_result = self.tabular_service.answer_question(case_id, question, documents, mode=mode)
         if tabular_result:
             return tabular_result
 
-        evidences = self.retrieval_service.search(case_id, question, top_k=5)
+        # 2) RAG/document QA somente quando a pergunta não for resolvida por consulta estruturada.
+        evidences = self.retrieval_service.search(case_id, question, top_k=8)
         formatted = self.analysis_service.format_answer(question, evidences, analysis, mode=mode)
         history = []
         for item in chat_history or []:
@@ -58,11 +57,13 @@ class AnalysisGraphService:
         return formatted
 
     def _ask_openai(self, question: str, analysis: dict[str, Any], evidences: list[dict[str, Any]], history: list[dict[str, str]], mode: str) -> str | None:
-        evidence_blob = "\n\n".join([f"[{e.get('filename')} | score={e.get('score')}]\n{e.get('excerpt')}" for e in evidences])[:12000]
+        evidence_blob = "\n\n".join([f"[{e.get('filename')} | score={e.get('score')}]\n{e.get('excerpt')}" for e in evidences])[:16000]
         system_prompt = (
             "Você é um analista sênior de automação e arquitetura do GABBI. Responda em português do Brasil. "
             "Use apenas as evidências fornecidas e o contexto analítico do caso. "
-            "Quando inferir algo, diga que se trata de inferência. Estruture a resposta em markdown, com títulos curtos, listas claras e conteúdo organizado. "
+            "Não use conhecimento externo quando a resposta depender da base. "
+            "Se as evidências forem insuficientes, explique a limitação com precisão, mas não invente dados. "
+            "Quando inferir algo, diga que se trata de inferência. Estruture a resposta em markdown. "
         )
         if mode == "executive":
             system_prompt += "Priorize linguagem executiva, objetiva e orientada à decisão."
