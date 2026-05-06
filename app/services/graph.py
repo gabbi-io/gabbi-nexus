@@ -8,6 +8,14 @@ from app.services.tabular import TabularQueryService
 
 
 class AnalysisGraphService:
+    """Orquestrador híbrido profissional.
+
+    Regra principal:
+    - Nexus/RAG é a rota principal para perguntas abertas, contexto e explicações.
+    - Tabular/CSV é ferramenta auxiliar para contagens, agrupamentos, listagens e filtros explícitos.
+    - Se tabular não for aplicável ou falhar com baixa confiança, volta para RAG limpo.
+    """
+
     def __init__(self, retrieval_service, analysis_service):
         self.retrieval_service = retrieval_service
         self.analysis_service = analysis_service
@@ -29,36 +37,31 @@ class AnalysisGraphService:
         chat_history: list[dict[str, Any]] | None = None,
         mode: str = "executive",
     ) -> dict[str, Any]:
-        # Contexto conversacional deve ser isolado por conversa, não apenas por case/agent.
-        # A base indexada e os CSVs permanecem compartilhados no case; somente filtros/follow-up
-        # tabulares são resetados quando a conversa começa limpa.
+        # 1) Usa tabular apenas quando a pergunta realmente pedir consulta estruturada.
+        tabular_result = self.tabular_service.answer_question(case_id, question, documents, mode=mode)
+        if tabular_result:
+            tabular_result.setdefault("route_priority", "tool_tabular")
+            return tabular_result
+
+        # 2) Caso contrário, RAG/Nexus limpo é a rota principal.
+        return self._answer_with_rag(case_id, question, analysis, chat_history, mode)
+
+    def _answer_with_rag(
+        self,
+        case_id: str,
+        question: str,
+        analysis: dict[str, Any],
+        chat_history: list[dict[str, Any]] | None,
+        mode: str,
+    ) -> dict[str, Any]:
+        evidences = self.retrieval_service.search(case_id, question, top_k=8)
+        formatted = self.analysis_service.format_answer(question, evidences, analysis, mode=mode)
         history = []
         for item in chat_history or []:
             if item.get("question"):
                 history.append({"role": "user", "content": item["question"]})
             if item.get("answer_text"):
                 history.append({"role": "assistant", "content": item["answer_text"]})
-
-        conversation_key = self._conversation_context_key(case_id, chat_history or [])
-        reset_context = len(chat_history or []) == 0
-
-        # 1) Inteligência tabular/analítica primeiro, sem conhecimento externo.
-        tabular_result = self.tabular_service.answer_question(
-            case_id,
-            question,
-            documents,
-            mode=mode,
-            context_key=conversation_key,
-            reset_context=reset_context,
-        )
-        if tabular_result and not tabular_result.get("should_fallback_to_rag"):
-            return tabular_result
-
-        # 2) RAG/document QA limpo quando:
-        # - a pergunta não for tabular; ou
-        # - a tentativa tabular zerar por contexto/follow-up potencialmente contaminado.
-        evidences = self.retrieval_service.search(case_id, question, top_k=12)
-        formatted = self.analysis_service.format_answer(question, evidences, analysis, mode=mode)
         if self.llm_service.status()["enabled"]:
             answer = self._ask_openai(question, analysis, evidences, history, mode)
             if answer:
@@ -66,42 +69,32 @@ class AnalysisGraphService:
                 formatted["answer_text"] = answer
                 formatted["route"] = "document"
                 formatted["query_type"] = "document_qa"
+                formatted["route_priority"] = "rag_primary"
                 return formatted
-        formatted["answer_text"] = formatted["summary"]
+        formatted["answer_text"] = formatted.get("summary", "")
         formatted["route"] = "document"
         formatted["query_type"] = "document_qa"
+        formatted["route_priority"] = "rag_primary"
         return formatted
 
-    def _conversation_context_key(self, case_id: str, chat_history: list[dict[str, Any]]) -> str:
-        """Gera chave de memória tabular por conversa.
-
-        Se o front iniciar uma nova conversa e enviar histórico vazio, a chave volta limpa.
-        Quando houver histórico, usamos as primeiras mensagens para diferenciar conversas mesmo
-        quando o mesmo case_id/agent é reaproveitado para a base.
-        """
-        if not chat_history:
-            return f"{case_id}:fresh"
-        seeds = []
-        for item in chat_history[:4]:
-            q = item.get("question") or ""
-            a = item.get("answer_text") or ""
-            seeds.append((q + "|" + a)[:250])
-        raw = "\n".join(seeds)
-        try:
-            import hashlib
-            digest = hashlib.sha1(raw.encode("utf-8", errors="ignore")).hexdigest()[:12]
-        except Exception:
-            digest = str(abs(hash(raw)))[:12]
-        return f"{case_id}:{digest}"
-
-    def _ask_openai(self, question: str, analysis: dict[str, Any], evidences: list[dict[str, Any]], history: list[dict[str, str]], mode: str) -> str | None:
-        evidence_blob = "\n\n".join([f"[{e.get('filename')} | score={e.get('score')}]\n{e.get('excerpt')}" for e in evidences])[:16000]
+    def _ask_openai(
+        self,
+        question: str,
+        analysis: dict[str, Any],
+        evidences: list[dict[str, Any]],
+        history: list[dict[str, str]],
+        mode: str,
+    ) -> str | None:
+        evidence_blob = "\n\n".join([
+            f"[{e.get('filename')} | score={e.get('score')}]\n{e.get('excerpt')}"
+            for e in evidences
+        ])[:16000]
         system_prompt = (
             "Você é um analista sênior de automação e arquitetura do GABBI. Responda em português do Brasil. "
             "Use apenas as evidências fornecidas e o contexto analítico do caso. "
-            "Não use conhecimento externo quando a resposta depender da base. "
-            "Se as evidências forem insuficientes, explique a limitação com precisão, mas não invente dados. "
-            "Quando inferir algo, diga que se trata de inferência. Estruture a resposta em markdown. "
+            "Não use conhecimento externo para afirmar fatos do domínio do cliente. "
+            "Quando as evidências forem insuficientes, diga exatamente o que faltou e sugira uma forma de consultar a base. "
+            "Estruture a resposta em markdown, com títulos curtos, listas claras e conteúdo organizado. "
         )
         if mode == "executive":
             system_prompt += "Priorize linguagem executiva, objetiva e orientada à decisão."
@@ -116,18 +109,10 @@ Pergunta do usuário:
 Contexto analítico já calculado:
 {json.dumps(analysis, ensure_ascii=False, indent=2)}
 
-Evidências recuperadas:
+Evidências recuperadas do Nexus/RAG:
 {evidence_blob}
 
-Gere uma resposta organizada com, quando aplicável:
-- Resumo executivo
-- Objetivo do documento/processo
-- Processos de negócio identificados
-- Regras explícitas e implícitas
-- Riscos e gargalos
-- Melhor automação inicial no GABBI
-- Próximo passo recomendado
-
-Não invente detalhes fora das evidências.
+Gere uma resposta organizada e baseada somente nas evidências recuperadas.
+Se a pergunta pedir número total, agrupamento ou listagem estruturada e as evidências não trouxerem dados suficientes, informe que a consulta tabular deve ser usada.
 """
-        return self.llm_service.generate_chat(system_prompt, history, user_prompt)
+        return self.llm_service.generate_chat(system_prompt, history[-8:], user_prompt)

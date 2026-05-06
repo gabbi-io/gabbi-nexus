@@ -1,65 +1,95 @@
 from __future__ import annotations
 
 import re
-import unicodedata
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from difflib import SequenceMatcher
 from typing import Any, Iterable
 
-import pandas as pd
-
 
 @dataclass
-class PlannedQuery:
+class QueryPlan:
     use_tabular: bool
-    intent: str
-    filters: list[dict[str, Any]]
+    intent: str = "document"
+    filters: list[dict[str, Any]] = field(default_factory=list)
     group_by: str | None = None
     limit: int | None = None
     followup: bool = False
     confidence: float = 0.0
     reason: str = ""
 
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "use_tabular": self.use_tabular,
+            "intent": self.intent,
+            "filters": self.filters,
+            "group_by": self.group_by,
+            "limit": self.limit,
+            "followup": self.followup,
+            "confidence": self.confidence,
+            "reason": self.reason,
+        }
 
-class QueryIntelligenceService:
-    """Camada genérica de inteligência para consulta tabular/RAG.
+
+class QueryIntelligence:
+    """Camada genérica de interpretação de consulta.
 
     Objetivo:
-    - NÃO adicionar conhecimento externo ao agente.
-    - Traduzir linguagem natural em filtros confiáveis com base nas colunas/valores da própria base.
-    - Evitar filtros acidentais como "qual", "tipo", "me", "descreva".
-    - Permitir follow-up contextual somente quando a pergunta realmente referencia o resultado anterior.
+    - Manter RAG/Nexus como rota principal para perguntas abertas.
+    - Usar CSV/tabular apenas quando a pergunta pedir contagem, listagem, agrupamento
+      ou quando for um follow-up real de uma consulta tabular anterior.
+    - Evitar filtros acidentais como `categoria contains qual/tipo/contexto`.
+    - Interpretar sinônimos de forma controlada e baseada na estrutura da própria base.
     """
 
-    STOPWORDS = {
-        "a", "ao", "aos", "as", "com", "como", "da", "das", "de", "dele", "deles", "dela", "delas",
-        "do", "dos", "e", "em", "entre", "esse", "essa", "esses", "essas", "este", "esta", "estes", "estas",
-        "eu", "me", "mim", "minha", "meu", "na", "nas", "no", "nos", "o", "os", "ou", "para", "por",
-        "qual", "quais", "quando", "quanto", "quantos", "quantas", "que", "quem", "se", "sao", "são", "ser",
-        "sobre", "contexto", "base", "bases", "conhecimento", "conhecimentos", "documento", "documentos",
-        "registro", "registros", "linha", "linhas", "total", "quantidade", "numero", "número", "contar",
-        "liste", "listar", "mostre", "descreva", "descrever", "detalhe", "detalhar", "explique", "fale",
-        "cada", "um", "uma", "uns", "umas", "eles", "elas", "isso", "isto", "aquilo", "deste", "dessa", "desse",
-        "tipo", "categoria", "status", "estado", "mes", "mês", "ano", "dia",
-        "tem", "temos", "existe", "existem", "há", "ha", "foi", "foram", "seria", "seriam",
+    STOP_FILTER_VALUES = {
+        "qual", "quais", "quanto", "quantos", "quantas", "total", "contagem", "quantidade",
+        "me", "liste", "listar", "mostre", "mostra", "descreva", "descrever", "detalhe", "detalhar",
+        "eles", "elas", "deles", "delas", "essas", "esses", "estas", "estes", "cada", "uma", "um",
+        "base", "contexto", "assunto", "dados", "arquivo", "documento", "documentos", "artigos",
+        "tipo", "com", "de", "da", "do", "das", "dos", "em", "para", "sobre", "entao", "então", "e",
     }
 
+    QUANT_MARKERS = {
+        "quantos", "quantas", "quanto", "quantidade", "total", "contar", "contagem", "número", "numero",
+    }
+    LIST_MARKERS = {"liste", "listar", "lista", "mostre", "mostrar", "quais", "descreva", "detalhe", "detalhar"}
+    GROUP_MARKERS = {"por", "agrup", "distribuição", "distribuicao", "ranking", "total por"}
     FOLLOWUP_MARKERS = {
-        "eles", "elas", "deles", "delas", "destes", "destas", "desses", "dessas", "cada um", "cada uma",
-        "cada um deles", "cada uma delas", "os mesmos", "as mesmas", "esses registros", "essas linhas",
-        "me descreva", "descreva eles", "descreva elas", "detalhe eles", "detalhe elas", "detalhe cada",
-        "liste eles", "liste elas", "listar eles", "listar elas", "desses", "dessas",
+        "eles", "elas", "deles", "delas", "dessas", "desses", "destas", "destes",
+        "cada uma", "cada um", "essas", "esses", "as mesmas", "os mesmos", "delas", "deles",
+    }
+    RESET_MARKERS = {
+        "contexto da base", "contexto dessa base", "sobre o que", "o que se trata", "descreva a base",
+        "explique a base", "me explique a base", "resumo da base", "visão geral", "visao geral",
     }
 
-    COUNT_MARKERS = {"quantos", "quantas", "quantidade", "total", "contar", "numero", "número", "qtd"}
-    LIST_MARKERS = {"listar", "liste", "quais", "mostre", "descreva", "detalhe", "detalhar", "descrever", "fale"}
-    GROUP_MARKERS = {"por", "agrup", "distribuicao", "distribuição", "ranking", "top"}
-    BASE_CONTEXT_MARKERS = {"contexto dessa base", "contexto da base", "sobre o que se trata", "descreva a base", "descrever a base"}
+    SEMANTIC_TYPE_SYNONYMS = {
+        "CHG": ["chg", "change", "changes", "mudança", "mudancas", "mudanças", "alteração", "alteracoes", "alterações"],
+        "INC": ["inc", "incidente", "incidentes", "chamado", "chamados", "ocorrência", "ocorrencias", "ocorrências"],
+    }
+
+    FIELD_ALIASES = {
+        "codigo_tipo": ["codigo_tipo", "tipo de código", "tipo codigo", "código tipo", "codigo", "categoria do codigo"],
+        "numero": ["numero", "número", "registro", "id", "chamado", "ticket", "change", "incidente"],
+        "codigo_principal": ["codigo_principal", "código principal", "codigo principal", "chg", "inc"],
+        "mes": ["mes", "mês", "competencia", "competência", "periodo", "período"],
+        "tipo": ["tipo", "tipo da change", "tipo do registro", "classe", "natureza"],
+        "categoria": ["categoria", "categoria do registro", "tema"],
+        "canal": ["canal", "canal impactado"],
+        "estado": ["estado", "situação", "situacao"],
+        "status": ["status"],
+        "prioridade": ["prioridade", "criticidade", "severidade"],
+        "grupo_atribuicao": ["grupo de atribuição", "grupo atribuicao", "grupo_atribuicao", "grupo", "assignment group", "grupo responsável", "grupo responsavel"],
+        "ic_impactado": ["ic impactado", "ic", "item de configuração", "item de configuracao", "cmdb", "ci impactado"],
+        "project_name": ["projeto", "project"],
+        "topic_name": ["topico", "tópico", "assunto"],
+        "article_text": ["texto", "conteudo", "conteúdo", "descrição", "descricao"],
+    }
 
     MONTHS = {
         "janeiro": "01", "jan": "01",
         "fevereiro": "02", "fev": "02",
-        "marco": "03", "março": "03", "mar": "03",
+        "março": "03", "marco": "03", "mar": "03",
         "abril": "04", "abr": "04",
         "maio": "05", "mai": "05",
         "junho": "06", "jun": "06",
@@ -71,359 +101,294 @@ class QueryIntelligenceService:
         "dezembro": "12", "dez": "12",
     }
 
-    # Sinônimos gerais de domínio, sem vínculo com um agente específico.
-    ENTITY_SYNONYMS = {
-        "CHG": ["chg", "change", "changes", "mudanca", "mudancas", "mudança", "mudanças", "alteracao", "alterações", "alteracao"],
-        "INC": ["inc", "incidente", "incidentes", "chamado", "chamados", "ocorrencia", "ocorrencias", "ocorrência", "ocorrências"],
-        "REQ": ["req", "requisicao", "requisicoes", "requisição", "requisições", "solicitacao", "solicitações", "solicitação"],
-    }
+    def normalize(self, text: str) -> str:
+        text = (text or "").lower().strip()
+        repl = {
+            "ç": "c", "ã": "a", "á": "a", "à": "a", "â": "a", "ä": "a",
+            "é": "e", "ê": "e", "è": "e", "í": "i", "ó": "o", "ô": "o", "õ": "o", "ú": "u",
+        }
+        for k, v in repl.items():
+            text = text.replace(k, v)
+        return " ".join(re.sub(r"[^a-z0-9_:\-/\.]+", " ", text).split())
 
-    CODE_PATTERN = re.compile(r"\b([A-Z]{2,10}\d{3,12}|[A-Z]{1,5}\d{2,8}|\d{4,}[A-Z]*)\b", re.IGNORECASE)
+    def plan(self, question: str, columns: list[str], previous_context: dict[str, Any] | None = None) -> dict[str, Any]:
+        q_raw = question or ""
+        q = self.normalize(q_raw)
+        previous_context = previous_context or {}
 
-    def norm(self, value: Any) -> str:
-        text = "" if value is None else str(value)
-        text = unicodedata.normalize("NFKD", text)
-        text = "".join(ch for ch in text if not unicodedata.combining(ch))
-        text = text.lower().strip()
-        text = re.sub(r"[^a-z0-9]+", " ", text)
-        return " ".join(text.split())
+        if self._is_reset_question(q):
+            return QueryPlan(False, intent="document", confidence=0.95, reason="reset_or_general_context_question").to_dict()
 
-    def is_followup(self, question: str) -> bool:
-        q = self.norm(question)
-        return any(marker in q for marker in self.FOLLOWUP_MARKERS)
+        explicit_filters = self._extract_explicit_field_filters(q_raw, columns)
+        code_filters = self._extract_codes(q, columns)
+        semantic_filters = self._extract_semantic_type_filters(q, columns)
+        date_filters = self._extract_month_filters(q, columns)
+        type_filters = self._extract_type_filters(q_raw, columns)
+        priority_filters = self._extract_priority_filters(q, columns)
 
-    def is_base_context_question(self, question: str) -> bool:
-        q = self.norm(question)
-        return any(marker in q for marker in self.BASE_CONTEXT_MARKERS)
+        new_filters = self._dedupe_filters(explicit_filters + code_filters + semantic_filters + date_filters + type_filters + priority_filters)
+        intent = self._detect_intent(q)
+        is_followup = self._is_followup(q, bool(new_filters), previous_context)
 
-    def infer_intent(self, question: str) -> str:
-        q = self.norm(question)
-        if self.is_base_context_question(question):
-            return "describe_base"
-        if any(marker in q for marker in self.COUNT_MARKERS):
+        filters: list[dict[str, Any]] = []
+        if is_followup:
+            filters.extend(self._safe_previous_filters(previous_context, new_filters))
+        filters.extend(new_filters)
+        filters = self._dedupe_filters(filters)
+
+        group_by = self._detect_group_by(q, columns)
+        if group_by:
+            intent = "group"
+
+        # Regra central: só usa tabular quando há necessidade analítica/listagem clara,
+        # filtro explícito/código, ou follow-up real de consulta tabular anterior.
+        has_tabular_signal = (
+            intent in {"count", "group", "list"}
+            or bool(filters)
+            or is_followup
+        )
+        if not has_tabular_signal:
+            return QueryPlan(False, intent="document", confidence=0.2, reason="no_tabular_signal").to_dict()
+
+        # Evita que perguntas abertas virem consulta tabular só porque contêm palavras comuns.
+        if intent == "document" and not filters and not is_followup:
+            return QueryPlan(False, intent="document", confidence=0.3, reason="open_question_without_filters").to_dict()
+
+        confidence = 0.55
+        if filters:
+            confidence += 0.2
+        if explicit_filters:
+            confidence += 0.15
+        if is_followup:
+            confidence += 0.1
+        if intent in {"count", "group"}:
+            confidence += 0.1
+
+        if intent == "document":
+            intent = "list" if (filters or is_followup) else "document"
+
+        return QueryPlan(
+            use_tabular=True,
+            intent=intent,
+            filters=filters,
+            group_by=group_by,
+            limit=150 if intent in {"list", "detail"} else 20,
+            followup=is_followup,
+            confidence=min(confidence, 0.98),
+            reason="tabular_signal_detected",
+        ).to_dict()
+
+    def _is_reset_question(self, q: str) -> bool:
+        return any(marker in q for marker in self.RESET_MARKERS)
+
+    def _detect_intent(self, q: str) -> str:
+        if any(marker in q for marker in self.QUANT_MARKERS):
+            if any(marker in q for marker in [" por ", "agrup", "distribuicao", "distribuicao", "ranking", "total por"]):
+                return "group"
             return "count"
-        if (" por " in f" {q} " and any(marker in q for marker in self.COUNT_MARKERS | {"total"})) or any(m in q for m in ["distribuicao", "distribuição", "agrupe", "agrupado", "ranking"]):
-            return "group"
         if any(marker in q for marker in self.LIST_MARKERS):
             return "list"
-        if self.CODE_PATTERN.search(question):
-            return "lookup"
+        if any(marker in q for marker in self.GROUP_MARKERS) and any(x in q for x in ["total", "quant", "cont"]):
+            return "group"
         return "document"
 
-    def has_followup_reference(self, question: str) -> bool:
-        """Retorna True somente quando a pergunta depende claramente de um resultado anterior."""
-        q = self.norm(question)
-        strong_markers = [
-            "cada uma delas", "cada um deles", "descreva eles", "descreva elas",
-            "detalhe eles", "detalhe elas", "liste eles", "liste elas",
-            "essas changes", "esses incidentes", "esses registros", "essas linhas",
-            "delas", "deles", "destas", "destes", "dessas", "desses",
-            "elas", "eles", "os mesmos", "as mesmas",
-        ]
-        return any(marker in q for marker in strong_markers)
-
-    def is_independent_question(self, question: str) -> bool:
-        """Perguntas independentes não devem herdar filtros anteriores."""
-        q = self.norm(question)
-        starters = (
-            "qual ", "quais ", "quanto ", "quantos ", "quantas ",
-            "me explique", "explique", "fale sobre", "o que ", "do que ",
-            "contexto", "sobre o que", "me fale sobre", "liste o total",
-        )
-        if q.startswith(starters):
+    def _is_followup(self, q: str, has_new_filters: bool, previous_context: dict[str, Any]) -> bool:
+        if not previous_context or not previous_context.get("filters"):
+            return False
+        if previous_context.get("expired"):
+            return False
+        if q.startswith("e ") or q.startswith("com ") or q.startswith("tambem ") or q.startswith("também "):
             return True
-        if self.is_base_context_question(question):
+        if any(marker in q for marker in self.FOLLOWUP_MARKERS):
+            return True
+        # Se houver novo filtro explícito e a frase for curta, é provável refinamento.
+        if has_new_filters and len(q.split()) <= 10 and not self._is_reset_question(q):
             return True
         return False
 
-    def should_use_tabular(self, question: str, columns: list[str]) -> bool:
-        intent = self.infer_intent(question)
-        if intent in {"count", "list", "group", "describe_base", "lookup"}:
-            return True
-        q = self.norm(question)
-        joined_cols = " ".join(self.norm(c) for c in columns)
-        return any(tok in joined_cols for tok in q.split() if len(tok) > 3 and tok not in self.STOPWORDS)
-
-    def extract_codes(self, question: str) -> list[str]:
+    def _safe_previous_filters(self, previous_context: dict[str, Any], new_filters: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        previous = previous_context.get("filters") or []
+        # Se a pergunta nova muda a entidade principal (ex.: INC -> CHG), remove filtros de codigo_tipo anteriores.
+        new_code_type = {str(f.get("value", "")).upper() for f in new_filters if f.get("column") == "codigo_tipo"}
         out = []
-        seen = set()
-        for m in self.CODE_PATTERN.finditer(question or ""):
-            code = m.group(1).upper().strip()
-            if code and code not in seen and len(code) >= 3:
-                seen.add(code)
-                out.append(code)
+        for filt in previous:
+            if not self._is_valid_filter(filt):
+                continue
+            if filt.get("column") == "codigo_tipo" and new_code_type and str(filt.get("value", "")).upper() not in new_code_type:
+                continue
+            out.append(dict(filt))
         return out
 
-    def extract_month(self, question: str) -> str | None:
-        q = self.norm(question)
-        # yyyy-mm direto
+    def _extract_explicit_field_filters(self, question: str, columns: list[str]) -> list[dict[str, Any]]:
+        filters: list[dict[str, Any]] = []
+        # Captura padrões universais: "Campo: Valor" ou "Campo = Valor".
+        pattern = r"([A-Za-zÀ-ÿ0-9_\s]{2,45})\s*(?:[:=])\s*([^\n\r;,]+)"
+        for raw_field, raw_value in re.findall(pattern, question or ""):
+            field = raw_field.strip()
+            value = raw_value.strip().strip('"\'')
+            col = self.resolve_column(columns, [field])
+            if col and self._valid_value(value):
+                op = "eq" if col in {"mes", "tipo", "estado", "status", "prioridade", "codigo_tipo"} else "contains"
+                filters.append({"column": col, "operator": op, "value": value})
+        return filters
+
+    def _extract_codes(self, q: str, columns: list[str]) -> list[dict[str, Any]]:
+        filters: list[dict[str, Any]] = []
+        # CHG:10-2025 ou INC:07-2025 como tópico/recorte.
+        topic_month = re.search(r"\b(chg|inc)\s*[:\-]\s*(\d{1,2})[\-/](\d{4})\b", q)
+        if topic_month:
+            code = topic_month.group(1).upper()
+            month = topic_month.group(2).zfill(2)
+            year = topic_month.group(3)
+            code_col = self.resolve_column(columns, ["codigo_tipo"])
+            mes_col = self.resolve_column(columns, ["mes"])
+            if code_col:
+                filters.append({"column": code_col, "operator": "contains", "value": code})
+            if mes_col:
+                filters.append({"column": mes_col, "operator": "eq", "value": f"{year}-{month}"})
+            return filters
+
+        codes = re.findall(r"\b(CHG|INC|REQ|RITM|TASK|Z[A-Z]{1,4})\s*0*([0-9]{2,10})\b", q.upper())
+        if codes:
+            number_col = self.resolve_column(columns, ["numero", "codigo_principal", "identificadores", "article_text"])
+            code_type_col = self.resolve_column(columns, ["codigo_tipo"])
+            for prefix, digits in codes:
+                full = f"{prefix}{digits}"
+                if number_col:
+                    filters.append({"column": number_col, "operator": "contains", "value": full})
+                if code_type_col and prefix in {"CHG", "INC"}:
+                    filters.append({"column": code_type_col, "operator": "contains", "value": prefix})
+        return filters
+
+    def _extract_semantic_type_filters(self, q: str, columns: list[str]) -> list[dict[str, Any]]:
+        col = self.resolve_column(columns, ["codigo_tipo"])
+        if not col:
+            return []
+        filters = []
+        for code, aliases in self.SEMANTIC_TYPE_SYNONYMS.items():
+            if any(re.search(rf"\b{re.escape(self.normalize(alias))}\b", q) for alias in aliases):
+                filters.append({"column": col, "operator": "contains", "value": code})
+        return filters
+
+    def _extract_month_filters(self, q: str, columns: list[str]) -> list[dict[str, Any]]:
+        col = self.resolve_column(columns, ["mes"])
+        if not col:
+            return []
+        filters: list[dict[str, Any]] = []
+        # 12/2025, 12-2025, 2025-12
         m = re.search(r"\b(20\d{2})[-/](0?[1-9]|1[0-2])\b", q)
         if m:
-            return f"{m.group(1)}-{int(m.group(2)):02d}"
-        # mm/yyyy ou m/yyyy
+            filters.append({"column": col, "operator": "eq", "value": f"{m.group(1)}-{m.group(2).zfill(2)}"})
         m = re.search(r"\b(0?[1-9]|1[0-2])[-/](20\d{2})\b", q)
         if m:
-            return f"{m.group(2)}-{int(m.group(1)):02d}"
-        # mês por extenso + ano
+            filters.append({"column": col, "operator": "eq", "value": f"{m.group(2)}-{m.group(1).zfill(2)}"})
         for name, num in self.MONTHS.items():
             if re.search(rf"\b{name}\b", q):
-                year = re.search(r"\b(20\d{2})\b", q)
-                if year:
-                    return f"{year.group(1)}-{num}"
-                return num
-        # "em 12 de 2025" / "12 2025"
-        m = re.search(r"\b(0?[1-9]|1[0-2])\s+(?:de\s+)?(20\d{2})\b", q)
-        if m:
-            return f"{m.group(2)}-{int(m.group(1)):02d}"
-        return None
+                y = re.search(r"\b(20\d{2})\b", q)
+                if y:
+                    filters.append({"column": col, "operator": "eq", "value": f"{y.group(1)}-{num}"})
+                else:
+                    filters.append({"column": col, "operator": "contains", "value": f"-{num}"})
+        return filters
 
-    def column_score(self, column: str, candidates: Iterable[str]) -> float:
-        col = self.norm(column)
-        best = 0.0
-        for cand in candidates:
-            cn = self.norm(cand)
-            if not cn:
-                continue
-            score = SequenceMatcher(None, col, cn).ratio()
-            if cn in col or col in cn:
-                score += 0.45
-            best = max(best, score)
-        return best
-
-    def resolve_column(self, columns: list[str], candidates: Iterable[str], min_score: float = 0.55) -> str | None:
-        best_col, best_score = None, 0.0
-        for col in columns:
-            score = self.column_score(col, candidates)
-            if score > best_score:
-                best_col, best_score = col, score
-        return best_col if best_score >= min_score else None
-
-    def preferred_column_for_entity(self, columns: list[str]) -> str | None:
-        return self.resolve_column(columns, ["codigo_tipo", "tipo_codigo", "code_type", "tipo do codigo", "classe_codigo"], 0.52)
-
-    def preferred_code_columns(self, columns: list[str]) -> list[str]:
-        prefs = []
-        for candidates in [
-            ["numero", "número", "codigo_principal", "codigo", "id", "identificador", "chave"],
-            ["codigo_principal", "codigo", "transacao_z", "identificadores", "article_text", "conteudo", "texto"],
-        ]:
-            col = self.resolve_column(columns, candidates, 0.52)
-            if col and col not in prefs:
-                prefs.append(col)
-        return prefs
-
-    def value_exists(self, df: pd.DataFrame, column: str, value: str, operator: str = "contains") -> bool:
-        if column not in df.columns:
-            return False
-        series = df[column].astype(str).fillna("")
-        if operator == "eq":
-            return bool((series.str.lower() == str(value).lower()).any())
-        return bool(series.str.contains(re.escape(str(value)), case=False, na=False, regex=True).any())
-
-    def detect_entity_filter(self, question: str, df: pd.DataFrame) -> dict[str, Any] | None:
-        columns = list(df.columns)
-        q = self.norm(question)
-        entity_col = self.preferred_column_for_entity(columns)
-        if not entity_col:
-            return None
-        for canonical, terms in self.ENTITY_SYNONYMS.items():
-            if any(re.search(rf"\b{re.escape(self.norm(term))}\b", q) for term in terms):
-                if self.value_exists(df, entity_col, canonical, operator="contains"):
-                    return {"column": entity_col, "operator": "contains", "value": canonical, "confidence": 0.95, "source": "entity_synonym"}
-        # códigos explícitos também podem indicar o tipo pelo prefixo se existir na própria tabela.
-        codes = self.extract_codes(question)
-        for code in codes:
-            prefix = re.match(r"^[A-Z]+", code)
-            if prefix:
-                val = prefix.group(0)
-                if self.value_exists(df, entity_col, val, operator="contains"):
-                    return {"column": entity_col, "operator": "contains", "value": val, "confidence": 0.86, "source": "code_prefix"}
-        return None
-
-    def detect_type_value_filter(self, question: str, df: pd.DataFrame) -> dict[str, Any] | None:
-        columns = list(df.columns)
-        q = self.norm(question)
-        # Só tenta quando o usuário fala explicitamente "tipo X", "do tipo X", "tipo = X".
-        m = re.search(r"\b(?:do\s+)?tipo\s*(?:=|eh|e|é|de)?\s+([a-zA-Z0-9_\-\/]+)\b", q)
-        if not m:
-            return None
-        value = m.group(1).strip()
-        if not self.is_valid_filter_value(value):
-            return None
-        # Não usar categoria para "tipo X"; preferir coluna chamada tipo/status/estado, mas não codigo_tipo.
-        candidates = ["tipo", "tipo_change", "tipo_registro", "classe", "natureza"]
-        possible = [c for c in columns if self.norm(c) not in {"codigo tipo", "codigo_tipo"}]
-        col = self.resolve_column(possible, candidates, 0.58)
-        if col and self.value_exists(df, col, value, operator="contains"):
-            return {"column": col, "operator": "contains", "value": value, "confidence": 0.9, "source": "explicit_type"}
-        return None
-
-    def detect_month_filter(self, question: str, df: pd.DataFrame) -> dict[str, Any] | None:
-        month = self.extract_month(question)
-        if not month:
-            return None
-        columns = list(df.columns)
-        col = self.resolve_column(columns, ["mes", "mês", "competencia", "competência", "periodo", "período", "data", "data_inicio", "created_on"], 0.52)
+    def _extract_type_filters(self, question: str, columns: list[str]) -> list[dict[str, Any]]:
+        q = self.normalize(question)
+        col = self.resolve_column(columns, ["tipo"])
         if not col:
-            return None
-        operator = "eq" if re.fullmatch(r"20\d{2}-\d{2}", month) else "contains"
-        return {"column": col, "operator": operator, "value": month, "confidence": 0.9, "source": "month"}
+            return []
+        filters = []
+        # Ex.: "tipo Normal", "do tipo Normal", "tipo = Normal".
+        m = re.search(r"\b(?:do|da|de)?\s*tipo\s*(?:=|eh|e|é|:)?\s*([a-zA-ZÀ-ÿ0-9_\-/]+)", question or "", re.IGNORECASE)
+        if m:
+            value = m.group(1).strip()
+            if self._valid_value(value):
+                filters.append({"column": col, "operator": "eq", "value": value})
+        # Normal/Standard/Emergencial etc quando aparece com CHG/change/mudança.
+        if re.search(r"\bnormal\b", q) and any(x in q for x in ["chg", "change", "mudanca", "mudancas", "changes"]):
+            filters.append({"column": col, "operator": "eq", "value": "Normal"})
+        return filters
 
-    def detect_code_filters(self, question: str, df: pd.DataFrame) -> list[dict[str, Any]]:
-        columns = list(df.columns)
-        out = []
-        for code in self.extract_codes(question):
-            for col in self.preferred_code_columns(columns):
-                if self.value_exists(df, col, code, operator="contains"):
-                    out.append({"column": col, "operator": "contains", "value": code, "confidence": 0.95, "source": "explicit_code"})
-                    break
-        return out
+    def _extract_priority_filters(self, q: str, columns: list[str]) -> list[dict[str, Any]]:
+        col = self.resolve_column(columns, ["prioridade"])
+        if not col:
+            return []
+        m = re.search(r"\bP[0-9]\b", q.upper())
+        if m:
+            return [{"column": col, "operator": "contains", "value": m.group(0)}]
+        return []
 
-    def detect_group_by(self, question: str, columns: list[str]) -> str | None:
-        q = self.norm(question)
-        if " por " not in f" {q} " and not any(x in q for x in ["agrupe", "agrupado", "distribuicao", "distribuição", "ranking"]):
+    def _detect_group_by(self, q: str, columns: list[str]) -> str | None:
+        if " por " not in q and "agrup" not in q and "distribu" not in q:
             return None
         raw = None
-        if " por " in f" {q} ":
+        if " por " in q:
             raw = q.split(" por ", 1)[1]
-            raw = re.split(r"[\?\.,;]", raw)[0].strip()
+            raw = re.split(r"[\?\.,;]", raw)[0]
         elif "categoria" in q:
             raw = "categoria"
         elif "status" in q:
             raw = "status"
-        elif "estado" in q:
-            raw = "estado"
         elif "tipo" in q:
             raw = "tipo"
         if not raw:
             return None
-        # Remover palavras inúteis após o "por".
-        tokens = [t for t in raw.split() if t not in self.STOPWORDS]
-        candidate = " ".join(tokens[:3]) if tokens else raw
-        return self.resolve_column(columns, [candidate, raw], 0.48)
+        return self.resolve_column(columns, [raw.strip(), raw.strip().split()[0]])
 
-    def is_valid_filter_value(self, value: Any) -> bool:
+    def resolve_column(self, columns: list[str], candidates: Iterable[str]) -> str | None:
+        if not columns:
+            return None
+        norm_columns = {col: self.normalize(col) for col in columns}
+        terms: list[str] = []
+        for candidate in candidates:
+            if not candidate:
+                continue
+            c_norm = self.normalize(str(candidate))
+            terms.append(c_norm)
+            for canonical, aliases in self.FIELD_ALIASES.items():
+                if c_norm == self.normalize(canonical) or c_norm in [self.normalize(a) for a in aliases]:
+                    terms.append(self.normalize(canonical))
+                    terms.extend([self.normalize(a) for a in aliases])
+        best_col = None
+        best_score = 0.0
+        for col, norm_col in norm_columns.items():
+            for term in terms:
+                if not term:
+                    continue
+                score = SequenceMatcher(None, norm_col, term).ratio()
+                if term == norm_col:
+                    score += 1.0
+                elif term in norm_col or norm_col in term:
+                    score += 0.45
+                if score > best_score:
+                    best_col = col
+                    best_score = score
+        return best_col if best_score >= 0.58 else None
+
+    def _valid_value(self, value: Any) -> bool:
         if value is None:
             return False
-        text = str(value).strip()
+        text = str(value).strip().strip('"\'')
         if not text:
             return False
-        n = self.norm(text)
-        if n in self.STOPWORDS:
+        norm = self.normalize(text)
+        if norm in self.STOP_FILTER_VALUES:
             return False
-        if len(n) <= 2 and not re.fullmatch(r"p\d+", n):
+        if len(norm) <= 1:
             return False
         return True
 
-    def sanitize_filters(self, filters: list[dict[str, Any]], df: pd.DataFrame) -> list[dict[str, Any]]:
+    def _is_valid_filter(self, filt: dict[str, Any]) -> bool:
+        return bool(filt.get("column")) and self._valid_value(filt.get("value"))
+
+    def _dedupe_filters(self, filters: list[dict[str, Any]]) -> list[dict[str, Any]]:
         out: list[dict[str, Any]] = []
         seen = set()
-        for f in filters or []:
-            col = f.get("column")
-            value = f.get("value")
-            op = f.get("operator") or "contains"
-            conf = float(f.get("confidence") or 0.5)
-            if col not in df.columns:
+        for f in filters:
+            if not self._is_valid_filter(f):
                 continue
-            if not self.is_valid_filter_value(value):
-                continue
-            # Evita filtros acidentais em categoria quando o valor veio de palavra da pergunta.
-            if self.norm(col) in {"categoria", "tema", "assunto"} and self.norm(value) in self.STOPWORDS:
-                continue
-            key = (col, op, str(value).lower())
+            key = (f.get("column"), f.get("operator", "contains"), self.normalize(str(f.get("value"))))
             if key in seen:
                 continue
             seen.add(key)
-            out.append({"column": col, "operator": op, "value": value, "confidence": conf, "source": f.get("source")})
+            out.append({"column": f.get("column"), "operator": f.get("operator", "contains"), "value": f.get("value")})
         return out
-
-    def build_plan(self, question: str, df: pd.DataFrame, last_context: dict[str, Any] | None = None) -> PlannedQuery:
-        columns = list(df.columns)
-        intent = self.infer_intent(question)
-
-        # Follow-up só é verdadeiro quando a pergunta faz referência clara ao resultado anterior.
-        # Perguntas independentes, mesmo depois de uma consulta tabular, não herdam filtros.
-        followup = bool(last_context) and self.has_followup_reference(question) and not self.is_independent_question(question)
-
-        filters: list[dict[str, Any]] = []
-        reason_parts: list[str] = []
-
-        if intent == "document" and not self.should_use_tabular(question, columns):
-            return PlannedQuery(False, "document", [], confidence=0.2, reason="not_tabular")
-
-        # Pergunta sobre o contexto/base: sempre consulta ampla, sem herdar filtros.
-        if intent == "describe_base":
-            return PlannedQuery(True, "describe_base", [], limit=150, confidence=0.9, reason="base_context")
-
-        code_filters = self.detect_code_filters(question, df)
-        if code_filters:
-            filters.extend(code_filters)
-            reason_parts.append("explicit_code")
-            followup = False
-
-        entity_filter = self.detect_entity_filter(question, df)
-        if entity_filter:
-            filters.append(entity_filter)
-            reason_parts.append("entity")
-
-        month_filter = self.detect_month_filter(question, df)
-        if month_filter:
-            filters.append(month_filter)
-            reason_parts.append("month")
-
-        type_filter = self.detect_type_value_filter(question, df)
-        if type_filter:
-            filters.append(type_filter)
-            reason_parts.append("type")
-
-        # Se a pergunta trouxe filtros novos explícitos, ela é uma consulta nova, não continuação.
-        has_new_structured_filter = bool(code_filters or entity_filter or month_filter or type_filter)
-        if has_new_structured_filter and not self.has_followup_reference(question):
-            followup = False
-
-        # Follow-up: reaproveita apenas filtros estruturais e confiáveis do último resultado útil.
-        # Nunca herda filtros acidentais, filtros que zeraram resultado, nem contexto se a entidade mudou.
-        if followup and last_context and last_context.get("filters"):
-            previous = last_context.get("filters") or []
-            current_entity_values = {
-                str(f.get("value")).upper()
-                for f in filters
-                if f.get("source") in {"entity_synonym", "code_prefix"}
-            }
-            for f in previous:
-                source = f.get("source")
-                value = str(f.get("value") or "")
-                col = f.get("column")
-                if not col or col not in df.columns:
-                    continue
-                if current_entity_values and str(value).upper() in {"INC", "CHG", "REQ"} and str(value).upper() not in current_entity_values:
-                    continue
-                if source in {"entity_synonym", "month", "explicit_type", "explicit_code", "code_prefix"} or float(f.get("confidence") or 0) >= 0.80:
-                    filters.append(dict(f))
-            reason_parts.append("followup")
-
-        filters = self.sanitize_filters(filters, df)
-
-        group_by = self.detect_group_by(question, columns)
-        if group_by:
-            intent = "group"
-        elif intent == "lookup":
-            intent = "list"
-        elif intent == "document" and filters:
-            intent = "list"
-        elif intent == "document":
-            return PlannedQuery(False, "document", [], confidence=0.2, reason="document_fallback")
-
-        limit = 20
-        if intent in {"list", "describe_base"}:
-            limit = 150
-        return PlannedQuery(
-            True,
-            intent,
-            filters,
-            group_by=group_by,
-            limit=limit,
-            followup=followup,
-            confidence=0.88 if filters or intent in {"describe_base", "group"} else 0.65,
-            reason="+".join(reason_parts) or "heuristic",
-        )
