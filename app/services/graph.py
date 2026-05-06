@@ -29,7 +29,7 @@ class AnalysisGraphService:
         chat_history: list[dict[str, Any]] | None = None,
         mode: str = "executive",
     ) -> dict[str, Any]:
-        tabular_result = self.tabular_service.answer_question(case_id, question, documents, mode=mode)
+        tabular_result = self.tabular_service.answer_question(case_id, question, documents, mode=mode, chat_history=chat_history or [])
         if tabular_result:
             return tabular_result
 

@@ -36,6 +36,11 @@ class TabularQueryService:
         "severidade": ["severidade", "impacto", "urgência", "urgencia"],
         "mesa": ["mesa", "squad", "time", "equipe", "responsável", "responsavel"],
         "categoria": ["categoria", "tipo", "assunto", "tema"],
+        "codigo_tipo": ["codigo_tipo", "tipo de codigo", "tipo do codigo", "tipo de registro"],
+        "numero": ["numero", "número", "codigo", "código", "registro", "chamado"],
+        "grupo_atribuicao": ["grupo_atribuicao", "grupo de atribuicao", "grupo de atribuição", "grupo", "equipe"],
+        "ic_impactado": ["ic_impactado", "ic impactado", "ic", "serviço", "servico", "sistema"],
+        "transacao_z": ["transacao_z", "transação z", "transacao", "transação", "codigo z", "código z"],
     }
 
     def __init__(self, llm_service=None):
@@ -58,15 +63,21 @@ class TabularQueryService:
             "tables_count": len(tables),
         }
 
-    def answer_question(self, case_id: str, question: str, documents: list[dict[str, Any]], mode: str = "executive") -> dict[str, Any] | None:
+    def answer_question(self, case_id: str, question: str, documents: list[dict[str, Any]], mode: str = "executive", chat_history: list[dict[str, Any]] | None = None) -> dict[str, Any] | None:
         tables = self._catalog_cache.get(case_id) or self._load_tables(documents)
         self._catalog_cache[case_id] = tables
         if not tables:
             return None
-        if not self._looks_tabular(question, tables):
+
+        context_text = self._history_to_context(chat_history or [])
+        contextual_question = question
+        if context_text and any(term in question.lower() for term in ["desse", "deste", "mesmo", "relacionado", "relacionados", "tipo", "grupo", "categoria", "status"]):
+            contextual_question = f"{question}\n\nContexto recente para resolver referências como 'desse tipo' ou 'mesmo grupo':\n{context_text}"
+
+        if not self._looks_tabular(contextual_question, tables):
             return None
 
-        plan = self._plan_question(question, tables)
+        plan = self._plan_question(contextual_question, tables)
         if not plan:
             return None
         execution = self._execute_plan(plan, tables)
@@ -90,6 +101,17 @@ class TabularQueryService:
             "evidences": execution.get("evidences", []),
             "evidence_files": execution.get("evidence_files", []),
         }
+
+    def _history_to_context(self, chat_history: list[dict[str, Any]]) -> str:
+        parts: list[str] = []
+        for item in (chat_history or [])[-4:]:
+            if item.get("question"):
+                parts.append("Pergunta anterior: " + str(item.get("question"))[:1500])
+            if item.get("answer_text"):
+                parts.append("Resposta anterior: " + str(item.get("answer_text"))[:3000])
+            elif item.get("summary"):
+                parts.append("Resposta anterior: " + str(item.get("summary"))[:3000])
+        return "\n".join(parts)
 
     def _looks_tabular(self, question: str, tables: list[TableRef]) -> bool:
         q = question.lower()
@@ -167,6 +189,22 @@ class TabularQueryService:
                 if col and value:
                     filters.append({"column": col, "operator": "contains", "value": value})
 
+        if any(x in q for x in ["desse tipo", "deste tipo", "mesmo tipo"]):
+            col = self._resolve_column(target.columns, ["tipo", "codigo_tipo"])
+            m = re.search(r"\bTipo\s*[:\-]\s*([^\n\r|,;]+)", question, flags=re.IGNORECASE)
+            if col and m:
+                filters.append({"column": col, "operator": "contains", "value": m.group(1).strip()[:80]})
+        if any(x in q for x in ["mesmo grupo", "desse grupo", "deste grupo"]):
+            col = self._resolve_column(target.columns, ["grupo_atribuicao", "grupo"])
+            m = re.search(r"\bGrupo(?: de atribui[cç][aã]o)?\s*[:\-]\s*([^\n\r|,;]+)", question, flags=re.IGNORECASE)
+            if col and m:
+                filters.append({"column": col, "operator": "contains", "value": m.group(1).strip()[:120]})
+        if any(x in q for x in ["mesmo status", "mesmo estado", "desse status", "deste status"]):
+            col = self._resolve_column(target.columns, ["estado", "status"])
+            m = re.search(r"\b(?:Estado|Status)\s*[:\-]\s*([^\n\r|,;]+)", question, flags=re.IGNORECASE)
+            if col and m:
+                filters.append({"column": col, "operator": "contains", "value": m.group(1).strip()[:80]})
+
         group_by = None
         if intent == "group":
             raw = q.split(" por ", 1)[1].strip()
@@ -191,6 +229,9 @@ class TabularQueryService:
             hay = f"{table.filename} {table.sheet_name} {' '.join(table.columns)}".lower()
             score = SequenceMatcher(None, question_lower, hay).ratio()
             score += sum(0.08 for token in question_lower.split() if token in hay)
+            if "gabbi_knowledge_table" in table.filename.lower():
+                if any(x in question_lower for x in ["chamado", "chamados", "registro", "registros", "change", "incidente", "transação", "transacao", "código", "codigo", "quantos", "quantidade", "total", "listar", "liste"]):
+                    score += 1.2
             if re.search(r"\bp\d+\b", question_lower) and self._resolve_column(table.columns, ["prioridade", "severidade"]):
                 score += 0.4
             if score > best_score:
@@ -398,7 +439,7 @@ class TabularQueryService:
 
     def _extract_filter_value(self, question_lower: str, aliases: list[str]) -> str | None:
         for alias in aliases:
-            pattern = rf"{re.escape(alias)}\s+(?:=|é|e|for|do|da|de|com)?\s*([\w\-_/]+)"
+            pattern = rf"{re.escape(alias)}\s*(?:[:=]|é|e|for|do|da|de|com)?\s*([\w\-_/\.]+(?:\s+[\w\-_/\.]+){{0,4}})"
             match = re.search(pattern, question_lower)
             if match:
                 return match.group(1)
