@@ -29,7 +29,10 @@ class AnalysisGraphService:
         chat_history: list[dict[str, Any]] | None = None,
         mode: str = "executive",
     ) -> dict[str, Any]:
-        tabular_result = self.tabular_service.answer_question(case_id, question, documents, mode=mode, chat_history=chat_history or [])
+        # Mantém comportamento V1: consultas tabulares/analíticas são avaliadas antes do RAG.
+        # A diferença está no tabular.py, que agora guarda contexto da última consulta por case_id
+        # para responder follow-ups como "me descreva cada uma delas" sem perder filtros.
+        tabular_result = self.tabular_service.answer_question(case_id, question, documents, mode=mode)
         if tabular_result:
             return tabular_result
 
