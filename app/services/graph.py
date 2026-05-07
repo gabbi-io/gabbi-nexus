@@ -13,24 +13,25 @@ class AnalysisGraphService:
     """
     Orquestrador principal do chat do Nexus.
 
-    Ajuste aplicado:
-    - considera sempre o contexto do case/upload atual;
-    - considera também base treinada/PostgreSQL quando disponível;
-    - não deixa a base Postgres substituir automaticamente o arquivo anexado;
-    - remove CSV/cache local como fonte da verdade;
-    - mantém histórico conversacional para fluidez.
+    Ajustes principais:
+    - sempre considera os documentos do case atual/upload;
+    - reindexa o case no momento do ask quando o índice em memória não existir;
+    - evita resposta tabular direta quando a pergunta é sobre arquivo/anexo;
+    - mantém histórico conversacional;
+    - usa base treinada/tabular como complemento, não como substituta do arquivo anexado.
     """
 
     FILE_FOCUS_TERMS = {
-        "arquivo", "arquivos", "anexo", "anexado", "anexados", "documento", "documentos",
-        "planilha", "excel", "pdf", "docx", "csv", "upload", "uploads", "enviado", "enviados",
-        "neste", "nessa", "nesta", "desse", "deste", "dessa", "desta", "material"
+        "arquivo", "arquivos", "anexo", "anexos", "anexado", "anexados", "documento", "documentos",
+        "planilha", "excel", "pdf", "docx", "csv", "txt", "upload", "uploads", "enviado", "enviados",
+        "neste", "nessa", "nesta", "desse", "deste", "dessa", "desta", "material", "conteudo", "conteúdo",
+        "escopo do arquivo", "sobre o arquivo",
     }
 
     KNOWLEDGE_FOCUS_TERMS = {
         "base", "conhecimento", "treinamento", "treinamentos", "treinado", "treinada",
         "article", "artigo", "artigos", "topic", "topico", "tópico", "historico", "histórico",
-        "memoria", "memória", "gabbi", "nexus"
+        "memoria", "memória", "gabbi", "nexus", "knowledge",
     }
 
     def __init__(self, retrieval_service, analysis_service):
@@ -38,7 +39,6 @@ class AnalysisGraphService:
         self.analysis_service = analysis_service
         self.llm_service = LLMService()
         self.tabular_service = TabularQueryService(llm_service=self.llm_service)
-        self.force_rag_first = self._env_bool("GABBI_FORCE_RAG_FIRST", True)
         self.always_synthesize_hybrid = self._env_bool("GABBI_ALWAYS_SYNTHESIZE_HYBRID", True)
 
     @staticmethod
@@ -66,34 +66,38 @@ class AnalysisGraphService:
         history = self._build_history(chat_history)
         focus = self._detect_focus(question, documents)
 
-        # 1. Recupera evidências do case atual SEMPRE que houver documentos.
-        # Isso evita o comportamento de responder apenas pela base treinada quando o usuário anexou arquivo.
+        # Garante que o índice do case exista no processo atual.
+        # Isso resolve cenários com reload, múltiplos workers ou upload feito antes do ask.
+        self._ensure_case_index(case_id, documents)
+
+        # 1) Evidências do case/upload atual SEMPRE entram quando houver documentos.
+        top_k = 16 if focus in {"case_upload_first", "hybrid_case_first"} else 10
         case_evidences: list[dict[str, Any]] = []
         if documents:
-            case_evidences = self.retrieval_service.search(case_id, question, top_k=10)
+            try:
+                case_evidences = self.retrieval_service.search(
+                    case_id=case_id,
+                    query=question,
+                    top_k=top_k,
+                    documents=documents,
+                    focus=focus,
+                )
+            except TypeError:
+                case_evidences = self.retrieval_service.search(case_id, question, top_k=top_k)
             case_evidences = self._tag_evidences(case_evidences, default_source="case_upload")
 
-        # 2. Executa consulta tabular híbrida.
-        # O serviço tabular decide entre arquivo do case e Postgres, sem usar CSV cache como fonte da verdade.
-        tabular_result = self.tabular_service.answer_question(
-            case_id=case_id,
-            question=question,
-            documents=documents,
-            mode=mode,
-            source_preference=focus,
-        )
-
+        # 2) Consulta tabular como complemento. Nunca deve abafar arquivo/anexo.
+        tabular_result = self._answer_tabular(case_id, question, documents, mode, focus)
         tabular_evidences = self._extract_tabular_evidences(tabular_result)
 
-        # 3. Mescla evidências: upload primeiro quando o foco for arquivo/case; base primeiro quando o foco for treinamento/base.
+        # 3) Mescla as fontes na ordem correta.
         evidences = self._merge_evidences(
             case_evidences=case_evidences,
             tabular_evidences=tabular_evidences,
             focus=focus,
         )
 
-        # 4. Só responde diretamente via tabular quando NÃO houver evidência de arquivo relevante
-        # ou quando a própria fonte tabular for arquivo do case.
+        # 4) Resposta tabular direta só quando for seguro.
         if (
             tabular_result
             and not tabular_result.get("fallback_to_rag")
@@ -125,13 +129,14 @@ class AnalysisGraphService:
                     "tabular": bool(tabular_result and not tabular_result.get("fallback_to_rag")),
                     "tabular_source_type": self._tabular_source_type(tabular_result),
                     "conversation_memory": bool(history),
+                    "evidence_count": len(evidences),
                 }
                 if tabular_result:
                     formatted["tabular_attempt"] = tabular_result.get("technical")
                 return formatted
 
         # Fallback sem LLM.
-        if tabular_result and not tabular_result.get("fallback_to_rag"):
+        if tabular_result and not tabular_result.get("fallback_to_rag") and not case_evidences:
             tabular_result["route"] = "hybrid_tabular"
             tabular_result["sources"] = {
                 "focus": focus,
@@ -148,10 +153,48 @@ class AnalysisGraphService:
             "case_uploads": bool(case_evidences),
             "tabular": bool(tabular_result),
             "conversation_memory": bool(history),
+            "evidence_count": len(evidences),
         }
         if tabular_result:
             formatted["tabular_attempt"] = tabular_result.get("technical")
         return formatted
+
+    def _ensure_case_index(self, case_id: str, documents: list[dict[str, Any]]) -> None:
+        if not documents:
+            return
+        try:
+            status = self.retrieval_service.status()
+            indexed = False
+            if hasattr(self.retrieval_service, "has_case_index"):
+                indexed = bool(self.retrieval_service.has_case_index(case_id))
+            else:
+                indexed = case_id in getattr(self.retrieval_service, "case_chunks", {})
+            if not indexed:
+                self.retrieval_service.build_case_index(case_id, documents)
+        except Exception:
+            # Não bloqueia a resposta; o fallback tentará responder com o que houver.
+            pass
+
+    def _answer_tabular(
+        self,
+        case_id: str,
+        question: str,
+        documents: list[dict[str, Any]],
+        mode: str,
+        focus: str,
+    ) -> dict[str, Any] | None:
+        try:
+            return self.tabular_service.answer_question(
+                case_id=case_id,
+                question=question,
+                documents=documents,
+                mode=mode,
+                source_preference=focus,
+            )
+        except TypeError:
+            return self.tabular_service.answer_question(case_id, question, documents, mode=mode)
+        except Exception:
+            return None
 
     def _build_history(self, chat_history: list[dict[str, Any]] | None) -> list[dict[str, str]]:
         history: list[dict[str, str]] = []
@@ -166,7 +209,7 @@ class AnalysisGraphService:
         q = self._norm(question)
         tokens = set(q.split())
         has_docs = bool(documents)
-        file_focus = bool(tokens & self.FILE_FOCUS_TERMS)
+        file_focus = bool(tokens & self.FILE_FOCUS_TERMS) or any(term in q for term in self.FILE_FOCUS_TERMS if " " in term)
         kb_focus = bool(tokens & self.KNOWLEDGE_FOCUS_TERMS)
 
         if file_focus and has_docs:
@@ -191,7 +234,6 @@ class AnalysisGraphService:
         else:
             merged = tabular + case
 
-        # Dedup simples por filename/chunk/type.
         out: list[dict[str, Any]] = []
         seen: set[tuple[str, str, str]] = set()
         for e in merged:
@@ -200,7 +242,7 @@ class AnalysisGraphService:
                 continue
             seen.add(key)
             out.append(e)
-        return out[:16]
+        return out[:20]
 
     def _tag_evidences(self, evidences: list[dict[str, Any]], default_source: str) -> list[dict[str, Any]]:
         out = []
@@ -251,6 +293,8 @@ class AnalysisGraphService:
 
     def _can_return_tabular_direct(self, tabular_result: dict[str, Any], case_evidences: list[dict[str, Any]], focus: str) -> bool:
         source_type = self._tabular_source_type(tabular_result)
+        if focus in {"case_upload_first", "hybrid_case_first"} and case_evidences:
+            return False
         if source_type == "file":
             return True
         if source_type == "postgres" and not case_evidences:
@@ -281,7 +325,7 @@ class AnalysisGraphService:
                 f"[{e.get('filename')} | tipo={e.get('type')} | score={e.get('score')} | fonte={(e.get('metadata') or {}).get('source') or (e.get('metadata') or {}).get('source_type')} ]\n{e.get('excerpt')}"
                 for e in evidences
             ]
-        )[:18000]
+        )[:20000]
 
         tabular_blob = ""
         if tabular_attempt:
@@ -298,7 +342,7 @@ Você é um analista sênior do GABBI. Responda em português do Brasil.
 
 REGRAS OBRIGATÓRIAS:
 1. Nunca ignore arquivos anexados no case atual.
-2. Quando houver arquivo/documento/planilha/PDF enviado no front, trate esse conteúdo como contexto prioritário do case.
+2. Quando houver arquivo/documento/planilha/PDF/TXT enviado no front, trate esse conteúdo como contexto prioritário do case.
 3. A base treinada/PostgreSQL/Article deve complementar o raciocínio, não substituir o arquivo anexado.
 4. Se a pergunta falar explicitamente de base, conhecimento, treinamento, artigos ou histórico, priorize a base treinada, mas ainda considere anexos relevantes.
 5. Nunca trate CSV/cache local gabbi_knowledge_table_active_*.csv como fonte da verdade.
