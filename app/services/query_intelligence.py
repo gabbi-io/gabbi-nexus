@@ -143,15 +143,72 @@ class QueryIntelligenceService:
         candidates.sort(key=lambda item: item[1], reverse=True)
         return candidates[0][0] if candidates[0][1] >= 0.55 else None
 
+    def _clean_explicit_field_name(self, raw_field: str) -> str:
+        """Remove palavras da pergunta antes do nome real do campo.
+
+        Ex.: "e quantas com Grupo de atribuição" -> "Grupo de atribuição".
+        Isso evita que o resolvedor de coluna tente usar a frase inteira.
+        """
+        text = raw_field.strip()
+        text = re.sub(r"^(?:e\s+)?(?:quantos|quantas|qtd|qtde|total|contar|conte|liste|listar|me\s+liste|mostre|exiba|com|de|do|da|dos|das|no|na|em)\s+", "", text, flags=re.IGNORECASE).strip()
+        text = re.sub(r"^(?:e\s+)?(?:quantos|quantas|qtd|qtde|total|contar|conte)\s+(?:com|de|do|da|dos|das)\s+", "", text, flags=re.IGNORECASE).strip()
+        # Mantém apenas o trecho final mais provável caso venha uma frase longa.
+        known = [alias for aliases in self.FIELD_ALIASES.values() for alias in aliases] + list(self.FIELD_ALIASES.keys())
+        norm_text = _norm(text)
+        best = None
+        best_score = (-1, -1)  # posição, tamanho
+        for alias in sorted(known, key=lambda a: len(_norm(a)), reverse=True):
+            n_alias = _norm(alias)
+            if not n_alias:
+                continue
+            if len(n_alias) <= 2:
+                m = list(re.finditer(rf"\b{re.escape(n_alias)}\b", norm_text))
+                pos = m[-1].start() if m else -1
+            else:
+                pos = norm_text.rfind(n_alias)
+            score = (pos, len(n_alias))
+            if pos >= 0 and score > best_score:
+                best = alias
+                best_score = score
+        return best or text
+
+    def _clean_explicit_value(self, raw_value: str) -> str:
+        """Extrai só o valor do campo, sem engolir outros filtros da frase.
+
+        Ex.:
+        "VIVO_AURA_PRODUCAO no periodo 10-2025?" -> "VIVO_AURA_PRODUCAO"
+        "TLV_FER_4P AURA WHATSAPP FACEBOOK e grupo: X" -> "TLV_FER_4P AURA WHATSAPP FACEBOOK"
+        "Normal?" -> "Normal"
+        """
+        value = (raw_value or "").strip().strip(" .;,\n\r\t\"'“”")
+        # corta conectores que indicam outro critério depois do valor
+        split_patterns = [
+            r"\s+no\s+periodo\b", r"\s+no\s+período\b", r"\s+na\s+competencia\b", r"\s+na\s+competência\b",
+            r"\s+em\s+(?:0?[1-9]|1[0-2])[-/](?:20\d{2})\b", r"\s+em\s+(?:20\d{2})[-/](?:0?[1-9]|1[0-2])\b",
+            r"\s+do\s+periodo\b", r"\s+da\s+competencia\b", r"\s+e\s+(?:com|no|na|em)\b",
+            r"\s+com\s+(?:grupo|ic|status|estado|prioridade|tipo|categoria|canal)\b",
+        ]
+        for pat in split_patterns:
+            m = re.search(pat, value, flags=re.IGNORECASE)
+            if m:
+                value = value[:m.start()].strip()
+                break
+        value = re.sub(r"[\?\!]+$", "", value).strip()
+        return value
+
     def _extract_explicit_field_filters(self, question: str, columns: list[str]) -> list[QueryFilter]:
         filters: list[QueryFilter] = []
-        pattern = re.compile(r"(?P<field>[A-Za-zÀ-ÿ0-9 _/\-]{2,60})\s*[:=]\s*(?P<value>.+?)(?=(?:\s+\be\s+[A-Za-zÀ-ÿ0-9 _/\-]{2,60}\s*[:=])|[\n\r]|$)", flags=re.IGNORECASE)
+        # Captura Campo: Valor, mas o valor é limpo por _clean_explicit_value para não engolir período/outros critérios.
+        pattern = re.compile(
+            r"(?P<field>[A-Za-zÀ-ÿ0-9 _/\-]{2,80})\s*[:=]\s*(?P<value>.+?)(?=(?:\s+\be\s+[A-Za-zÀ-ÿ0-9 _/\-]{2,80}\s*[:=])|[\n\r]|$)",
+            flags=re.IGNORECASE,
+        )
         for match in pattern.finditer(question):
-            raw_field = match.group("field").strip()
-            raw_value = match.group("value").strip().strip(".;, ")
-            raw_value = re.sub(r"[”\"']+$", "", raw_value).strip()
+            raw_field = self._clean_explicit_field_name(match.group("field"))
+            raw_value = self._clean_explicit_value(match.group("value"))
             col = self._resolve_column(raw_field, columns)
-            if not col or not self._valid_filter_value(raw_value): continue
+            if not col or not self._valid_filter_value(raw_value):
+                continue
             op = "eq" if col in {"mes", "tipo", "estado", "status", "prioridade", "codigo_tipo"} else "contains"
             filters.append(QueryFilter(column=col, operator=op, value=raw_value, source="explicit", confidence=1.0))
         return filters
@@ -203,15 +260,29 @@ class QueryIntelligenceService:
         return self._resolve_column(tail, columns)
 
     def _compatible_previous_filters(self, previous_plan: dict[str, Any], current_filters: list[QueryFilter]) -> list[QueryFilter]:
+        """Herda somente filtros seguros da consulta imediatamente anterior.
+
+        Regra prática:
+        - Se a pergunta atual trouxe novo filtro explícito de campo (ex.: grupo_atribuicao, ic_impactado),
+          herda apenas filtros de escopo alto, como codigo_tipo e mes.
+        - Nunca carrega filtros específicos antigos como ic_impactado/grupo/categoria/canal junto de outro filtro específico,
+          pois isso causou contaminação entre perguntas.
+        """
         raw_filters = previous_plan.get("filters") or []
         current_cols = {f.column for f in current_filters}
+        has_specific_current = any(f.source == "explicit" and f.column not in {"mes", "codigo_tipo"} for f in current_filters)
+        if has_specific_current:
+            allowed = {"codigo_tipo", "mes", "tipo", "estado", "status", "prioridade"}
+        else:
+            allowed = {"codigo_tipo", "mes", "tipo", "estado", "status", "prioridade", "grupo_atribuicao", "ic_impactado", "canal", "categoria"}
         inherited: list[QueryFilter] = []
         for f in raw_filters:
-            if not isinstance(f, dict): continue
+            if not isinstance(f, dict):
+                continue
             col, val = f.get("column"), f.get("value")
-            if not col or col in current_cols or not self._valid_filter_value(val): continue
-            if col in {"codigo_tipo", "mes", "tipo", "estado", "status", "prioridade", "grupo_atribuicao", "ic_impactado", "canal", "categoria"}:
-                inherited.append(QueryFilter(col, f.get("operator", "contains"), val, "inherited", 0.8))
+            if not col or col in current_cols or col not in allowed or not self._valid_filter_value(val):
+                continue
+            inherited.append(QueryFilter(col, f.get("operator", "contains"), val, "inherited", 0.8))
         return inherited[:3]
 
     def _valid_filter_value(self, value: Any) -> bool:
