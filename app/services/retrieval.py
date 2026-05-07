@@ -31,12 +31,6 @@ class RetrievalService:
     def __init__(self):
         self.case_chunks: dict[str, list[ChunkItem]] = {}
         self.case_matrices = {}
-
-        # Correção crítica:
-        # Antes existia um único TfidfVectorizer global.
-        # Quando outro case era indexado, o vocabulário global mudava e quebrava
-        # buscas em matrizes antigas com ValueError: matmul dimension mismatch.
-        # Agora cada case possui seu próprio vectorizer.
         self.case_vectorizers: dict[str, TfidfVectorizer] = {}
 
         self.vector_backend = os.getenv("VECTOR_BACKEND", "local").lower()
@@ -45,6 +39,8 @@ class RetrievalService:
         self.database_url = os.getenv("DATABASE_URL", "")
         self.collection = os.getenv("PGVECTOR_COLLECTION", "gabbi_chunks")
         self.openai_api_key = os.getenv("OPENAI_API_KEY", "")
+        self.case_upload_boost = float(os.getenv("GABBI_CASE_UPLOAD_BOOST", "0.18"))
+        self.knowledge_boost = float(os.getenv("GABBI_KNOWLEDGE_BASE_BOOST", "0.06"))
         self._db_engine = None
         self._table = None
 
@@ -57,16 +53,10 @@ class RetrievalService:
             "pgvector_ready": bool(self._table is not None),
             "local_cases_indexed": len(self.case_chunks),
             "local_vectorizers_indexed": len(self.case_vectorizers),
+            "case_upload_boost": self.case_upload_boost,
         }
 
     def build_case_index(self, case_id: str, documents: list[dict[str, Any]]) -> dict[str, Any]:
-        """
-        Reconstrói o índice completo de um case.
-
-        Um case pode ter vários arquivos. A cada upload, este método deve receber
-        todos os documentos do case e recriar chunks, vectorizer e matriz apenas
-        daquele case.
-        """
         chunks = self._build_chunks(documents)
         self.case_chunks[case_id] = chunks
 
@@ -118,12 +108,17 @@ class RetrievalService:
     def search(self, case_id: str, query: str, top_k: int = 5) -> list[dict[str, Any]]:
         """
         Busca evidências no índice do case usando o vectorizer específico do case.
+
+        Ajuste aplicado:
+        - quando houver arquivos anexados ao case, eles recebem boost leve;
+        - registros vindos do PostgreSQL/Article continuam disponíveis, mas não abafam o upload;
+        - em pgvector, busca mais resultados e reordena com boost local.
         """
         if self.vector_backend == "pgvector" and self._table is not None and self.openai_api_key:
             try:
-                found = self._search_pgvector(case_id, query, top_k)
+                found = self._search_pgvector(case_id, query, max(top_k * 3, top_k))
                 if found:
-                    return found
+                    return self._rerank_results(found, top_k=top_k)
             except Exception:
                 pass
 
@@ -143,7 +138,13 @@ class RetrievalService:
             if matrix.shape[1] != query_vec.shape[1]:
                 return []
 
-            scores = (matrix @ query_vec.T).toarray().ravel()
+            raw_scores = (matrix @ query_vec.T).toarray().ravel()
+            scores = np.array(
+                [
+                    float(score) + self._source_boost(chunks[int(idx)])
+                    for idx, score in enumerate(raw_scores)
+                ]
+            )
         except ValueError:
             return []
 
@@ -158,7 +159,7 @@ class RetrievalService:
                     "chunk_id": chunk.chunk_id,
                     "type": "text",
                     "score": round(float(scores[idx]), 4),
-                    "excerpt": chunk.text[:1000],
+                    "excerpt": chunk.text[:1200],
                     "metadata": chunk.metadata or {},
                 }
             )
@@ -181,6 +182,7 @@ class RetrievalService:
                 continue
 
             parts = self._chunk_text(text)
+            source_type = self._document_source_type(doc)
 
             for i, part in enumerate(parts, start=1):
                 chunks.append(
@@ -190,12 +192,56 @@ class RetrievalService:
                         text=part,
                         metadata={
                             "document_id": doc.get("id"),
-                            "source_path": doc.get("path"),
+                            "source_path": str(doc.get("path", "")),
+                            "content_type": doc.get("content_type"),
+                            "source": doc.get("source") or source_type,
+                            "source_type": source_type,
+                            "external_id": doc.get("external_id"),
+                            "topic_id": doc.get("topic_id"),
                         },
                     )
                 )
 
         return chunks
+
+    def _document_source_type(self, doc: dict[str, Any]) -> str:
+        content_type = str(doc.get("content_type") or "").lower()
+        source = str(doc.get("source") or "").lower()
+        filename = str(doc.get("filename") or "").lower()
+
+        if "database-record" in content_type or "postgres" in source or "article" in source:
+            return "knowledge_base"
+        if filename.startswith("gabbi_article_"):
+            return "knowledge_base"
+        return "case_upload"
+
+    def _source_boost(self, chunk: ChunkItem) -> float:
+        metadata = chunk.metadata or {}
+        source_type = str(metadata.get("source_type") or metadata.get("source") or "").lower()
+        filename = (chunk.filename or "").lower()
+
+        if source_type == "case_upload":
+            return self.case_upload_boost
+        if source_type == "knowledge_base":
+            return self.knowledge_boost
+        if any(filename.endswith(ext) for ext in [".xlsx", ".xls", ".csv", ".pdf", ".docx", ".txt"]):
+            return self.case_upload_boost / 2
+        return 0.0
+
+    def _rerank_results(self, found: list[dict[str, Any]], top_k: int) -> list[dict[str, Any]]:
+        reranked = []
+        for item in found:
+            cloned = dict(item)
+            metadata = cloned.get("metadata") or {}
+            pseudo_chunk = ChunkItem(
+                chunk_id=str(cloned.get("chunk_id", "")),
+                filename=str(cloned.get("filename", "")),
+                text=str(cloned.get("excerpt", "")),
+                metadata=metadata,
+            )
+            cloned["score"] = round(float(cloned.get("score") or 0.0) + self._source_boost(pseudo_chunk), 4)
+            reranked.append(cloned)
+        return sorted(reranked, key=lambda item: item.get("score", 0.0), reverse=True)[:top_k]
 
     def _chunk_text(self, text: str) -> list[str]:
         text = " ".join(text.split())
@@ -302,7 +348,7 @@ class RetrievalService:
                     "chunk_id": row.chunk_id,
                     "type": "text",
                     "score": round(score, 4),
-                    "excerpt": row.text[:1000],
+                    "excerpt": row.text[:1200],
                     "metadata": row.meta or {},
                 }
             )

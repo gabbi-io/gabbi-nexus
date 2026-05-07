@@ -31,14 +31,27 @@ class TableRef:
 
 class TabularQueryService:
     """
-    Serviço de consulta tabular do Nexus.
+    Consulta tabular híbrida do Nexus.
 
-    Ajuste aplicado:
-    - não prioriza mais gabbi_knowledge_table_active_*.csv;
-    - por padrão ignora esse CSV/cache local;
-    - usa PostgreSQL como fonte tabular viva quando configurado;
-    - mantém contexto de follow-up, mas sem transformar CSV/cache em fonte da verdade.
+    Ajustes aplicados:
+    - não prioriza gabbi_knowledge_table_active_*.csv local;
+    - ignora CSV cache local do Gabbi como fonte de verdade;
+    - mantém planilhas/CSVs anexados pelo usuário como fonte válida do case;
+    - adiciona PostgreSQL como fonte viva da base treinada;
+    - escolhe a fonte conforme a pergunta: arquivo/anexo vs base/treinamento.
     """
+
+    FILE_FOCUS_TERMS = {
+        "arquivo", "arquivos", "anexo", "anexado", "anexados", "documento", "documentos",
+        "planilha", "excel", "xlsx", "xls", "csv", "pdf", "upload", "uploads", "enviado", "enviados",
+        "neste", "nessa", "nesta", "deste", "dessa", "desta", "material"
+    }
+
+    KB_FOCUS_TERMS = {
+        "base", "conhecimento", "treinamento", "treinamentos", "treinado", "treinada",
+        "article", "artigo", "artigos", "topic", "topico", "tópico", "historico", "histórico",
+        "memoria", "memória", "postgres", "banco", "gabbi"
+    }
 
     def __init__(self, llm_service=None):
         self.llm_service = llm_service
@@ -47,6 +60,8 @@ class TabularQueryService:
         self.qi = QueryIntelligenceService()
 
         self.disable_local_knowledge_table = self._env_bool("GABBI_DISABLE_LOCAL_KNOWLEDGE_TABLE", True)
+        # Agora este flag significa: usar DB quando houver pergunta de base/treinamento,
+        # não significa ignorar anexos do case.
         self.force_db_tabular = self._env_bool("GABBI_FORCE_DB_TABULAR", True)
         self.database_url = (
             os.getenv("GABBI_DATABASE_URL", "").strip()
@@ -102,6 +117,7 @@ class TabularQueryService:
         question: str,
         documents: list[dict[str, Any]],
         mode: str = "executive",
+        source_preference: str | None = None,
     ) -> dict[str, Any] | None:
         tables = self._catalog_cache.get(case_id) or self._load_tables(documents)
         self._catalog_cache[case_id] = tables
@@ -109,7 +125,7 @@ class TabularQueryService:
         if not tables:
             return None
 
-        target = self._pick_best_table(question, tables)
+        target = self._pick_best_table(question, tables, source_preference=source_preference)
         if not target:
             return None
 
@@ -122,8 +138,6 @@ class TabularQueryService:
         if not plan.use_tabular:
             return None
 
-        # Se a melhor fonte for o CSV materializado do Gabbi, não responde por ele.
-        # Isso evita o problema: Base consultada gabbi_knowledge_table_active_xxx.csv.
         if self._is_forbidden_local_cache(target):
             return {
                 "route": "tabular",
@@ -182,7 +196,7 @@ class TabularQueryService:
 
         answer = self._format_answer(question, plan_dict, execution, mode)
         return {
-            "route": "tabular_db" if target.source_type == "postgres" else "tabular",
+            "route": "tabular_db" if target.source_type == "postgres" else "tabular_file",
             "query_type": plan.intent,
             "answer_text": answer,
             "summary": answer,
@@ -191,32 +205,72 @@ class TabularQueryService:
             "evidence_files": execution.get("evidence_files", []),
         }
 
-    def _pick_best_table(self, question: str, tables: list[TableRef]) -> TableRef | None:
+    def _pick_best_table(
+        self,
+        question: str,
+        tables: list[TableRef],
+        source_preference: str | None = None,
+    ) -> TableRef | None:
         if not tables:
-            return None
-
-        # Fonte viva sempre tem prioridade.
-        db_tables = [t for t in tables if t.source_type == "postgres"]
-        if db_tables:
-            return self._rank_tables(question, db_tables)[0]
-
-        # Se for obrigatório consultar DB e não houver DB, não consulta arquivo.
-        if self.force_db_tabular:
             return None
 
         allowed = [t for t in tables if not self._is_forbidden_local_cache(t)]
         if not allowed:
             return None
-        return self._rank_tables(question, allowed)[0]
 
-    def _rank_tables(self, question: str, tables: list[TableRef]) -> list[TableRef]:
+        db_tables = [t for t in allowed if t.source_type == "postgres"]
+        file_tables = [t for t in allowed if t.source_type == "file"]
+
+        question_focus = source_preference or self._detect_focus(question)
+
+        # Se usuário mencionou arquivo/anexo/planilha, privilegia anexo do case.
+        if question_focus in {"case_upload_first", "hybrid_case_first"} and file_tables:
+            ranked_files = self._rank_tables(question, file_tables, prefer="file")
+            # Se houver match minimamente plausível em arquivo, usa arquivo.
+            if ranked_files:
+                return ranked_files[0]
+
+        # Se usuário mencionou base/treinamento ou não há arquivo tabular, privilegia DB.
+        if db_tables:
+            ranked_db = self._rank_tables(question, db_tables, prefer="postgres")
+            if question_focus == "knowledge_base_first" or not file_tables:
+                return ranked_db[0]
+
+        # Fallback para arquivo do case.
+        if file_tables:
+            return self._rank_tables(question, file_tables, prefer="file")[0]
+
+        return db_tables[0] if db_tables else None
+
+    def _detect_focus(self, question: str) -> str:
+        q = self._norm(question)
+        tokens = set(q.split())
+        file_focus = bool(tokens & self.FILE_FOCUS_TERMS)
+        kb_focus = bool(tokens & self.KB_FOCUS_TERMS)
+        if file_focus:
+            return "case_upload_first"
+        if kb_focus:
+            return "knowledge_base_first"
+        return "hybrid_case_first"
+
+    def _rank_tables(self, question: str, tables: list[TableRef], prefer: str | None = None) -> list[TableRef]:
         question_norm = self._norm(question)
+        tokens = [token for token in question_norm.split() if len(token) > 3]
 
-        def score(table: TableRef) -> tuple[int, int]:
+        def score(table: TableRef) -> tuple[float, int]:
             cols = " ".join(self._norm(c) for c in table.columns)
             filename = self._norm(table.filename)
-            overlap = sum(1 for token in question_norm.split() if len(token) > 3 and (token in cols or token in filename))
-            return (overlap, table.row_count)
+            overlap = sum(1 for token in tokens if token in cols or token in filename)
+            base = float(overlap * 5)
+
+            if prefer == table.source_type:
+                base += 10
+            if table.source_type == "file" and any(token in filename for token in ["upload", "anexo", "arquivo"]):
+                base += 4
+            if table.source_type == "postgres":
+                base += 2
+
+            return (base, table.row_count)
 
         return sorted(tables, key=score, reverse=True)
 
@@ -331,7 +385,9 @@ class TabularQueryService:
         table = execution["table"]
         filters_md = self._filters_to_markdown(execution.get("filters", []))
         source_name = table.get("source") or f"{table.get('filename')} / {table.get('sheet_name')}"
-        header = f"## Resposta\n\nConsulta executada na fonte viva **{source_name}**."
+        source_type = table.get("source_type")
+        source_label = "arquivo anexado" if source_type == "file" else "base viva PostgreSQL"
+        header = f"## Resposta\n\nConsulta executada na fonte **{source_name}** ({source_label})."
 
         if execution["type"] == "count":
             return (
@@ -361,9 +417,9 @@ class TabularQueryService:
     def _format_with_llm(self, question: str, plan: dict[str, Any], execution: dict[str, Any], mode: str) -> str | None:
         system_prompt = (
             "Você é um analista sênior do GABBI. Receba o resultado de uma consulta tabular já executada "
-            "contra uma fonte viva, preferencialmente PostgreSQL, e redija a resposta em markdown. "
-            "Nunca invente números. Use exatamente os dados de execution. Explique cobertura, filtros e resultado. "
-            "Não mencione CSV/cache como base consultada."
+            "e redija a resposta em markdown. Nunca invente números. Use exatamente os dados de execution. "
+            "Explique cobertura, filtros, resultado e se a fonte foi arquivo anexado ou base viva PostgreSQL. "
+            "Não mencione CSV/cache local como base consultada."
         )
         if mode == "executive":
             system_prompt += " Use linguagem executiva e direta."
@@ -384,16 +440,8 @@ class TabularQueryService:
         if not records:
             return "Nenhum registro encontrado."
         preferred = [
-            "numero",
-            "codigo_principal",
-            "codigo_tipo",
-            "mes",
-            "tipo",
-            "estado",
-            "status",
-            "prioridade",
-            "grupo_atribuicao",
-            "ic_impactado",
+            "numero", "codigo_principal", "codigo_tipo", "mes", "tipo", "estado", "status",
+            "prioridade", "grupo_atribuicao", "ic_impactado",
         ]
         cols = [c for c in preferred if c in records[0]] or list(records[0].keys())[:8]
         lines = ["| " + " | ".join(cols) + " |", "| " + " | ".join(["---"] * len(cols)) + " |"]
@@ -405,14 +453,7 @@ class TabularQueryService:
     def _load_tables(self, documents: list[dict[str, Any]]) -> list[TableRef]:
         tables: list[TableRef] = []
 
-        db_ref = self._load_postgres_table_ref()
-        if db_ref:
-            tables.append(db_ref)
-
-        # Se DB é obrigatório, não monta catálogo a partir de arquivo local.
-        if self.force_db_tabular:
-            return tables
-
+        # 1. Carrega anexos tabulares do case atual.
         for doc in documents:
             path = Path(doc.get("path", ""))
             if not path.exists():
@@ -425,12 +466,8 @@ class TabularQueryService:
                     df = pd.read_csv(path, dtype=str, keep_default_na=False)
                     tables.append(
                         TableRef(
-                            str(path),
-                            path.name,
-                            "csv",
-                            int(df.shape[0]),
-                            [str(c).strip() for c in df.columns.tolist()],
-                            source_type="file",
+                            str(path), path.name, "csv", int(df.shape[0]),
+                            [str(c).strip() for c in df.columns.tolist()], source_type="file",
                         )
                     )
                 elif suffix in {".xlsx", ".xlsm", ".xls"}:
@@ -439,16 +476,18 @@ class TabularQueryService:
                         df = xl.parse(sheet, dtype=str).fillna("")
                         tables.append(
                             TableRef(
-                                str(path),
-                                path.name,
-                                sheet,
-                                int(df.shape[0]),
-                                [str(c).strip() for c in df.columns.tolist()],
-                                source_type="file",
+                                str(path), path.name, sheet, int(df.shape[0]),
+                                [str(c).strip() for c in df.columns.tolist()], source_type="file",
                             )
                         )
             except Exception:
                 continue
+
+        # 2. Carrega referência da base viva PostgreSQL, se disponível.
+        db_ref = self._load_postgres_table_ref()
+        if db_ref:
+            tables.append(db_ref)
+
         return tables
 
     def _load_postgres_table_ref(self) -> TableRef | None:
@@ -541,5 +580,5 @@ class TabularQueryService:
     def _norm(value: Any) -> str:
         text_value = "" if value is None else str(value)
         text_value = text_value.lower().strip()
-        text_value = re.sub(r"[^a-z0-9_:/\-\s\.]+", " ", text_value)
+        text_value = re.sub(r"[^a-z0-9_:/\-\s\.áàâãéêíóôõúç]+", " ", text_value)
         return " ".join(text_value.split())
