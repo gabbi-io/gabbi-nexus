@@ -182,9 +182,12 @@ class KnowledgeStructuredStore:
         if not self.enabled:
             return None
 
-        # Perguntas documentais com código exato devem ir para RAG/detalhamento,
-        # não para listagem/contagem estruturada nem herdar filtros antigos.
+        # Perguntas documentais com código exato devem buscar primeiro o registro exato no DuckDB.
+        # Se o registro não existir na base estruturada, cai para RAG/detalhamento textual.
         if self._is_exact_code_detail_question(question):
+            detail = self._execute_exact_code_detail(case_id, question)
+            if detail:
+                return detail
             return None
 
         intent = self._detect_intent(question)
@@ -338,6 +341,76 @@ class KnowledgeStructuredStore:
                 if value and _norm(value) not in bad:
                     return value
         return ""
+
+
+    def _execute_exact_code_detail(self, case_id: str, question: str) -> dict[str, Any] | None:
+        code = self._extract_exact_code(question)
+        if not code:
+            return None
+        with self._connect() as con:
+            total_case = con.execute("SELECT COUNT(*) FROM knowledge_articles_structured WHERE case_id = ?", [case_id]).fetchone()[0]
+            if int(total_case or 0) == 0:
+                return None
+            rows = con.execute(
+                """
+                SELECT
+                    numero, codigo_tipo, mes, tipo, estado, status, grupo_atribuicao, ic_impactado,
+                    canal, categoria, prioridade, data_inicio_planejada, data_termino_planejada,
+                    topic_name, project_name, source_id, article_ref_id, article_text
+                FROM knowledge_articles_structured
+                WHERE case_id = ?
+                  AND (UPPER(numero) = UPPER(?) OR UPPER(codigo_principal) = UPPER(?) OR article_text ILIKE ?)
+                ORDER BY article_ref_id NULLS LAST
+                LIMIT 3
+                """,
+                [case_id, code, code, f"%{code}%"],
+            ).fetchall()
+        if not rows:
+            return None
+
+        lines: list[str] = []
+        if len(rows) == 1:
+            r = rows[0]
+            fields = {
+                "Número": r[0],
+                "Tipo de código": r[1],
+                "Mês": r[2],
+                "Tipo": r[3],
+                "Estado": r[4] or r[5],
+                "Grupo de atribuição": r[6],
+                "IC impactado": r[7],
+                "Canal": r[8],
+                "Categoria": r[9],
+                "Prioridade": r[10],
+                "Data de início planejada": r[11],
+                "Data de término planejada": r[12],
+                "Tópico": r[13],
+                "Projeto": r[14],
+                "Fonte": r[15] or r[16],
+            }
+            lines.append(f"## Detalhamento da {code}")
+            lines.append("")
+            for label, value in fields.items():
+                if value:
+                    lines.append(f"- **{label}:** {value}")
+            article_text = str(r[17] or "").strip()
+            if article_text:
+                lines.append("")
+                lines.append("## Conteúdo do artigo")
+                lines.append(article_text[:6000])
+        else:
+            lines.append(f"## Registros encontrados para {code}")
+            for r in rows:
+                details = " – ".join([str(x) for x in [r[2], r[3], r[4] or r[5], r[6]] if x])
+                lines.append(f"- **{r[0]}**" + (f" – {details}" if details else ""))
+
+        return self._response(
+            case_id=case_id,
+            answer="\n".join(lines),
+            query_type="detail",
+            criteria={"numero": code, "codigo_tipo": "CHG" if code.startswith("CHG") else "INC" if code.startswith("INC") else ""},
+            technical={"rows_in_case": int(total_case or 0), "matched_rows": len(rows), "sql_mode": "exact_code_detail"},
+        )
 
     def _execute(self, case_id: str, intent: str, criteria: dict[str, Any]) -> dict[str, Any] | None:
         where, params = self._build_where(case_id, criteria)

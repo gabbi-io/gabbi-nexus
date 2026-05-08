@@ -35,7 +35,7 @@ class TabularQueryService:
         self.clear_context(case_id)
         return {"tables": [{"filename": t.filename, "sheet_name": t.sheet_name, "row_count": t.row_count, "columns": t.columns} for t in tables], "tables_count": len(tables)}
 
-    def answer_question(self, case_id: str, question: str, documents: list[dict[str, Any]], mode: str = "executive") -> dict[str, Any] | None:
+    def answer_question(self, case_id: str, question: str, documents: list[dict[str, Any]], mode: str = "executive", source_preference: str | None = None) -> dict[str, Any] | None:
         tables = self._catalog_cache.get(case_id) or self._load_tables(documents)
         self._catalog_cache[case_id] = tables
         if not tables:
