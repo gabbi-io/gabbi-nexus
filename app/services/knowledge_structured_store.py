@@ -33,7 +33,8 @@ class KnowledgeStructuredStore:
     """
 
     COUNT_TERMS = {"quantos", "quantas", "quantidade", "qtd", "qtde", "total", "totais", "contar", "conte", "numero", "número"}
-    LIST_TERMS = {"liste", "listar", "lista", "quais", "mostre", "exiba", "relacione", "detalhe", "detalhar"}
+    LIST_TERMS = {"liste", "listar", "lista", "quais", "mostre", "exiba", "relacione"}
+    DETAIL_TERMS = {"detalhe", "detalhar", "explique", "explicar", "resuma", "resumir", "sobre"}
     GROUP_TERMS = {"agrupe", "agrupar", "distribuicao", "distribuição", "por"}
 
     def __init__(self, db_path: str | None = None):
@@ -180,10 +181,18 @@ class KnowledgeStructuredStore:
     def answer_question(self, case_id: str, question: str, chat_history: list[dict[str, Any]] | None = None) -> dict[str, Any] | None:
         if not self.enabled:
             return None
+
+        # Perguntas documentais com código exato devem ir para RAG/detalhamento,
+        # não para listagem/contagem estruturada nem herdar filtros antigos.
+        if self._is_exact_code_detail_question(question):
+            return None
+
         intent = self._detect_intent(question)
         if intent not in {"count", "list", "group", "distinct"}:
             return None
-        criteria = self._extract_criteria(question, chat_history or [])
+
+        criteria = self._extract_criteria(question, chat_history or [], intent=intent)
+
         # Só responde se a pergunta tiver cara de base estruturada.
         if not self._is_knowledge_question(question, criteria):
             return None
@@ -194,6 +203,16 @@ class KnowledgeStructuredStore:
         if result is None:
             return None
         return result
+
+    def _is_exact_code_detail_question(self, question: str) -> bool:
+        q = _norm(question)
+        has_code = re.search(r"\b(?:CHG|INC)\d{5,}\b", question or "", flags=re.IGNORECASE) is not None
+        wants_detail = bool(set(q.split()) & self.DETAIL_TERMS)
+        return bool(has_code and wants_detail)
+
+    def _is_followup_question(self, question: str) -> bool:
+        q = _norm(question)
+        return q.startswith(("e ", "e quant", "e quais", "e liste", "e listar", "e com ", "e no ", "e na ", "e em "))
 
     def _detect_intent(self, question: str) -> str:
         q = _norm(question)
@@ -216,41 +235,81 @@ class KnowledgeStructuredStore:
             return True
         return False
 
-    def _extract_criteria(self, question: str, history: list[dict[str, Any]]) -> dict[str, Any]:
-        # Para follow-up, considera as últimas perguntas do usuário, mas a pergunta atual prevalece.
-        previous_questions = []
-        for item in history[-8:]:
-            if isinstance(item, dict) and item.get("question"):
-                previous_questions.append(str(item.get("question")))
-        context = "\n".join(previous_questions[-3:] + [question])
-        q_current = _norm(question)
-        q_context = _norm(context)
-        raw_context = context
+    def _extract_criteria(self, question: str, history: list[dict[str, Any]], intent: str | None = None) -> dict[str, Any]:
+        # Regra central: a pergunta atual é soberana.
+        # Histórico só é usado para herdar escopo alto (codigo_tipo/mes) em follow-up iniciado com "e ...".
+        raw_current = question or ""
+        q_current = _norm(raw_current)
         c: dict[str, Any] = {}
-        if re.search(r"\bchg\b|\bchange\b|\bchanges\b|\bmudanca\b|\bmudancas\b", q_context):
+
+        # Código exato na pergunta atual zera qualquer contexto anterior.
+        exact_code = self._extract_exact_code(raw_current)
+        if exact_code:
+            c["numero"] = exact_code
+            if exact_code.startswith("CHG"):
+                c["codigo_tipo"] = "CHG"
+            elif exact_code.startswith("INC"):
+                c["codigo_tipo"] = "INC"
+
+        # Entidade da pergunta atual.
+        if re.search(r"\bchg\b|\bchange\b|\bchanges\b|\bmudanca\b|\bmudancas\b", q_current):
             c["codigo_tipo"] = "CHG"
-        if re.search(r"\binc\b|\bincidente\b|\bincidentes\b", q_context):
-            # Só substitui para INC se a pergunta atual mencionar INC; evita trocar CHG herdado por referência anterior ambígua.
-            if re.search(r"\binc\b|\bincidente\b|\bincidentes\b", q_current):
-                c["codigo_tipo"] = "INC"
-            elif not c.get("codigo_tipo"):
-                c["codigo_tipo"] = "INC"
-        month = self._extract_month(question) or self._extract_month(context)
-        if month:
-            c["mes"] = month
-        g = self._extract_explicit_value(raw_context, r"grupo\s+de\s+atribui[cç][aã]o")
-        if g:
+        if re.search(r"\binc\b|\bincidente\b|\bincidentes\b", q_current):
+            c["codigo_tipo"] = "INC"
+
+        month_current = self._extract_month(raw_current)
+        if month_current:
+            c["mes"] = month_current
+
+        # Valores explícitos só da pergunta atual.
+        g = self._extract_explicit_value(raw_current, r"grupo\s+de\s+atribui[cç][aã]o")
+        if g and intent != "distinct":
             c["grupo_atribuicao"] = g
-        estado = self._extract_explicit_value(raw_context, r"estado|status")
-        if estado:
+
+        estado = self._extract_explicit_value(raw_current, r"estado|status")
+        if estado and intent != "distinct":
             c["estado"] = estado
-        tipo = self._extract_explicit_value(raw_context, r"tipo")
+
+        tipo = self._extract_explicit_value(raw_current, r"tipo")
         if tipo and tipo.lower() not in {"chg", "inc", "change", "changes"}:
             c["tipo"] = tipo
-        ic = self._extract_explicit_value(raw_context, r"ic\s+impactado|ic")
+
+        ic = self._extract_explicit_value(raw_current, r"ic\s+impactado|ic")
         if ic:
             c["ic_impactado"] = ic
+
+        # Herança controlada: apenas em follow-up explícito "e ..." e apenas escopo alto.
+        if self._is_followup_question(raw_current):
+            inherited = self._extract_high_scope_from_history(history)
+            for key in ("codigo_tipo", "mes"):
+                if not c.get(key) and inherited.get(key):
+                    c[key] = inherited[key]
+
         return c
+
+    def _extract_exact_code(self, text: str) -> str:
+        m = re.search(r"\b((?:CHG|INC)\d{5,})\b", text or "", flags=re.IGNORECASE)
+        return m.group(1).upper() if m else ""
+
+    def _extract_high_scope_from_history(self, history: list[dict[str, Any]]) -> dict[str, Any]:
+        inherited: dict[str, Any] = {}
+        for item in reversed(history or []):
+            if not isinstance(item, dict):
+                continue
+            q = str(item.get("question") or "")
+            qn = _norm(q)
+            if not inherited.get("codigo_tipo"):
+                if re.search(r"\bchg\b|\bchange\b|\bchanges\b|\bmudanca\b|\bmudancas\b", qn):
+                    inherited["codigo_tipo"] = "CHG"
+                elif re.search(r"\binc\b|\bincidente\b|\bincidentes\b", qn):
+                    inherited["codigo_tipo"] = "INC"
+            if not inherited.get("mes"):
+                m = self._extract_month(q)
+                if m:
+                    inherited["mes"] = m
+            if inherited.get("codigo_tipo") and inherited.get("mes"):
+                break
+        return inherited
 
     def _extract_month(self, text: str) -> str:
         raw = text or ""
