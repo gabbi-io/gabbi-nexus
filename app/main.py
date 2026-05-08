@@ -24,6 +24,7 @@ from app.services.graph import AnalysisGraphService
 from app.services.gabbi_postgres_ingestion import GabbiPostgresIngestionService
 from app.services.parsers import ParserService
 from app.services.retrieval import RetrievalService
+from app.services.knowledge_structured_store import KnowledgeStructuredStore
 
 BASE_DIR = Path(__file__).resolve().parent
 STATIC_DIR = BASE_DIR / "static"
@@ -243,6 +244,7 @@ if STATIC_DIR.exists():
 repo = JsonCaseRepository(base_path=DATA_DIR)
 parser_service = ParserService()
 retrieval_service = RetrievalService()
+knowledge_structured_store = KnowledgeStructuredStore()
 analysis_service = AnalysisService()
 graph_service = AnalysisGraphService(retrieval_service=retrieval_service, analysis_service=analysis_service)
 automation_service = AutomationService()
@@ -1172,6 +1174,42 @@ Quando usar:
 )
 async def vector_status():
     return retrieval_service.status()
+
+
+@app.get(
+    "/knowledge/structured/status",
+    tags=["01. Observabilidade"],
+    summary="Consultar status da base estruturada DuckDB",
+)
+async def knowledge_structured_status():
+    return knowledge_structured_store.status()
+
+
+class KnowledgeStructuredUpsertRequest(BaseModel):
+    rows: list[dict] = Field(default_factory=list, description="Linhas estruturadas extraídas dos artigos Gabbi.")
+    knowledge_version: str | None = Field(default=None, description="Versão lógica da base sincronizada.")
+    mode: str = Field(default="replace_case", description="Modo de persistência. Por enquanto use replace_case.")
+
+
+@app.post(
+    "/cases/{case_id}/knowledge/structured/upsert",
+    tags=["03. Documentos"],
+    summary="Persistir base estruturada de conhecimento no DuckDB",
+)
+async def upsert_knowledge_structured(case_id: str, payload: KnowledgeStructuredUpsertRequest):
+    case = repo.get_case(case_id)
+    if not case:
+        raise HTTPException(status_code=404, detail="Case not found")
+    try:
+        result = knowledge_structured_store.replace_case_rows(
+            case_id=case_id,
+            rows=payload.rows,
+            knowledge_version=payload.knowledge_version,
+        )
+        repo.update_case(case_id, {"knowledge_structured": result})
+        return result
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Erro ao persistir base estruturada DuckDB: {exc}")
 
 
 @app.post(
