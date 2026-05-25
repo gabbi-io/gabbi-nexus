@@ -616,14 +616,17 @@ class KnowledgeStructuredStore:
 
         codigo_tipo = plan.get("codigo_tipo")
 
-        if codigo_tipo:
-            clauses.append("UPPER(codigo_tipo) = UPPER(?)")
-            params.append(codigo_tipo)
+        if codigo_tipo == "CHG":
 
-            if codigo_tipo == "CHG":
-                clauses.append("numero LIKE 'CHG%'")
-            elif codigo_tipo == "INC":
-                clauses.append("numero LIKE 'INC%'")
+            clauses.append(
+                "numero LIKE 'CHG%'"
+            )
+
+        elif codigo_tipo == "INC":
+
+            clauses.append(
+                "numero LIKE 'INC%'"
+            )
 
         if plan.get("mes"):
             clauses.append("mes = ?")
