@@ -20,7 +20,8 @@ def _safe(value: Any) -> str:
 
 
 def _norm(value: Any) -> str:
-    text = unicodedata.normalize("NFKD", _safe(value))
+    text = _safe(value)
+    text = unicodedata.normalize("NFKD", text)
     text = "".join(ch for ch in text if not unicodedata.combining(ch))
     text = text.lower().strip()
     text = re.sub(r"[^a-z0-9_:/\-\s\.]+", " ", text)
@@ -220,10 +221,7 @@ class KnowledgeStructuredStore:
                 placeholders = ", ".join(["?"] * len(insert_cols))
                 sql = f"INSERT INTO {self.TABLE} ({cols_sql}) VALUES ({placeholders})"
 
-                values = [
-                    [row.get(col) for col in insert_cols]
-                    for row in normalized
-                ]
+                values = [[row.get(col) for col in insert_cols] for row in normalized]
                 con.executemany(sql, values)
 
         self.memory.pop(case_id, None)
@@ -554,22 +552,32 @@ class KnowledgeStructuredStore:
 
     def _build_plan(self, question: str, context: dict[str, Any]) -> dict[str, Any]:
         q = _norm(question)
-        plan: dict[str, Any] = {}
 
-        followup = (
-            q.startswith("e ")
-            or any(x in q for x in [
-                "destes", "destas", "desses", "dessas", "deles", "delas",
-                "essas", "esses", "foram abertas", "quais os codigos",
-                "quais os códigos", "alguma dessas", "destes fazem",
-            ])
+        root_question = (
+            "quantas changes" in q
+            or "quantos incidentes" in q
+            or "e quantas changes" in q
+            or "e quantos incidentes" in q
+            or bool(re.search(r"m[eê]s\s+\d{1,2}\s+de\s+20\d{2}", q))
         )
 
-        if followup:
-            plan.update(context.get("last_plan") or {})
-            for key in ["codigo_tipo", "mes", "dia", "is_app", "is_ecomm"]:
-                if context.get(key) is not None:
-                    plan[key] = context[key]
+        if root_question:
+            plan: dict[str, Any] = {}
+        else:
+            plan = {}
+            followup = (
+                q.startswith("e ")
+                or any(x in q for x in [
+                    "destes", "destas", "desses", "dessas", "deles", "delas",
+                    "essas", "esses", "foram abertas", "quais os codigos",
+                    "quais os códigos", "alguma dessas", "destes fazem",
+                ])
+            )
+            if followup:
+                plan.update(context.get("last_plan") or {})
+                for key in ["codigo_tipo", "mes", "dia", "is_app", "is_ecomm"]:
+                    if context.get(key) is not None:
+                        plan[key] = context[key]
 
         if any(x in q for x in ["change", "changes", "chg", "mudanca", "mudança"]):
             plan["codigo_tipo"] = "CHG"
@@ -582,7 +590,11 @@ class KnowledgeStructuredStore:
 
         month = self._extract_month_from_question(q)
         if month:
-            plan["mes"] = month
+            # Pergunta com mês explícito inicia nova intenção analítica.
+            preserved_type = plan.get("codigo_tipo")
+            plan = {"mes": month}
+            if preserved_type:
+                plan["codigo_tipo"] = preserved_type
 
         day = self._extract_day_from_question(q)
         if day:
@@ -595,6 +607,9 @@ class KnowledgeStructuredStore:
 
         grupo = self._extract_after(question, r"grupo\s+de\s+atribui[cç][aã]o\s*=?\s*(.+)")
         if grupo:
+            # Grupo é novo refinamento; não deve herdar IC anterior.
+            plan.pop("ic_impactado", None)
+            plan.pop("force_list", None)
             plan["grupo_atribuicao"] = grupo
             plan["force_count"] = True
 
@@ -616,17 +631,12 @@ class KnowledgeStructuredStore:
 
         codigo_tipo = plan.get("codigo_tipo")
 
-        if codigo_tipo == "CHG":
-
-            clauses.append(
-                "numero LIKE 'CHG%'"
-            )
-
-        elif codigo_tipo == "INC":
-
-            clauses.append(
-                "numero LIKE 'INC%'"
-            )
+        if codigo_tipo:
+            # Não confiar em codigo_tipo da base; usar o prefixo real do número.
+            if codigo_tipo == "CHG":
+                clauses.append("numero LIKE 'CHG%'")
+            elif codigo_tipo == "INC":
+                clauses.append("numero LIKE 'INC%'")
 
         if plan.get("mes"):
             clauses.append("mes = ?")
@@ -696,16 +706,21 @@ class KnowledgeStructuredStore:
             )
 
         if plan.get("change_ref"):
-            clauses.append(
-                """
-                (
-                    article_text ILIKE ?
-                    OR raw_json ILIKE ?
-                )
-                """
-            )
+            # Para incidentes, usar somente o campo/marker de causado pela mudança.
             ref = f"%{plan['change_ref']}%"
-            params.extend([ref, ref])
+            if codigo_tipo == "INC":
+                clauses.append(
+                    """
+                    (
+                        article_text ILIKE ?
+                        OR raw_json ILIKE ?
+                    )
+                    """
+                )
+                params.extend([f"%CAUSADO_PELA_MUDANCA_MARKER: {plan['change_ref']}%", f"%Causado pela mudança%{plan['change_ref']}%"])
+            else:
+                clauses.append("(article_text ILIKE ? OR raw_json ILIKE ?)")
+                params.extend([ref, ref])
 
         return "WHERE " + " AND ".join(clauses), params
 
