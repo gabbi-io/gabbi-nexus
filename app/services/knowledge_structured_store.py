@@ -646,27 +646,41 @@ class KnowledgeStructuredStore:
             day_no_zero = str(int(plan["dia"]))
             day_zero = str(plan["dia"]).zfill(2)
 
-            if codigo_tipo == "CHG":
-                clauses.append(
-                    """
-                    (
-                        regexp_extract(COALESCE(data_inicio_planejada, ''), '20[0-9]{2}[-/][0-9]{1,2}[-/]0?([0-9]{1,2})', 1) IN (?, ?)
-                        OR article_text ILIKE ?
-                    )
-                    """
-                )
-                params.extend([day_no_zero, day_zero, f"%DIA_NORMALIZADO_MARKER: {day_zero}%"])
+            clauses.append(
+                """
+                (
+                    regexp_extract(
+                        COALESCE(data_inicio_planejada, ''),
+                        '20[0-9]{2}[-/][0-9]{1,2}[-/]0?([0-9]{1,2})',
+                        1
+                    ) IN (?, ?)
 
-            elif codigo_tipo == "INC":
-                clauses.append(
-                    """
-                    (
-                        regexp_extract(COALESCE(article_text, ''), 'Aberto:\\s*20[0-9]{2}[-/][0-9]{1,2}[-/]0?([0-9]{1,2})', 1) IN (?, ?)
-                        OR article_text ILIKE ?
-                    )
-                    """
+                    OR regexp_extract(
+                        COALESCE(article_text, ''),
+                        'Data de início planejada:\\s*20[0-9]{2}[-/][0-9]{1,2}[-/]0?([0-9]{1,2})',
+                        1
+                    ) IN (?, ?)
+
+                    OR regexp_extract(
+                        COALESCE(article_text, ''),
+                        'Aberto:\\s*20[0-9]{2}[-/][0-9]{1,2}[-/]0?([0-9]{1,2})',
+                        1
+                    ) IN (?, ?)
+
+                    OR article_text ILIKE ?
                 )
-                params.extend([day_no_zero, day_zero, f"%DIA_NORMALIZADO_MARKER: {day_zero}%"])
+                """
+            )
+
+            params.extend([
+                day_no_zero,
+                day_zero,
+                day_no_zero,
+                day_zero,
+                day_no_zero,
+                day_zero,
+                f"%DIA_NORMALIZADO_MARKER: {day_zero}%",
+            ])
 
         if plan.get("ic_impactado"):
             clauses.append("ic_impactado ILIKE ?")
@@ -739,8 +753,11 @@ class KnowledgeStructuredStore:
             AND numero IN ({placeholders})
             AND (
                 ic_impactado ILIKE '%AURA WHATSAPP%'
+                OR ic_impactado ILIKE '%WHATSAPP%'
                 OR article_text ILIKE '%AURA WHATSAPP%'
+                OR article_text ILIKE '%WHATSAPP%'
                 OR raw_json ILIKE '%AURA WHATSAPP%'
+                OR raw_json ILIKE '%WHATSAPP%'
             )
             ORDER BY numero
         """
@@ -763,6 +780,7 @@ class KnowledgeStructuredStore:
             if key in plan:
                 memory[key] = plan[key]
         memory["last_codes"] = codes
+        memory["last_result_count"] = len(codes)
         self.memory[case_id] = memory
 
     def _response(
