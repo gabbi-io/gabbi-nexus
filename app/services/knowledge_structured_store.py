@@ -247,11 +247,80 @@ class KnowledgeStructuredStore:
 
         with self._connect() as con:
             con.execute(
-                "DELETE FROM knowledge_articles_structured WHERE case_id = ?",
-                [case_id],
+            "DELETE FROM knowledge_articles_structured WHERE case_id = ?",
+            [case_id],
             )
 
             if normalized:
+                df = pd.DataFrame(normalized)
+                con.register("rows_df", df)
+
+                con.execute(
+                    """
+                    INSERT INTO knowledge_articles_structured (
+                        case_id,
+                        knowledge_version,
+                        article_id,
+                        ref_id,
+                        topic_id,
+                        topic_name,
+                        categoria,
+                        numero,
+                        codigo_tipo,
+                        mes,
+                        dia,
+                        estado,
+                        tipo,
+                        prioridade,
+                        ic_impactado,
+                        grupo_atribuicao,
+                        canal_impactado,
+                        descricao_resumida,
+                        descricao,
+                        causado_pela_mudanca,
+                        data_inicio_planejada,
+                        data_termino_planejada,
+                        aberto,
+                        resolvido,
+                        encerrado,
+                        is_app,
+                        is_ecomm,
+                        raw_text,
+                        raw_json
+                    )
+                    SELECT
+                        case_id,
+                        knowledge_version,
+                        article_id,
+                        ref_id,
+                        topic_id,
+                        topic_name,
+                        categoria,
+                        numero,
+                        codigo_tipo,
+                        mes,
+                        dia,
+                        estado,
+                        tipo,
+                        prioridade,
+                        ic_impactado,
+                        grupo_atribuicao,
+                        canal_impactado,
+                        descricao_resumida,
+                        descricao,
+                        causado_pela_mudanca,
+                        data_inicio_planejada,
+                        data_termino_planejada,
+                        aberto,
+                        resolvido,
+                        encerrado,
+                        is_app,
+                        is_ecomm,
+                        raw_text,
+                        raw_json
+                    FROM rows_df
+                    """
+                )
                 df = pd.DataFrame(normalized)
                 con.register("rows_df", df)
                 con.execute(
