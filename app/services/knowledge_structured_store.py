@@ -542,6 +542,49 @@ class KnowledgeStructuredStore:
                 "answer_text": "\n".join(codes),
             }
 
+        if "aura whatsapp" in q and context.get("last_codes"):
+
+            codes = context.get("last_codes") or []
+
+            placeholders = ",".join(
+                ["?"] * len(codes)
+            )
+
+            params = [case_id] + codes
+
+            sql = f"""
+                SELECT DISTINCT numero
+                FROM {self.TABLE}
+                WHERE case_id = ?
+                AND numero IN ({placeholders})
+                AND (
+                    ic_impactado ILIKE '%AURA WHATSAPP%'
+                    OR article_text ILIKE '%AURA WHATSAPP%'
+                )
+                ORDER BY numero
+            """
+
+            with self._connect() as con:
+
+                found = [
+                    r[0]
+                    for r in con.execute(
+                        sql,
+                        params,
+                    ).fetchall()
+                ]
+
+            return {
+                "fallback_to_rag": False,
+                "route": "knowledge_structured_aura",
+                "query_type": "boolean",
+                "answer_text": (
+                    "Sim: " + ", ".join(found)
+                    if found
+                    else "Não"
+                ),
+            }
+
         plan = self._build_plan(
             question,
             context,
@@ -571,6 +614,10 @@ class KnowledgeStructuredStore:
                 "lista",
             ]
         )
+
+        if plan.get("force_count"):
+            is_count = True
+            is_list = False
 
         with self._connect() as con:
 
@@ -689,7 +736,17 @@ class KnowledgeStructuredStore:
         followup = (
             q.startswith("e ")
             or "destes" in q
+            or "destas" in q
+            or "desses" in q
             or "dessas" in q
+            or "deles" in q
+            or "delas" in q
+            or "essas" in q
+            or "esses" in q
+            or "foram abertas" in q
+            or "quais os codigos" in q
+            or "quais os códigos" in q
+            or "alguma dessas" in q
         )
 
         if followup:
@@ -713,6 +770,16 @@ class KnowledgeStructuredStore:
             ]
         ):
             plan["codigo_tipo"] = "CHG"
+
+        if (
+            (
+                "referencia" in q
+                or "referência" in q
+                or "fazem referência" in q
+            )
+            and re.search(r"\bchg\d{5,}\b", q)
+        ):
+            plan["codigo_tipo"] = "INC"
 
         if any(
             x in q
@@ -748,6 +815,7 @@ class KnowledgeStructuredStore:
 
         if grupo:
             plan["grupo_atribuicao"] = grupo
+            plan["force_count"] = True
 
         if re.search(r"\bapp\b", q):
             plan["is_app"] = True
@@ -812,19 +880,37 @@ class KnowledgeStructuredStore:
 
         if plan.get("dia"):
 
-            clauses.append(
-                """
-                regexp_extract(
-                    COALESCE(article_text, ''),
-                    '20[0-9]{2}[-/][0-9]{1,2}[-/]([0-9]{1,2})',
-                    1
-                ) = ?
-                """
+            day_no_zero = str(
+                int(plan["dia"])
             )
 
-            params.append(
-                str(int(plan["dia"]))
-            )
+            if plan.get("codigo_tipo") == "CHG":
+
+                clauses.append(
+                    """
+                    regexp_extract(
+                        COALESCE(article_text, ''),
+                        'Data de início planejada:\\s*20[0-9]{2}[-/][0-9]{1,2}[-/]0?([0-9]{1,2})',
+                        1
+                    ) = ?
+                    """
+                )
+
+                params.append(day_no_zero)
+
+            elif plan.get("codigo_tipo") == "INC":
+
+                clauses.append(
+                    """
+                    regexp_extract(
+                        COALESCE(article_text, ''),
+                        'Aberto:\\s*20[0-9]{2}[-/][0-9]{1,2}[-/]0?([0-9]{1,2})',
+                        1
+                    ) = ?
+                    """
+                )
+
+                params.append(day_no_zero)
 
         if plan.get("ic_impactado"):
 
@@ -851,8 +937,11 @@ class KnowledgeStructuredStore:
             clauses.append(
                 """
                 (
-                    article_text ILIKE '%app%'
-                    OR raw_json ILIKE '%app%'
+                    article_text ILIKE '%Canal Impactado: App Vivo%'
+                    OR article_text ILIKE '%Canal impactado: APP Vivo%'
+                    OR article_text ILIKE '%Canal impactado: App Vivo%'
+                    OR raw_json ILIKE '%"is_app": true%'
+                    OR raw_json ILIKE '%"is_app":true%'
                 )
                 """
             )
