@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import os
 import re
-import json
 import duckdb
 import pandas as pd
 from typing import Any
@@ -10,30 +9,13 @@ from typing import Any
 
 class KnowledgeStructuredStore:
 
-    ANALYTIC_TERMS = {
-        "quantos",
-        "quantas",
-        "quais",
-        "liste",
-        "listar",
-        "lista",
-        "mostre",
-        "contagem",
-        "count",
-        "grupo",
-        "agrupamento",
-        "ic impactado",
-        "grupo de atribuição",
-        "grupo de atribuicao",
-        "mudança",
-        "mudanca",
-        "change",
-        "incidente",
-        "incident",
-    }
-
     def __init__(self):
-        self.base_dir = os.getenv("KNOWLEDGE_STRUCTURED_DIR", "data/structured")
+
+        self.base_dir = os.getenv(
+            "KNOWLEDGE_STRUCTURED_DIR",
+            "data/structured"
+        )
+
         os.makedirs(self.base_dir, exist_ok=True)
 
         self.memory: dict[str, dict[str, Any]] = {}
@@ -43,20 +25,28 @@ class KnowledgeStructuredStore:
     # ============================================================
 
     def status(self):
+
         return {
             "enabled": True,
             "base_dir": self.base_dir,
         }
 
     # ============================================================
-    # STORAGE
+    # DB
     # ============================================================
 
     def _db_path(self, case_id: str):
-        return os.path.join(self.base_dir, f"{case_id}.duckdb")
+
+        return os.path.join(
+            self.base_dir,
+            f"{case_id}.duckdb"
+        )
 
     def _connect(self, case_id: str):
-        return duckdb.connect(self._db_path(case_id))
+
+        return duckdb.connect(
+            self._db_path(case_id)
+        )
 
     # ============================================================
     # UPSERT
@@ -75,19 +65,22 @@ class KnowledgeStructuredStore:
 
         for row in rows:
 
-            row = self._normalize_row(row)
+            r = self._normalize_row(row)
 
-            numero = str(row.get("numero", "")).upper().strip()
+            numero = str(
+                r.get("numero", "")
+            ).upper().strip()
 
-            # IGNORA registros sem número
             if not numero:
                 continue
 
-            normalized.append(row)
+            normalized.append(r)
 
         df = pd.DataFrame(normalized)
 
-        conn.execute("DROP TABLE IF EXISTS knowledge")
+        conn.execute(
+            "DROP TABLE IF EXISTS knowledge"
+        )
 
         conn.register("df_temp", df)
 
@@ -106,7 +99,7 @@ class KnowledgeStructuredStore:
         }
 
     # ============================================================
-    # NORMALIZAÇÃO
+    # NORMALIZE
     # ============================================================
 
     def _normalize_row(self, row):
@@ -124,13 +117,21 @@ class KnowledgeStructuredStore:
                 .replace("/", "_")
             )
 
-            value = "" if v is None else str(v).strip()
+            value = (
+                "" if v is None else str(v).strip()
+            )
 
             normalized[key] = value
 
-        numero = normalized.get("numero", "").upper()
+        numero = normalized.get(
+            "numero",
+            ""
+        ).upper()
 
-        # tipo lógico
+        # ========================================================
+        # ENTITY TYPE
+        # ========================================================
+
         if numero.startswith("CHG"):
             normalized["codigo_tipo"] = "CHG"
 
@@ -140,39 +141,67 @@ class KnowledgeStructuredStore:
         else:
             normalized["codigo_tipo"] = "OTHER"
 
-        # mes yyyy-mm
+        # ========================================================
+        # MES
+        # ========================================================
+
         data_ref = (
             normalized.get("data_inicio_planejada")
             or normalized.get("aberto_em")
             or normalized.get("created_on")
+            or normalized.get("inicio")
             or ""
         )
 
-        mes_match = re.search(r"(20\d{2})[-/](\d{2})", data_ref)
+        mes_match = re.search(
+            r"(20\d{2})[-/](\d{2})",
+            data_ref
+        )
 
         if mes_match:
-            normalized["mes"] = f"{mes_match.group(1)}-{mes_match.group(2)}"
 
-        # dia
-        dia_match = re.search(r"(20\d{2})[-/](\d{2})[-/](\d{2})", data_ref)
+            normalized["mes"] = (
+                f"{mes_match.group(1)}-"
+                f"{mes_match.group(2)}"
+            )
+
+        # ========================================================
+        # DIA
+        # ========================================================
+
+        dia_match = re.search(
+            r"(20\d{2})[-/](\d{2})[-/](\d{2})",
+            data_ref
+        )
 
         if dia_match:
             normalized["dia"] = dia_match.group(3)
 
-        # app/ecomm
-        text_blob = json.dumps(normalized, ensure_ascii=False).lower()
+        # ========================================================
+        # APP / ECOMM
+        # ========================================================
 
-        normalized["is_app"] = "app" in text_blob
+        blob = " ".join(
+            str(v).lower()
+            for v in normalized.values()
+        )
+
+        normalized["is_app"] = (
+            " app " in f" {blob} "
+            or "app_" in blob
+            or "_app" in blob
+        )
+
         normalized["is_ecomm"] = (
-            "ecomm" in text_blob
-            or "e-commerce" in text_blob
-            or "ecommerce" in text_blob
+            "ecomm" in blob
+            or "e-commerce" in blob
+            or "ecommerce" in blob
         )
 
         return normalized
 
     # ============================================================
-    # MAIN ASK
+    # ASK
     # ============================================================
 
     def answer_question(
@@ -184,16 +213,7 @@ class KnowledgeStructuredStore:
 
         q = question.lower().strip()
 
-        if not self._is_analytic(q):
-            return {
-                "fallback_to_rag": True
-            }
-
         conn = self._connect(case_id)
-
-        # ========================================================
-        # FOLLOW-UP MEMORY
-        # ========================================================
 
         context = self.memory.get(case_id, {})
 
@@ -204,17 +224,34 @@ class KnowledgeStructuredStore:
         }
 
         # ========================================================
-        # MÊS
+        # FOLLOW-UP
+        # ========================================================
+
+        if q.startswith("e "):
+
+            if context.get("codigo_tipo"):
+                filters["codigo_tipo"] = context["codigo_tipo"]
+
+            if context.get("mes"):
+                filters["mes"] = context["mes"]
+
+            if context.get("dia"):
+                filters["dia"] = context["dia"]
+
+        # ========================================================
+        # MES
         # ========================================================
 
         mes_match = re.search(
-            r"(?:m[eê]s)\s+(\d{1,2})\s+(?:de)\s+(20\d{2})",
+            r"m[eê]s\s+(\d{1,2})\s+de\s+(20\d{2})",
             q
         )
 
         if mes_match:
+
             mm = mes_match.group(1).zfill(2)
             yyyy = mes_match.group(2)
+
             filters["mes"] = f"{yyyy}-{mm}"
 
         # ========================================================
@@ -222,7 +259,7 @@ class KnowledgeStructuredStore:
         # ========================================================
 
         dia_match = re.search(
-            r"(?:dia)\s+(\d{1,2})",
+            r"dia\s+(\d{1,2})",
             q
         )
 
@@ -230,13 +267,21 @@ class KnowledgeStructuredStore:
             filters["dia"] = dia_match.group(1).zfill(2)
 
         # ========================================================
-        # CHG / INC
+        # ENTITY
         # ========================================================
 
-        if "change" in q or "changes" in q or "chg" in q:
+        if (
+            "change" in q
+            or "changes" in q
+            or "chg" in q
+        ):
             filters["codigo_tipo"] = "CHG"
 
-        if "incidente" in q or "incidentes" in q or "inc" in q:
+        if (
+            "incidente" in q
+            or "incidentes" in q
+            or "inc" in q
+        ):
             filters["codigo_tipo"] = "INC"
 
         # ========================================================
@@ -244,7 +289,7 @@ class KnowledgeStructuredStore:
         # ========================================================
 
         ic_match = re.search(
-            r"ic impactado\s+([a-zA-Z0-9_\- ]+)",
+            r"ic impactado\s+(.+)",
             q,
             re.IGNORECASE
         )
@@ -252,14 +297,19 @@ class KnowledgeStructuredStore:
         ic_value = None
 
         if ic_match:
-            ic_value = ic_match.group(1).strip()
+
+            ic_value = (
+                ic_match.group(1)
+                .replace("?", "")
+                .strip()
+            )
 
         # ========================================================
         # GRUPO
         # ========================================================
 
         grupo_match = re.search(
-            r"grupo de atribui[cç][aã]o\s*=?\s*([a-zA-Z0-9_\-]+)",
+            r"grupo de atribui[cç][aã]o\s*=?\s*(.+)",
             q,
             re.IGNORECASE
         )
@@ -267,10 +317,15 @@ class KnowledgeStructuredStore:
         grupo_value = None
 
         if grupo_match:
-            grupo_value = grupo_match.group(1).strip()
+
+            grupo_value = (
+                grupo_match.group(1)
+                .replace("?", "")
+                .strip()
+            )
 
         # ========================================================
-        # CHG REFERENCIADA
+        # CHANGE REF
         # ========================================================
 
         change_ref_match = re.search(
@@ -282,67 +337,125 @@ class KnowledgeStructuredStore:
         change_ref = None
 
         if change_ref_match:
-            change_ref = change_ref_match.group(1).upper()
+            change_ref = (
+                change_ref_match.group(1)
+                .upper()
+            )
 
         # ========================================================
-        # SQL
+        # WHERE
         # ========================================================
 
         where = []
 
         if filters.get("codigo_tipo"):
+
             where.append(
-                f"codigo_tipo = '{filters['codigo_tipo']}'"
+                f"codigo_tipo = "
+                f"'{filters['codigo_tipo']}'"
             )
 
         if filters.get("mes"):
+
             where.append(
                 f"mes = '{filters['mes']}'"
             )
 
         if filters.get("dia"):
+
             where.append(
                 f"dia = '{filters['dia']}'"
             )
 
-        # CRÍTICO:
-        # nunca considerar CHG referenciada em INC
+        # ========================================================
+        # CRÍTICO
+        # ========================================================
+
         if filters.get("codigo_tipo") == "CHG":
+
             where.append(
                 "numero LIKE 'CHG%'"
             )
 
         if filters.get("codigo_tipo") == "INC":
+
             where.append(
                 "numero LIKE 'INC%'"
             )
 
+        # ========================================================
+        # IC
+        # ========================================================
+
         if ic_value:
+
             where.append(
-                f"LOWER(ic_impactado) LIKE LOWER('%{ic_value}%')"
+                f"""
+                LOWER(ic_impactado)
+                LIKE LOWER('%{ic_value}%')
+                """
             )
+
+        # ========================================================
+        # GRUPO
+        # ========================================================
 
         if grupo_value:
+
             where.append(
-                f"LOWER(grupo_de_atribuicao) LIKE LOWER('%{grupo_value}%')"
+                f"""
+                LOWER(grupo_de_atribuicao)
+                LIKE LOWER('%{grupo_value}%')
+                """
             )
 
-        if "app" in q:
-            where.append("is_app = true")
+        # ========================================================
+        # APP
+        # ========================================================
 
-        if "ecomm" in q or "e-commerce" in q:
-            where.append("is_ecomm = true")
+        if " app" in f" {q} ":
+
+            where.append(
+                "is_app = true"
+            )
+
+        # ========================================================
+        # ECOMM
+        # ========================================================
+
+        if (
+            "ecomm" in q
+            or "e-commerce" in q
+        ):
+
+            where.append(
+                "is_ecomm = true"
+            )
+
+        # ========================================================
+        # CHANGE REF
+        # ========================================================
 
         if change_ref:
+
             where.append(
                 f"""
                 (
-                    LOWER(causado_pela_mudanca) LIKE LOWER('%{change_ref}%')
-                    OR LOWER(change_relacionada) LIKE LOWER('%{change_ref}%')
-                    OR LOWER(descricao) LIKE LOWER('%{change_ref}%')
+                    LOWER(causado_pela_mudanca)
+                    LIKE LOWER('%{change_ref}%')
+
+                    OR LOWER(change_relacionada)
+                    LIKE LOWER('%{change_ref}%')
+
+                    OR LOWER(descricao)
+                    LIKE LOWER('%{change_ref}%')
                 )
                 """
             )
+
+        # ========================================================
+        # SQL
+        # ========================================================
 
         where_sql = " AND ".join(where)
 
@@ -350,26 +463,12 @@ class KnowledgeStructuredStore:
             where_sql = "WHERE " + where_sql
 
         # ========================================================
-        # COUNT
-        # ========================================================
-
-        is_count = any(
-            t in q
-            for t in [
-                "quantos",
-                "quantas",
-                "quantidade",
-                "count",
-            ]
-        )
-
-        # ========================================================
         # LIST
         # ========================================================
 
         is_list = any(
-            t in q
-            for t in [
+            x in q
+            for x in [
                 "quais",
                 "liste",
                 "listar",
@@ -380,13 +479,91 @@ class KnowledgeStructuredStore:
         )
 
         # ========================================================
-        # COUNT DISTINCT
+        # COUNT
+        # ========================================================
+
+        is_count = any(
+            x in q
+            for x in [
+                "quantos",
+                "quantas",
+                "quantidade",
+            ]
+        )
+
+        # ========================================================
+        # LAST CODES
+        # ========================================================
+
+        if (
+            "quais os códigos" in q
+            or "quais os codigos" in q
+        ):
+
+            codes = context.get(
+                "last_codes",
+                []
+            )
+
+            return {
+                "fallback_to_rag": False,
+                "answer_text": "\n".join(codes),
+                "route": "structured_memory"
+            }
+
+        # ========================================================
+        # AURA WHATSAPP
+        # ========================================================
+
+        if (
+            "aura whatsapp" in q
+            and context.get("last_codes")
+        ):
+
+            code_list = context["last_codes"]
+
+            in_clause = ",".join(
+                f"'{x}'"
+                for x in code_list
+            )
+
+            sql = f"""
+                SELECT DISTINCT numero
+                FROM knowledge
+                WHERE numero IN ({in_clause})
+                AND LOWER(ic_impactado)
+                LIKE LOWER('%aura whatsapp%')
+            """
+
+            rows = conn.execute(sql).fetchall()
+
+            found = [r[0] for r in rows]
+
+            if found:
+
+                return {
+                    "fallback_to_rag": False,
+                    "answer_text":
+                        "Sim: " + ", ".join(found),
+                    "route": "structured"
+                }
+
+            return {
+                "fallback_to_rag": False,
+                "answer_text": "Não",
+                "route": "structured"
+            }
+
+        # ========================================================
+        # COUNT
         # ========================================================
 
         if is_count and not is_list:
 
             sql = f"""
-                SELECT COUNT(DISTINCT numero) AS total
+                SELECT COUNT(
+                    DISTINCT numero
+                ) AS total
                 FROM knowledge
                 {where_sql}
             """
@@ -399,8 +576,7 @@ class KnowledgeStructuredStore:
 
             return {
                 "fallback_to_rag": False,
-                "route": "structured_analytics",
-                "query_type": "count",
+                "route": "structured_count",
                 "answer_text": str(total),
                 "technical": {
                     "sql": sql,
@@ -409,7 +585,7 @@ class KnowledgeStructuredStore:
             }
 
         # ========================================================
-        # LIST DISTINCT
+        # LIST
         # ========================================================
 
         if is_list:
@@ -426,32 +602,22 @@ class KnowledgeStructuredStore:
             values = [r[0] for r in rows]
 
             self.memory[case_id] = filters
-            self.memory[case_id]["last_codes"] = values
+            self.memory["case_id"]["last_codes"] = values
 
             return {
                 "fallback_to_rag": False,
-                "route": "structured_analytics",
-                "query_type": "list",
+                "route": "structured_list",
                 "answer_text": "\n".join(values),
                 "technical": {
                     "sql": sql,
-                    "filters": filters,
                     "count": len(values),
                 }
             }
 
+        # ========================================================
+        # FALLBACK
+        # ========================================================
+
         return {
             "fallback_to_rag": True
         }
-
-    # ============================================================
-    # ANALYTIC DETECTION
-    # ============================================================
-
-    def _is_analytic(self, q: str):
-
-        for term in self.ANALYTIC_TERMS:
-            if term in q:
-                return True
-
-        return False
