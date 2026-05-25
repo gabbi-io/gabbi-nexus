@@ -46,10 +46,12 @@ def _json_loads_maybe(value: Any) -> dict[str, Any]:
 def _extract_field(text: str, label: str) -> str:
     if not text:
         return ""
+
     pattern = rf"(?im)^\s*{re.escape(label)}\s*:\s*(.+?)(?=\n[A-ZÁÉÍÓÚÂÊÔÃÕÇ][A-Za-zÀ-ÿ0-9 _/\-()]+:\s|\Z)"
     match = re.search(pattern, text, flags=re.DOTALL)
     if not match:
         return ""
+
     return re.sub(r"\n\s+", "\n", match.group(1).strip()).strip()
 
 
@@ -57,6 +59,7 @@ def _extract_numero(text: str) -> str:
     direct = _extract_field(text, "Número")
     if direct:
         return _upper(direct)
+
     match = re.search(r"\b(CHG\d{5,}|INC\d{5,})\b", text or "", re.IGNORECASE)
     return _upper(match.group(1)) if match else ""
 
@@ -90,6 +93,7 @@ class KnowledgeStructuredStore:
         "change", "changes", "chg", "mudanca", "mudança",
         "incidente", "incidentes", "inc",
         "app", "ecomm", "aura", "whatsapp", "dia", "mes", "mês",
+        "aberta", "abertas", "aberto", "abertos",
     }
 
     BASE_COLUMNS: dict[str, str] = {
@@ -554,7 +558,6 @@ class KnowledgeStructuredStore:
 
     def _build_plan(self, question: str, context: dict[str, Any]) -> dict[str, Any]:
         q = _norm(question)
-        plan: dict[str, Any] = {}
 
         followup = (
             q.startswith("e ")
@@ -562,29 +565,38 @@ class KnowledgeStructuredStore:
                 "destes", "destas", "desses", "dessas", "deles", "delas",
                 "essas", "esses", "foram abertas", "quais os codigos",
                 "quais os códigos", "alguma dessas", "destes fazem",
+                "abertas no dia", "abertos no dia",
             ])
         )
 
         if followup:
-            plan.update(context.get("last_plan") or {})
+            plan: dict[str, Any] = dict(context.get("last_plan") or {})
             for key in ["codigo_tipo", "mes", "dia", "is_app", "is_ecomm"]:
                 if context.get(key) is not None:
                     plan[key] = context[key]
+        else:
+            plan = {}
 
-        if any(x in q for x in ["change", "changes", "chg", "mudanca", "mudança"]):
-            plan["codigo_tipo"] = "CHG"
-
-        if any(x in q for x in ["incidente", "incidentes"]):
-            plan["codigo_tipo"] = "INC"
-
-        if ("referencia" in q or "referência" in q or "fazem referência" in q or "causado" in q) and re.search(r"\bchg\d{5,}\b", q):
-            plan["codigo_tipo"] = "INC"
+        # Perguntas de novo escopo limpam filtros específicos anteriores.
+        root_scope = any(x in q for x in [
+            "quantas changes", "quantos incidentes", "e quantas changes", "e quantos incidentes",
+        ])
+        if root_scope:
+            preserved = {}
+            plan = preserved
 
         month = self._extract_month_from_question(q)
         if month:
-            plan = {}
             plan["mes"] = month
+            # Novo mês deve limpar filtros específicos antigos.
+            plan.pop("ic_impactado", None)
+            plan.pop("grupo_atribuicao", None)
+            plan.pop("change_ref", None)
+            plan.pop("dia", None)
+            plan.pop("is_app", None)
+            plan.pop("is_ecomm", None)
 
+        # Tipo é reavaliado após limpeza de escopo.
         if any(x in q for x in ["change", "changes", "chg", "mudanca", "mudança"]):
             plan["codigo_tipo"] = "CHG"
 
@@ -597,6 +609,9 @@ class KnowledgeStructuredStore:
         day = self._extract_day_from_question(q)
         if day:
             plan["dia"] = day
+            # "abertas no dia" em follow-up de CHG deve manter CHG/mês e só adicionar dia.
+            if "aberta" in q or "abertas" in q:
+                plan["codigo_tipo"] = plan.get("codigo_tipo") or "CHG"
 
         ic = self._extract_after(question, r"ic\s+impactado\s+(.+)")
         if ic:
@@ -605,12 +620,11 @@ class KnowledgeStructuredStore:
 
         grupo = self._extract_after(question, r"grupo\s+de\s+atribui[cç][aã]o\s*=?\s*(.+)")
         if grupo:
-            plan = {
-                "codigo_tipo": context.get("codigo_tipo"),
-                "mes": context.get("mes"),
-                "grupo_atribuicao": grupo,
-                "force_count": True,
-            }
+            # Grupo é filtro novo independente do IC anterior.
+            plan.pop("ic_impactado", None)
+            plan["grupo_atribuicao"] = grupo
+            plan["force_count"] = True
+            plan.pop("force_list", None)
 
         chg_ref = re.search(r"\b(CHG\d{5,})\b", question, re.IGNORECASE)
         if chg_ref:
@@ -643,47 +657,36 @@ class KnowledgeStructuredStore:
         if plan.get("dia"):
             day_no_zero = str(int(plan["dia"]))
             day_zero = str(plan["dia"]).zfill(2)
-            mes = str(plan.get("mes") or "")
-            expected_date = f"{mes}-{day_zero}" if mes else ""
 
-            clauses.append(
-                """
-                (
-                    -- Preferência por campo estruturado da CHG
-                    regexp_extract(
-                        COALESCE(data_inicio_planejada, ''),
-                        '20[0-9]{2}[-/][0-9]{1,2}[-/]0?([0-9]{1,2})',
-                        1
-                    ) IN (?, ?)
-
-                    -- Fallback para o texto original
-                    OR regexp_extract(
-                        COALESCE(article_text, ''),
-                        'Data de início planejada:\\s*20[0-9]{2}[-/][0-9]{1,2}[-/]0?([0-9]{1,2})',
-                        1
-                    ) IN (?, ?)
-
-                    -- Fallback por marcador gerado na ingestão
-                    OR article_text ILIKE ?
-
-                    -- Fallback direto por data completa, quando mês está no contexto
-                    OR (? <> '' AND COALESCE(data_inicio_planejada, '') ILIKE ?)
-                    OR (? <> '' AND COALESCE(article_text, '') ILIKE ?)
+            if codigo_tipo == "CHG":
+                clauses.append(
+                    """
+                    (
+                        regexp_extract(COALESCE(data_inicio_planejada, ''), '20[0-9]{2}[-/][0-9]{1,2}[-/]0?([0-9]{1,2})', 1) IN (?, ?)
+                        OR article_text ILIKE ?
+                    )
+                    """
                 )
-                """
-            )
-
-            params.extend([
-                day_no_zero,
-                day_zero,
-                day_no_zero,
-                day_zero,
-                f"%DIA_NORMALIZADO_MARKER: {day_zero}%",
-                expected_date,
-                f"%{expected_date}%",
-                expected_date,
-                f"%Data de início planejada: {expected_date}%",
-            ])
+                params.extend([day_no_zero, day_zero, f"%DIA_NORMALIZADO_MARKER: {day_zero}%"])
+            elif codigo_tipo == "INC":
+                clauses.append(
+                    """
+                    (
+                        regexp_extract(COALESCE(article_text, ''), 'Aberto:\\s*20[0-9]{2}[-/][0-9]{1,2}[-/]0?([0-9]{1,2})', 1) IN (?, ?)
+                        OR article_text ILIKE ?
+                    )
+                    """
+                )
+                params.extend([day_no_zero, day_zero, f"%DIA_NORMALIZADO_MARKER: {day_zero}%"])
+            else:
+                clauses.append(
+                    """
+                    (
+                        article_text ILIKE ?
+                    )
+                    """
+                )
+                params.append(f"%DIA_NORMALIZADO_MARKER: {day_zero}%")
 
         if plan.get("ic_impactado"):
             clauses.append("ic_impactado ILIKE ?")
@@ -723,9 +726,18 @@ class KnowledgeStructuredStore:
             )
 
         if plan.get("change_ref"):
+            # Usa prioritariamente marker de "Causado pela mudança" para não contar qualquer menção textual.
+            clauses.append(
+                """
+                (
+                    article_text ILIKE ?
+                    OR raw_json ILIKE ?
+                )
+                """
+            )
             ref = f"%CAUSADO_PELA_MUDANCA_MARKER: {plan['change_ref']}%"
-            clauses.append("article_text ILIKE ?")
-            params.append(ref)
+            ref_json = f"%Causado pela mudança%{plan['change_ref']}%"
+            params.extend([ref, ref_json])
 
         return "WHERE " + " AND ".join(clauses), params
 
@@ -767,12 +779,16 @@ class KnowledgeStructuredStore:
     def _save_memory(self, case_id: str, plan: dict[str, Any], codes: list[str]) -> None:
         memory = dict(self.memory.get(case_id) or {})
         memory["last_plan"] = dict(plan)
+
         for key in ["codigo_tipo", "mes", "dia", "is_app", "is_ecomm"]:
             if key in plan:
                 memory[key] = plan[key]
+
+        # Não polui a memória com listas gigantes.
         if codes and len(codes) <= 100:
             memory["last_codes"] = codes
-            memory["last_result_count"] = len(codes)
+
+        memory["last_result_count"] = len(codes)
         self.memory[case_id] = memory
 
     def _response(
@@ -830,17 +846,21 @@ class KnowledgeStructuredStore:
         return ""
 
     def _extract_day_from_question(self, q: str) -> str:
-        # Captura tanto "dia 13" quanto "abertas no dia 13".
-        match = re.search(
-            r"(?:dia|abertas?\s+no\s+dia|abertos?\s+no\s+dia)\s+(\d{1,2})\b",
-            q,
-            re.IGNORECASE,
-        )
-        if not match:
-            return ""
+        patterns = [
+            r"(?:dia|abertas?\s+no\s+dia|abertos?\s+no\s+dia)\s+(\d{1,2})",
+            r"\b(\d{1,2})\s*$",
+        ]
 
-        day = match.group(1).zfill(2)
-        return day if 1 <= int(day) <= 31 else ""
+        for pattern in patterns:
+            match = re.search(pattern, q)
+            if not match:
+                continue
+
+            day = match.group(1).zfill(2)
+            if 1 <= int(day) <= 31:
+                return day
+
+        return ""
 
     def _extract_after(self, question: str, pattern: str) -> str:
         match = re.search(pattern, question, re.IGNORECASE)
