@@ -643,23 +643,32 @@ class KnowledgeStructuredStore:
         if plan.get("dia"):
             day_no_zero = str(int(plan["dia"]))
             day_zero = str(plan["dia"]).zfill(2)
+            mes = str(plan.get("mes") or "")
+            expected_date = f"{mes}-{day_zero}" if mes else ""
 
             clauses.append(
                 """
                 (
+                    -- Preferência por campo estruturado da CHG
                     regexp_extract(
                         COALESCE(data_inicio_planejada, ''),
                         '20[0-9]{2}[-/][0-9]{1,2}[-/]0?([0-9]{1,2})',
                         1
                     ) IN (?, ?)
 
+                    -- Fallback para o texto original
                     OR regexp_extract(
                         COALESCE(article_text, ''),
                         'Data de início planejada:\\s*20[0-9]{2}[-/][0-9]{1,2}[-/]0?([0-9]{1,2})',
                         1
                     ) IN (?, ?)
 
+                    -- Fallback por marcador gerado na ingestão
                     OR article_text ILIKE ?
+
+                    -- Fallback direto por data completa, quando mês está no contexto
+                    OR (? <> '' AND COALESCE(data_inicio_planejada, '') ILIKE ?)
+                    OR (? <> '' AND COALESCE(article_text, '') ILIKE ?)
                 )
                 """
             )
@@ -670,6 +679,10 @@ class KnowledgeStructuredStore:
                 day_no_zero,
                 day_zero,
                 f"%DIA_NORMALIZADO_MARKER: {day_zero}%",
+                expected_date,
+                f"%{expected_date}%",
+                expected_date,
+                f"%Data de início planejada: {expected_date}%",
             ])
 
         if plan.get("ic_impactado"):
@@ -817,7 +830,12 @@ class KnowledgeStructuredStore:
         return ""
 
     def _extract_day_from_question(self, q: str) -> str:
-        match = re.search(r"\bdia\s+(\d{1,2})\b", q)
+        # Captura tanto "dia 13" quanto "abertas no dia 13".
+        match = re.search(
+            r"(?:dia|abertas?\s+no\s+dia|abertos?\s+no\s+dia)\s+(\d{1,2})\b",
+            q,
+            re.IGNORECASE,
+        )
         if not match:
             return ""
 
