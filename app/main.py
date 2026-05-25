@@ -25,6 +25,7 @@ from app.services.gabbi_postgres_ingestion import GabbiPostgresIngestionService
 from app.services.parsers import ParserService
 from app.services.retrieval import RetrievalService
 from app.services.knowledge_structured_store import KnowledgeStructuredStore
+from app.services.knowledge_record_parser import parse_article_to_structured_row
 
 BASE_DIR = Path(__file__).resolve().parent
 STATIC_DIR = BASE_DIR / "static"
@@ -250,6 +251,51 @@ graph_service = AnalysisGraphService(retrieval_service=retrieval_service, analys
 automation_service = AutomationService()
 gabbi_postgres_repository = GabbiPostgresRepository()
 gabbi_postgres_ingestion_service = GabbiPostgresIngestionService(repository=gabbi_postgres_repository)
+
+
+def _build_structured_rows_from_documents(documents: list[dict], *, knowledge_version: str | None = None) -> list[dict]:
+    """Extrai linhas canônicas CHG/INC a partir dos documentos do case.
+
+    Usado como hotfix para impedir que perguntas quantitativas dependam do RAG.
+    Prioriza `document["structured_row"]` criado na ingestão PostgreSQL e, se não existir,
+    tenta parsear o texto/documento complementar.
+    """
+    rows: list[dict] = []
+    for doc in documents or []:
+        existing = doc.get("structured_row")
+        if isinstance(existing, dict) and existing.get("numero") and existing.get("codigo_tipo"):
+            row = dict(existing)
+            row.setdefault("knowledge_version", knowledge_version)
+            rows.append(row)
+            continue
+        parsed = doc.get("parsed") or {}
+        metadata = doc.get("metadata") or {}
+        text = parsed.get("text") or ""
+        document_payload = metadata.get("document") or doc.get("document")
+        row = parse_article_to_structured_row(
+            article_text=text,
+            article_document=document_payload,
+            metadata=metadata,
+            defaults={
+                "article_id": metadata.get("article_id") or doc.get("external_id") or doc.get("id"),
+                "article_ref_id": metadata.get("ref_id"),
+                "topic_id": metadata.get("topic_id"),
+                "topic_name": metadata.get("topic_name"),
+                "topic_description": metadata.get("topic_description"),
+                "source_id": doc.get("id"),
+                "knowledge_version": knowledge_version,
+            },
+        )
+        if row.get("numero") and row.get("codigo_tipo"):
+            rows.append(row)
+    return rows
+
+
+def _refresh_structured_store(case_id: str, documents: list[dict], *, knowledge_version: str | None = None) -> dict:
+    rows = _build_structured_rows_from_documents(documents, knowledge_version=knowledge_version)
+    if not rows:
+        return {"success": False, "rows_saved": 0, "warning": "Nenhuma linha CHG/INC estruturada detectada."}
+    return knowledge_structured_store.replace_case_rows(case_id=case_id, rows=rows, knowledge_version=knowledge_version)
 
 
 class CreateCaseRequest(BaseModel):
@@ -1370,12 +1416,14 @@ async def upload_files(case_id: str, files: list[UploadFile] = File(..., descrip
     publication = retrieval_service.build_case_index(case_id, documents)
     analysis = analysis_service.generate_initial_analysis(documents)
     tabular_catalog = graph_service.build_tabular_catalog(case_id, documents)
+    knowledge_structured = _refresh_structured_store(case_id, documents, knowledge_version="upload")
     repo.update_case(
         case_id,
         {
             "analysis": analysis,
             "vector_publication": publication,
             "tabular_catalog": tabular_catalog,
+            "knowledge_structured": knowledge_structured,
         },
     )
     return {
@@ -1384,6 +1432,7 @@ async def upload_files(case_id: str, files: list[UploadFile] = File(..., descrip
         "analysis": analysis,
         "vector_publication": publication,
         "tabular_catalog": tabular_catalog,
+        "knowledge_structured": knowledge_structured,
     }
 
 
@@ -1506,6 +1555,7 @@ async def ingest_gabbi_postgres(case_id: str, payload: GabbiPostgresIngestReques
         publication = retrieval_service.build_case_index(case_id, documents)
         analysis = analysis_service.generate_initial_analysis(documents)
         tabular_catalog = graph_service.build_tabular_catalog(case_id, documents)
+        knowledge_structured = _refresh_structured_store(case_id, documents, knowledge_version="gabbi_postgres")
 
         repo.update_case(
             case_id,
@@ -1513,6 +1563,7 @@ async def ingest_gabbi_postgres(case_id: str, payload: GabbiPostgresIngestReques
                 "analysis": analysis,
                 "vector_publication": publication,
                 "tabular_catalog": tabular_catalog,
+                "knowledge_structured": knowledge_structured,
                 "source": "gabbi_postgres_article",
                 "external_conversation_id": payload.conversation_id,
                 "external_topic_id": payload.topic_id,
@@ -1529,6 +1580,7 @@ async def ingest_gabbi_postgres(case_id: str, payload: GabbiPostgresIngestReques
             "analysis": analysis,
             "vector_publication": publication,
             "tabular_catalog": tabular_catalog,
+            "knowledge_structured": knowledge_structured,
         }
 
     except HTTPException:
@@ -1639,6 +1691,7 @@ async def create_case_and_ingest_gabbi_postgres(payload: GabbiPostgresAutoIngest
         publication = retrieval_service.build_case_index(case_id, documents)
         analysis = analysis_service.generate_initial_analysis(documents)
         tabular_catalog = graph_service.build_tabular_catalog(case_id, documents)
+        knowledge_structured = _refresh_structured_store(case_id, documents, knowledge_version="gabbi_postgres")
 
         repo.update_case(
             case_id,
@@ -1646,6 +1699,7 @@ async def create_case_and_ingest_gabbi_postgres(payload: GabbiPostgresAutoIngest
                 "analysis": analysis,
                 "vector_publication": publication,
                 "tabular_catalog": tabular_catalog,
+                "knowledge_structured": knowledge_structured,
                 "source": "gabbi_postgres_article",
                 "external_conversation_id": payload.conversation_id,
                 "external_topic_id": payload.topic_id,

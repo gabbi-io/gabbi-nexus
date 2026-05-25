@@ -4,6 +4,7 @@ from datetime import datetime
 from uuid import uuid4
 
 from app.repositories.gabbi_postgres_repository import GabbiArticleRecord, GabbiPostgresRepository
+from app.services.knowledge_record_parser import parse_article_to_structured_row
 
 
 class GabbiChatIngestionService:
@@ -15,11 +16,7 @@ class GabbiChatIngestionService:
     def get_chat_metadata(self, conversation_id: str) -> dict:
         chat = self.repository.get_chat_by_conversation_id(conversation_id)
         if not chat:
-            return {
-                "found": False,
-                "conversation_id": conversation_id,
-            }
-
+            return {"found": False, "conversation_id": conversation_id}
         return {
             "found": True,
             "chat_id": chat.id,
@@ -29,38 +26,27 @@ class GabbiChatIngestionService:
             "updated_on": chat.updated_on.isoformat() if chat.updated_on else None,
         }
 
-    def build_documents_from_articles(
-        self,
-        *,
-        conversation_id: str,
-        topic_id: int | None = None,
-        limit: int = 100,
-        updated_after: datetime | None = None,
-    ) -> list[dict]:
-        articles = self.repository.list_articles_for_ingestion(
-            topic_id=topic_id,
-            limit=limit,
-            updated_after=updated_after,
-        )
+    def build_documents_from_articles(self, *, conversation_id: str, topic_id: int | None = None, limit: int = 100, updated_after: datetime | None = None) -> list[dict]:
+        articles = self.repository.list_articles_for_ingestion(topic_id=topic_id, limit=limit, updated_after=updated_after)
+        return [self._article_to_document(article=article, conversation_id=conversation_id, topic_filter=topic_id) for article in articles]
 
-        return [
-            self._article_to_document(
-                article=article,
-                conversation_id=conversation_id,
-                topic_filter=topic_id,
-            )
-            for article in articles
-        ]
-
-    def _article_to_document(
-        self,
-        *,
-        article: GabbiArticleRecord,
-        conversation_id: str,
-        topic_filter: int | None,
-    ) -> dict:
+    def _article_to_document(self, *, article: GabbiArticleRecord, conversation_id: str, topic_filter: int | None) -> dict:
         text = self._build_article_text(article)
-
+        metadata = {
+            "source_system": "gabbi",
+            "source_table": "Article",
+            "article_id": article.id,
+            "ref_id": article.ref_id,
+            "topic_id": article.topic_id,
+            "topic_filter": topic_filter,
+            "conversation_id": conversation_id,
+            "counter": article.counter,
+            "published": article.published,
+            "created_on": article.created_on.isoformat() if article.created_on else None,
+            "updated_on": article.updated_on.isoformat() if article.updated_on else None,
+            "created_by": article.created_by,
+            "updated_by": article.updated_by,
+        }
         return {
             "id": uuid4().hex[:12],
             "filename": f"gabbi_article_{article.ref_id or article.id}.txt",
@@ -68,42 +54,26 @@ class GabbiChatIngestionService:
             "content_type": "text/database-record",
             "source": "gabbi_postgres_article",
             "external_id": article.id,
-            "parsed": {
-                "text": text,
-                "tables": [],
-            },
-            "metadata": {
-                "source_system": "gabbi",
-                "source_table": "Article",
-                "article_id": article.id,
-                "ref_id": article.ref_id,
-                "topic_id": article.topic_id,
-                "topic_filter": topic_filter,
-                "conversation_id": conversation_id,
-                "counter": article.counter,
-                "published": article.published,
-                "created_on": article.created_on.isoformat() if article.created_on else None,
-                "updated_on": article.updated_on.isoformat() if article.updated_on else None,
-                "created_by": article.created_by,
-                "updated_by": article.updated_by,
-            },
+            "parsed": {"text": text, "tables": []},
+            "metadata": metadata,
+            "structured_row": parse_article_to_structured_row(
+                article_text=article.article or text,
+                article_document=article.document,
+                metadata=metadata,
+                defaults={"article_id": article.id, "article_ref_id": article.ref_id, "topic_id": article.topic_id},
+            ),
         }
 
     @staticmethod
     def _build_article_text(article: GabbiArticleRecord) -> str:
         parts: list[str] = []
-
         if article.topic_id is not None:
             parts.append(f"Tópico/Área de conhecimento: {article.topic_id}")
-
         if article.ref_id is not None:
             parts.append(f"Referência do artigo: {article.ref_id}")
-
         parts.append("Conteúdo do artigo:")
-        parts.append(article.article)
-
+        parts.append(article.article or "")
         if article.document:
             parts.append("Documento complementar:")
             parts.append(str(article.document))
-
         return "\n\n".join(parts)

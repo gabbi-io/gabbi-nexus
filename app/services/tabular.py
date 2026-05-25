@@ -97,13 +97,25 @@ class TabularQueryService:
             applied_filters.append({"column": column, "operator": op, "value": value, "source": filt.source, "before": before, "after": after})
         evidences = [{"filename": table.filename, "sheet_name": table.sheet_name, "score": 1.0, "excerpt": f"Tabela {table.sheet_name} com {table.row_count} linhas e {len(table.columns)} colunas."}]
         if plan.intent == "count":
-            return {"success": True, "type": "count", "count": int(len(filtered)), "rows_considered": int(len(df)), "rows_filtered": int(len(filtered)), "table": {"filename": table.filename, "sheet_name": table.sheet_name}, "filters": applied_filters, "preview": self._safe_records(filtered.head(8)), "evidences": evidences, "evidence_files": [table.filename]}
+            count_col = self._detect_identifier_column(filtered)
+            if count_col:
+                count = int(filtered[count_col].astype(str).str.upper().str.strip().replace("", pd.NA).dropna().nunique())
+                count_mode = f"distinct:{count_col}"
+            else:
+                count = int(len(filtered))
+                count_mode = "rows"
+            return {"success": True, "type": "count", "count": count, "count_mode": count_mode, "rows_considered": int(len(df)), "rows_filtered": int(len(filtered)), "table": {"filename": table.filename, "sheet_name": table.sheet_name}, "filters": applied_filters, "preview": self._safe_records(filtered.head(8)), "evidences": evidences, "evidence_files": [table.filename]}
         if plan.intent == "group":
             group_by = plan.group_by
             if not group_by or group_by not in filtered.columns:
                 return {"success": False, "message": "Não consegui identificar a coluna para agrupar a consulta."}
-            grouped = filtered[group_by].astype(str).fillna("").value_counts(dropna=False).reset_index()
-            grouped.columns = [group_by, "total"]
+            count_col = self._detect_identifier_column(filtered)
+            if count_col:
+                grouped = filtered.groupby(group_by, dropna=False)[count_col].nunique().reset_index(name="total")
+                grouped = grouped.sort_values(["total", group_by], ascending=[False, True])
+            else:
+                grouped = filtered[group_by].astype(str).fillna("").value_counts(dropna=False).reset_index()
+                grouped.columns = [group_by, "total"]
             return {"success": True, "type": "group", "rows_considered": int(len(df)), "rows_filtered": int(len(filtered)), "table": {"filename": table.filename, "sheet_name": table.sheet_name}, "filters": applied_filters, "group_by": group_by, "results": self._safe_records(grouped.head(50)), "evidences": evidences, "evidence_files": [table.filename]}
         limit = int(plan.limit or 20)
         return {"success": True, "type": "list", "rows_considered": int(len(df)), "rows_filtered": int(len(filtered)), "table": {"filename": table.filename, "sheet_name": table.sheet_name}, "filters": applied_filters, "results": self._safe_records(filtered.head(limit)), "columns": list(filtered.columns), "evidences": evidences, "evidence_files": [table.filename]}
@@ -173,6 +185,21 @@ class TabularQueryService:
             df = pd.read_excel(path, sheet_name=table.sheet_name, dtype=str).fillna("")
         df.columns = [str(c).strip() for c in df.columns]
         return df.fillna("")
+
+    def _detect_identifier_column(self, df: pd.DataFrame) -> str | None:
+        preferred = [
+            "numero", "Número", "Numero", "codigo_principal", "Código", "Codigo",
+            "number", "id_change", "id_incidente"
+        ]
+        for col in preferred:
+            if col in df.columns:
+                return col
+        for col in df.columns:
+            values = df[col].astype(str).str.upper()
+            sample = " ".join(values.head(50).tolist())
+            if re.search(r"\b(?:CHG|INC)\d{5,}\b", sample):
+                return col
+        return None
 
     def _safe_records(self, df: pd.DataFrame) -> list[dict[str, Any]]:
         return df.fillna("").astype(str).to_dict(orient="records")

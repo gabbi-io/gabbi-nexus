@@ -40,8 +40,8 @@ class AnalysisGraphService:
         self.llm_service = LLMService()
         self.tabular_service = TabularQueryService(llm_service=self.llm_service)
         self.knowledge_structured_store = KnowledgeStructuredStore()
-        self.force_rag_first = self._env_bool("GABBI_FORCE_RAG_FIRST", True)
-        self.always_synthesize_hybrid = self._env_bool("GABBI_ALWAYS_SYNTHESIZE_HYBRID", True)
+        self.force_rag_first = self._env_bool("GABBI_FORCE_RAG_FIRST", False)
+        self.always_synthesize_hybrid = self._env_bool("GABBI_ALWAYS_SYNTHESIZE_HYBRID", False)
 
     @staticmethod
     def _env_bool(name: str, default: bool = False) -> bool:
@@ -99,6 +99,19 @@ class AnalysisGraphService:
         )
 
         tabular_evidences = self._extract_tabular_evidences(tabular_result)
+
+        # Hotfix enterprise: perguntas analíticas não devem ser sintetizadas pelo LLM/RAG.
+        # Se o DuckDB não respondeu e o tabular respondeu com sucesso, retorna direto.
+        if tabular_result and not tabular_result.get("fallback_to_rag") and self._is_analytics_question(question):
+            tabular_result["route"] = "tabular_direct_no_llm"
+            tabular_result["sources"] = {
+                "deterministic": True,
+                "llm_synthesis_blocked": True,
+                "reason": "analytics_question",
+                "focus": focus,
+                "tabular_source_type": self._tabular_source_type(tabular_result),
+            }
+            return tabular_result
 
         # 3. Mescla evidências: upload primeiro quando o foco for arquivo/case; base primeiro quando o foco for treinamento/base.
         evidences = self._merge_evidences(
@@ -273,6 +286,17 @@ class AnalysisGraphService:
         if focus == "knowledge_base_first":
             return True
         return False
+
+    def _is_analytics_question(self, question: str) -> bool:
+        q = self._norm(question)
+        return bool(
+            any(t in q for t in [
+                "quantos", "quantas", "quantidade", "qtd", "qtde", "total", "totais",
+                "quais", "liste", "listar", "lista", "codigos", "códigos", "agrupe", "agrupar",
+                "grupo de atribuicao", "grupo de atribuição", "ic impactado", "mes", "mês", "dia"
+            ])
+            and any(t in q for t in ["chg", "change", "changes", "inc", "incidente", "incidentes", "app", "ecomm", "aura", "whatsapp"])
+        )
 
     def _tabular_source_type(self, tabular_result: dict[str, Any] | None) -> str | None:
         if not tabular_result:
