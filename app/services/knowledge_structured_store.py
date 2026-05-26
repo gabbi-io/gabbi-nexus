@@ -741,7 +741,7 @@ class KnowledgeStructuredStore:
             }
 
         def _sec(s):
-            return _parse_duration_to_seconds(s) or 0
+            return self._parse_duration_to_seconds(s) or 0
 
         more_inc = "2025-09" if rows["2025-09"]["total"] >= rows["2025-10"]["total"] else "2025-10"
         more_impact = "2025-09" if _sec(rows["2025-09"]["impacto"]) >= _sec(rows["2025-10"]["impacto"]) else "2025-10"
@@ -1034,7 +1034,7 @@ class KnowledgeStructuredStore:
                     "code": code.upper(),
                     "priority": prio.upper(),
                     "duration": duration,
-                    "duration_seconds": _parse_duration_to_seconds(duration) or 0,
+                    "duration_seconds": self._parse_duration_to_seconds(duration) or 0,
                     "description": " ".join(desc.split()),
                     "systemic": bool(re.search(r"INDISPONIBILIDADE|TELA DE MANUTENÇÃO|TELA DE MANUTENCAO", desc, flags=re.I)),
                 })
@@ -1428,7 +1428,7 @@ class KnowledgeStructuredStore:
             kpis.append(k)
 
         def sec(v):
-            return _parse_duration_to_seconds(v or "") or 0
+            return self._parse_duration_to_seconds(v or "") or 0
 
         a, b = kpis
         def winner(metric, label, seconds=False):
