@@ -641,6 +641,14 @@ class KnowledgeStructuredStore:
             if followup_answer:
                 return followup_answer
 
+        # V12: protege fluxos CHG/INC/IC/grupo que já estavam corretos antes da camada natural.
+        # Esse guard evita que perguntas como "Quantas changes tivemos em agosto de 2025?"
+        # sejam capturadas por rotas APP/KPI e retornem totais globais.
+        if self._v12_has_strong_legacy_filters(q):
+            legacy_answer = self._v12_legacy_count_or_list(case_id, question)
+            if legacy_answer:
+                return legacy_answer
+
         code_match = re.search(r"\b(CHG\d{5,}|INC\d{5,})\b", question, re.IGNORECASE)
 
         # V9: pergunta de tempo/parada sobre "ele" usa último detalhe consultado.
@@ -1976,6 +1984,176 @@ class KnowledgeStructuredStore:
         return self._response(case_id, answer, "single_incident_time", {"code": code}, {"sql": sql, "desc": desc})
 
     # ---------------------------------------------------------------------
+    # V12 - Routing Guard
+    # Protege fluxos legacy CHG/INC que já funcionavam e deixa a camada
+    # natural atuar somente em perguntas APP/KPI/operacionais livres.
+    # ---------------------------------------------------------------------
+
+    def _v12_has_explicit_chg_legacy_intent(self, q: str) -> bool:
+        return any(x in q for x in [
+            "change", "changes", "chg", "mudanca", "mudança"
+        ])
+
+    def _v12_has_explicit_inc_legacy_intent(self, q: str) -> bool:
+        return any(x in q for x in [
+            "incidente", "incidentes"
+        ])
+
+    def _v12_has_strong_legacy_filters(self, q: str) -> bool:
+        return (
+            self._v12_has_explicit_chg_legacy_intent(q)
+            or self._v12_has_explicit_inc_legacy_intent(q)
+            or "ic impactado" in q
+            or "grupo de atribuicao" in q
+            or "grupo de atribuição" in q
+            or re.search(r"\bTLV_[A-Z0-9_ -]+", q, flags=re.I) is not None
+            or re.search(r"\b(CHG|INC)\d{5,}\b", q, flags=re.I) is not None
+        )
+
+    def _v12_is_free_natural_app_kpi(self, q: str) -> bool:
+        # Só deixa a camada natural interceptar perguntas de APP/KPI sem filtro legacy forte.
+        natural_markers = [
+            "como foi", "cenario operacional", "cenário operacional",
+            "volume critico", "volume crítico", "p1/p2/p3",
+            "como ficou o p1", "operacao app", "operação app",
+            "operacao de app", "operação de app",
+            "app em outubro", "app no mes", "app no mês",
+            "mttr do app", "funcionalidade teve mais", "top incidentes do app",
+            "compare outubro", "compare setembro",
+        ]
+        return any(x in q for x in natural_markers) and any(x in q for x in ["app", "p1", "p2", "p3", "outubro", "setembro", "mttr", "funcionalidade"])
+
+    def _v12_month_from_question(self, question: str, default_year: str = "2025") -> str:
+        q = _norm(question)
+
+        # formatos 2025-10, 2025/10
+        m = re.search(r"\b(20\d{2})[-/](\d{1,2})\b", q)
+        if m:
+            return f"{m.group(1)}-{m.group(2).zfill(2)}"
+
+        # formatos 10-2025, 10/2025, 08-2025
+        m = re.search(r"\b(\d{1,2})[-/](20\d{2})\b", q)
+        if m and 1 <= int(m.group(1)) <= 12:
+            return f"{m.group(2)}-{m.group(1).zfill(2)}"
+
+        # "mês 10", "mes 08"
+        m = re.search(r"\b(?:mes|mês)\s*(\d{1,2})\b", q)
+        if m and 1 <= int(m.group(1)) <= 12:
+            return f"{default_year}-{m.group(1).zfill(2)}"
+
+        # "agosto de 2025", "outubro"
+        names = {
+            "janeiro": "01", "jan": "01",
+            "fevereiro": "02", "fev": "02",
+            "marco": "03", "março": "03", "mar": "03",
+            "abril": "04", "abr": "04",
+            "maio": "05", "mai": "05",
+            "junho": "06", "jun": "06",
+            "julho": "07", "jul": "07",
+            "agosto": "08", "ago": "08",
+            "setembro": "09", "set": "09",
+            "outubro": "10", "out": "10",
+            "novembro": "11", "nov": "11",
+            "dezembro": "12", "dez": "12",
+        }
+        for name, mm in names.items():
+            if name in q:
+                ym = re.search(rf"\b{name}\s+(?:de\s+)?(20\d{{2}})\b", q)
+                year = ym.group(1) if ym else default_year
+                return f"{year}-{mm}"
+        return ""
+
+    def _v12_legacy_count_or_list(self, case_id: str, question: str) -> dict[str, Any] | None:
+        """
+        Caminho curto e determinístico para perguntas antigas de CHG/INC/IC/grupo.
+        Não passa pela camada APP/KPI natural.
+        """
+        q = _norm(question)
+        month = self._v12_month_from_question(question)
+
+        code_type = None
+        if self._v12_has_explicit_chg_legacy_intent(q):
+            code_type = "CHG"
+        elif self._v12_has_explicit_inc_legacy_intent(q):
+            code_type = "INC"
+
+        ic = self._extract_ic_from_question(question) if hasattr(self, "_extract_ic_from_question") else ""
+        group = self._extract_group_from_question(question) if hasattr(self, "_extract_group_from_question") else ""
+
+        if not code_type and not ic and not group:
+            return None
+
+        clauses = ["case_id = ?"]
+        params: list[Any] = [case_id]
+
+        if code_type == "CHG":
+            clauses.append("(numero LIKE 'CHG%' OR codigo_principal LIKE 'CHG%' OR codigo_tipo = 'CHG' OR categoria = 'CHG')")
+        elif code_type == "INC":
+            clauses.append("(numero LIKE 'INC%' OR codigo_principal LIKE 'INC%' OR codigo_tipo = 'INC' OR categoria = 'INC')")
+
+        if month:
+            clauses.append("mes = ?")
+            params.append(month)
+
+        if ic:
+            clauses.append("ic_impactado ILIKE ?")
+            params.append(f"%{ic}%")
+            if not code_type:
+                clauses.append("(numero LIKE 'CHG%' OR codigo_principal LIKE 'CHG%' OR codigo_tipo = 'CHG' OR categoria = 'CHG')")
+
+        if group:
+            clauses.append("grupo_atribuicao ILIKE ?")
+            params.append(f"%{group}%")
+
+        where = "WHERE " + " AND ".join(clauses)
+        code_expr = "COALESCE(NULLIF(numero, ''), NULLIF(codigo_principal, ''))"
+
+        is_count = any(x in q for x in ["quantos", "quantas", "quantidade", "qtd", "qtde", "total"])
+        is_list = any(x in q for x in ["quais", "liste", "listar", "lista", "mostre"])
+
+        # Perguntas tipo "Quantas changes impactaram TLV..." são contagem, não lista.
+        if is_count:
+            sql = f"""
+                SELECT COUNT(DISTINCT {code_expr}) AS total
+                FROM {self.TABLE}
+                {where}
+                AND {code_expr} IS NOT NULL
+            """
+            with self._connect() as con:
+                total = int(con.execute(sql, params).fetchone()[0] or 0)
+            return self._response(
+                case_id,
+                str(total),
+                "v12_legacy_count",
+                {"codigo_tipo": code_type, "mes": month, "ic_impactado": ic, "grupo_atribuicao": group},
+                {"sql": sql, "params": params, "source": "legacy_guard"},
+            )
+
+        if is_list:
+            sql = f"""
+                SELECT DISTINCT {code_expr} AS codigo
+                FROM {self.TABLE}
+                {where}
+                AND {code_expr} IS NOT NULL
+                ORDER BY codigo
+                LIMIT 500
+            """
+            with self._connect() as con:
+                rows = [r[0] for r in con.execute(sql, params).fetchall() if r[0]]
+            codes = self._v10_clean_codes(rows, code_type) if hasattr(self, "_v10_clean_codes") else rows
+            if hasattr(self, "_v10_save_result_context"):
+                self._v10_save_result_context(case_id, codes, code_type=code_type, month=month, scope=None, query_type="legacy_list")
+            return self._response(
+                case_id,
+                "\n".join(codes) if codes else "Nenhum registro encontrado.",
+                "v12_legacy_list",
+                {"codigo_tipo": code_type, "mes": month, "ic_impactado": ic, "grupo_atribuicao": group},
+                {"sql": sql, "params": params, "source": "legacy_guard", "count": len(codes)},
+            )
+
+        return None
+
+    # ---------------------------------------------------------------------
     # V10 - Conversational Operational Planner
     # Camada complementar: não remove fluxos antigos; só intercepta linguagem
     # natural, follow-ups e evita vazamento de UUID/código técnico.
@@ -2240,6 +2418,10 @@ class KnowledgeStructuredStore:
 
     def _v10_answer_natural_operational(self, case_id: str, question: str, plan: dict[str, Any]) -> dict[str, Any] | None:
         q = _norm(question)
+
+        # V12: perguntas legacy explícitas de CHG/INC/IC/grupo não passam por natural APP/KPI.
+        if self._v12_has_strong_legacy_filters(q) and not self._v12_is_free_natural_app_kpi(q):
+            return None
         month = plan.get("mes") or self._v10_month_from_question_or_context(case_id, question)
 
         # Normaliza "mês 10", "outubro", etc. quando o parser antigo não capturar.
