@@ -2015,19 +2015,35 @@ class KnowledgeStructuredStore:
         )
 
     def _v10_is_natural_summary_question(self, q: str) -> bool:
-        return (
-            any(x in q for x in [
-                "como foi", "cenario operacional", "cenário operacional",
-                "como ficou", "foi critico", "foi crítico",
-                "mes foi critico", "mês foi crítico",
-                "operacionalmente", "resumo do app", "situacao do app", "situação do app",
-            ])
-            and any(x in q for x in ["app", "operacao", "operação", "mes", "mês", "outubro", "setembro", "2025"])
-        )
+        return any(x in q for x in [
+            "como foi o mes",
+            "como foi o mês",
+            "como foi outubro",
+            "como foi setembro",
+            "cenario operacional",
+            "cenário operacional",
+            "operacao app",
+            "operação app",
+            "operacao de app",
+            "operação de app",
+            "operacionalmente",
+            "resumo do app",
+            "situacao do app",
+            "situação do app",
+        ])
 
     def _v10_is_volume_critical_question(self, q: str) -> bool:
         return (
-            any(x in q for x in ["volume critico", "volume crítico", "total critico", "total crítico"])
+            any(x in q for x in [
+                "volume critico",
+                "volume crítico",
+                "total critico",
+                "total crítico",
+                "volume do app",
+                "volume operacional",
+                "incidentes criticos",
+                "incidentes críticos",
+            ])
             and any(x in q for x in ["app", "incidente", "incidentes"])
         )
 
@@ -2037,6 +2053,8 @@ class KnowledgeStructuredStore:
             or "distribuicao p1" in q
             or "distribuição p1" in q
             or "como ficou o p1" in q
+            or "como ficou o p1/p2/p3" in q
+            or "como ficou p1/p2/p3" in q
         )
 
     def _v10_is_app_incident_list_question(self, q: str) -> bool:
@@ -2184,6 +2202,11 @@ class KnowledgeStructuredStore:
         # Normaliza "mês 10", "outubro", etc. quando o parser antigo não capturar.
         if not month:
             m = re.search(r"\b(?:mes|mês)\s*(\d{1,2})\b", q)
+            if m:
+                month = f"2025-{m.group(1).zfill(2)}"
+
+        if not month:
+            m = re.search(r"\b(\d{1,2})[-/](2025|25)\b", q)
             if m:
                 month = f"2025-{m.group(1).zfill(2)}"
         if not month:
