@@ -46,8 +46,10 @@ def _json_loads_maybe(value: Any) -> dict[str, Any]:
 def _extract_field(text: str, label: str) -> str:
     if not text:
         return ""
-    pattern = rf"(?im)^\s*{re.escape(label)}\s*:\s*(.+?)(?=\n[A-ZÁÉÍÓÚÂÊÔÃÕÇ][A-Za-zÀ-ÿ0-9 _/\-()]+:\s|\Z)"
-    match = re.search(pattern, text, flags=re.DOTALL)
+    # Para em qualquer próximo rótulo no início da linha.
+    # Corrige casos como: "Estado: Encerrado(a)\nData de início planejada: ..."
+    pattern = rf"(?ims)^\s*{re.escape(label)}\s*:\s*(.+?)(?=\n\s*[A-Za-zÀ-ÿ0-9 _/\-().]+:\s|\Z)"
+    match = re.search(pattern, text)
     if not match:
         return ""
     return re.sub(r"\n\s+", "\n", match.group(1).strip()).strip()
@@ -114,6 +116,25 @@ def _first_non_empty(*values: Any) -> str:
     return ""
 
 
+def _clean_label_value(value: Any) -> str:
+    """Remove vazamento de próximo label dentro de campos curtos."""
+    text = _safe(value)
+    if not text:
+        return ""
+    # Ex.: "Encerrado(a) Data de início planejada: 2025..." -> "Encerrado(a)"
+    text = re.split(
+        r"\s+(?:Data de início planejada|Data de inicio planejada|Data de término planejada|Data de termino planejada|Aberto|Resolvido|Encerrado|Communication State|Descrição resumida|Descricao resumida|Descrição|Descricao|Prioridade|Grupo de atribuição|Grupo de atribuicao|IC Impactado)\s*:",
+        text,
+        maxsplit=1,
+        flags=re.IGNORECASE,
+    )[0]
+    return text.strip()
+
+def _priority_to_num(value: Any) -> int | None:
+    match = re.search(r"\bP([1-5])\b", _upper(value))
+    return int(match.group(1)) if match else None
+
+
 class KnowledgeStructuredStore:
     TABLE = "knowledge_articles_structured"
 
@@ -150,6 +171,14 @@ class KnowledgeStructuredStore:
         "para você", "pra você", "meu vivo", "app vivo", "aplicativo vivo",
     }
 
+    OPERATIONAL_TERMS = {
+        "change", "changes", "chg", "mudanca", "mudança",
+        "incidente", "incidentes", "inc", "app", "aplicativo", "ecomm",
+        "impacto", "mttr", "parada", "indisponibilidade", "prioridade",
+        "p1", "p2", "p3", "causa", "funcionalidade", "grupo", "ic",
+        "estado", "status", "resumo executivo", "kpi", "kpis",
+    }
+
     BASE_COLUMNS: dict[str, str] = {
         "case_id": "TEXT",
         "knowledge_version": "TEXT",
@@ -178,6 +207,7 @@ class KnowledgeStructuredStore:
         "canal": "TEXT",
         "categoria": "TEXT",
         "prioridade": "TEXT",
+        "prioridade_num": "INTEGER",
         "data_inicio_planejada": "TEXT",
         "data_termino_planejada": "TEXT",
         "article_updated_on": "TEXT",
@@ -332,9 +362,9 @@ class KnowledgeStructuredStore:
         descricao_resumida = _safe(row.get("descricao_resumida")) or _safe(document_obj.get("Descrição resumida")) or _extract_field(article_text, "Descrição resumida")
         descricao = _safe(row.get("descricao")) or _safe(document_obj.get("Descrição")) or _extract_field(article_text, "Descrição")
         causado = _safe(row.get("causado_pela_mudanca")) or _safe(document_obj.get("Causado pela mudança")) or _extract_field(article_text, "Causado pela mudança")
-        estado = _safe(row.get("estado")) or _safe(document_obj.get("Estado")) or _extract_field(article_text, "Estado")
-        tipo = _safe(row.get("tipo")) or _safe(document_obj.get("Tipo")) or _extract_field(article_text, "Tipo")
-        prioridade = _safe(row.get("prioridade")) or _safe(document_obj.get("Prioridade")) or _extract_field(article_text, "Prioridade")
+        estado = _clean_label_value(_safe(row.get("estado")) or _safe(document_obj.get("Estado")) or _extract_field(article_text, "Estado"))
+        tipo = _clean_label_value(_safe(row.get("tipo")) or _safe(document_obj.get("Tipo")) or _extract_field(article_text, "Tipo"))
+        prioridade = _clean_label_value(_safe(row.get("prioridade")) or _safe(document_obj.get("Prioridade")) or _extract_field(article_text, "Prioridade"))
         tempo_impacto = _first_non_empty(
             row.get("tempo_impacto"),
             row.get("u_rpt_tempo_total_de_impacto"),
@@ -421,6 +451,7 @@ class KnowledgeStructuredStore:
             "canal": canal_enriched,
             "categoria": categoria,
             "prioridade": prioridade,
+            "prioridade_num": _priority_to_num(prioridade),
             "data_inicio_planejada": data_inicio,
             "data_termino_planejada": data_termino,
             "article_updated_on": _safe(row.get("article_updated_on") or row.get("updated_on") or row.get("updatedOn")),
@@ -446,15 +477,21 @@ class KnowledgeStructuredStore:
 
         q = _norm(question)
 
+        is_candidate = any(term in q for term in self.ANALYTIC_TERMS)
+        is_operational = self._is_operational_question(q)
+
         # Evita interceptar perguntas puramente conversacionais.
-        if not any(term in q for term in self.ANALYTIC_TERMS):
+        if not is_candidate:
             return {"fallback_to_rag": True}
 
         try:
-            return self._answer_structured(case_id, question)
+            result = self._answer_structured(case_id, question)
+            if result and result.get("fallback_to_rag") and is_operational:
+                return self._safe_operational_failure(case_id, question, "structured_unknown_operational")
+            return result
         except Exception as exc:
-            # Antes retornava erro ao usuário e bloqueava RAG.
-            # Agora preserva produção: em qualquer falha inesperada, volta para o fluxo RAG atual.
+            if is_operational:
+                return self._safe_operational_failure(case_id, question, f"{type(exc).__name__}: {exc}")
             return {
                 "fallback_to_rag": True,
                 "route": "knowledge_structured_error_fallback",
@@ -502,6 +539,11 @@ class KnowledgeStructuredStore:
 
         if self._is_executive_summary_question(q):
             return self._answer_executive_summary(case_id, where_sql, params, plan)
+
+        if self._is_systemic_question(q) and ("tempo" in q or "quanto" in q or "qual" in q):
+            plan["parada_sistemica"] = True
+            where_sql, params = self._build_where(case_id, plan)
+            return self._answer_impact_sum(case_id, where_sql, params, plan, title="Tempo de parada sistêmica")
 
         if self._is_impact_total_question(q):
             return self._answer_impact_sum(case_id, where_sql, params, plan)
@@ -558,8 +600,9 @@ class KnowledgeStructuredStore:
                 self._save_memory(case_id, plan, codes)
                 return self._response(case_id, "\n".join(codes) if codes else "Nenhum registro encontrado.", "list", plan, {"sql": sql, "params": params, "count": len(codes)})
 
-        # Se a pergunta parecia analítica, mas não conseguimos interpretar com segurança,
-        # deixa o RAG tentar responder em vez de retornar resposta ruim.
+        # Se a pergunta operacional parecia analítica mas não foi suportada, não deixa o RAG genérico inventar.
+        if self._is_operational_question(q):
+            return self._safe_operational_failure(case_id, question, "unsupported_operational_intent", plan)
         return {"fallback_to_rag": True, "route": "knowledge_structured_unknown_fallback", "query_type": "unknown"}
 
     def _answer_detail(self, case_id: str, code: str, question: str) -> dict[str, Any]:
@@ -585,11 +628,11 @@ class KnowledgeStructuredStore:
                 causado_pela_mudanca
             FROM {self.TABLE}
             WHERE case_id = ?
-            AND numero = ?
+            AND (numero = ? OR codigo_principal = ?)
             LIMIT 1
         """
         with self._connect() as con:
-            row = con.execute(sql, [case_id, code]).fetchone()
+            row = con.execute(sql, [case_id, code, code]).fetchone()
 
         if not row:
             # Para não quebrar detalhamento que hoje talvez funcione melhor via RAG,
@@ -656,12 +699,12 @@ class KnowledgeStructuredStore:
         if anotacoes:
             lines.extend(["", "Anotações de encerramento:", anotacoes[:2500]])
 
-        self.memory[case_id] = {
-            **(self.memory.get(case_id) or {}),
-            "last_detail_code": code,
-            "last_codes": [code],
-            "last_plan": {"codigo_tipo": data.get("codigo_tipo"), "mes": data.get("mes")},
-        }
+        memory = dict(self.memory.get(case_id) or {})
+        memory["last_detail_code"] = code
+        memory["last_detail_plan"] = {"codigo_tipo": data.get("codigo_tipo"), "mes": data.get("mes")}
+        if not memory.get("last_codes"):
+            memory["last_codes"] = [code]
+        self.memory[case_id] = memory
 
         return self._response(case_id, "\n".join(lines), "detail", {"code": code}, {"sql": sql, "record": {k: v for k, v in data.items() if k not in {"article_text", "raw_json"}}})
 
@@ -698,6 +741,9 @@ class KnowledgeStructuredStore:
             plan["codigo_tipo"] = "CHG"
         if any(x in q for x in ["incidente", "incidentes"]):
             plan["codigo_tipo"] = "INC"
+        if "total de incidentes criticos" in q or "total de incidentes críticos" in q or "incidentes criticos" in q or "incidentes críticos" in q:
+            plan["codigo_tipo"] = "INC"
+            plan["critical_only"] = True
         if ("referencia" in q or "referência" in q or "fazem referência" in q or "causado" in q) and re.search(r"\bchg\d{5,}\b", q):
             plan["codigo_tipo"] = "INC"
 
@@ -728,7 +774,7 @@ class KnowledgeStructuredStore:
         if chg_ref:
             plan["change_ref"] = chg_ref.group(1).upper()
 
-        if re.search(r"\bapp\b", q):
+        if re.search(r"\bapp\b", q) or "aplicativo" in q or "meu vivo" in q:
             plan["is_app"] = True
         if any(x in q for x in ["ecomm", "e commerce", "e-commerce", "ecommerce"]):
             plan["is_ecomm"] = True
@@ -747,6 +793,10 @@ class KnowledgeStructuredStore:
 
         if self._is_systemic_question(q):
             plan["parada_sistemica"] = True
+
+        if self._is_change_related_question(q):
+            plan["change_related"] = True
+            plan["codigo_tipo"] = plan.get("codigo_tipo") or "INC"
 
         funcionalidade = self._extract_functionality_from_question(question)
         if funcionalidade:
@@ -825,8 +875,23 @@ class KnowledgeStructuredStore:
             params.append(f"%{plan['tipo']}%")
 
         if plan.get("prioridade"):
-            clauses.append("prioridade ILIKE ?")
-            params.append(f"%{plan['prioridade']}%")
+            clauses.append("(prioridade ILIKE ? OR article_text ILIKE ? OR raw_json ILIKE ?)")
+            params.extend([f"%{plan['prioridade']}%", f"%{plan['prioridade']}%", f"%{plan['prioridade']}%"] )
+
+        if plan.get("critical_only"):
+            clauses.append("(prioridade ILIKE '%P1%' OR prioridade ILIKE '%P2%' OR prioridade ILIKE '%P3%' OR article_text ILIKE '%Prioridade: P1%' OR article_text ILIKE '%Prioridade: P2%' OR article_text ILIKE '%Prioridade: P3%')")
+
+        if plan.get("change_related"):
+            clauses.append("""
+                (
+                    causado_pela_mudanca IS NOT NULL AND causado_pela_mudanca <> ''
+                    OR causa_origem ILIKE '%MUDANCA%'
+                    OR causa_origem ILIKE '%MUDANÇA%'
+                    OR article_text ILIKE '%CAUSADO_PELA_MUDANCA_MARKER%'
+                    OR article_text ILIKE '%Causa Origem:%MUDANCA%'
+                    OR article_text ILIKE '%Causa Origem:%MUDANÇA%'
+                )
+            """)
 
         if plan.get("funcionalidade"):
             clauses.append("(ic_impactado ILIKE ? OR descricao_resumida ILIKE ? OR descricao ILIKE ? OR article_text ILIKE ?)")
@@ -922,9 +987,13 @@ class KnowledgeStructuredStore:
 
     def _answer_grouped(self, case_id: str, where_sql: str, params: list[Any], plan: dict[str, Any], column: str, title: str, query_type: str) -> dict[str, Any]:
         distinct_expr = "COALESCE(NULLIF(numero, ''), NULLIF(codigo_principal, ''), article_id)"
+        if column == "estado":
+            item_expr = "TRIM(regexp_replace(COALESCE(NULLIF(estado, ''), '-'), '\\s+(Data de início planejada|Data de inicio planejada|Data de término planejada|Data de termino planejada|Aberto|Resolvido|Encerrado|Communication State|Descrição resumida|Descricao resumida):.*$', '', 'i'))"
+        else:
+            item_expr = f"COALESCE(NULLIF({column}, ''), '-')"
         sql = f"""
             SELECT
-                COALESCE(NULLIF({column}, ''), '-') AS item,
+                {item_expr} AS item,
                 COUNT(DISTINCT {distinct_expr}) AS total
             FROM {self.TABLE}
             {where_sql}
@@ -981,7 +1050,7 @@ class KnowledgeStructuredStore:
 
         return self._response(case_id, answer, "bulk_detail_guard", context, {"memory_only": True, "codes_count": count})
 
-    def _answer_impact_sum(self, case_id: str, where_sql: str, params: list[Any], plan: dict[str, Any]) -> dict[str, Any]:
+    def _answer_impact_sum(self, case_id: str, where_sql: str, params: list[Any], plan: dict[str, Any], title: str = "Tempo total de impacto") -> dict[str, Any]:
         sql = f"""
             SELECT
                 COUNT(DISTINCT COALESCE(NULLIF(numero, ''), NULLIF(codigo_principal, ''), article_id)) AS total,
@@ -1135,7 +1204,7 @@ class KnowledgeStructuredStore:
     def _save_memory(self, case_id: str, plan: dict[str, Any], codes: list[str]) -> None:
         memory = dict(self.memory.get(case_id) or {})
         memory["last_plan"] = dict(plan)
-        for key in ["codigo_tipo", "mes", "dia", "is_app", "is_ecomm", "estado", "tipo", "grupo_atribuicao", "ic_impactado"]:
+        for key in ["codigo_tipo", "mes", "dia", "is_app", "is_ecomm", "estado", "tipo", "grupo_atribuicao", "ic_impactado", "prioridade", "critical_only", "parada_sistemica", "change_related", "funcionalidade"]:
             if key in plan:
                 memory[key] = plan[key]
         if codes and len(codes) <= 100:
@@ -1155,6 +1224,16 @@ class KnowledgeStructuredStore:
             "technical": {"case_id": case_id, "criteria": criteria, **(technical or {})},
             "sources": {"deterministic": True, "engine": "duckdb", "table": self.TABLE},
         }
+
+    def _safe_operational_failure(self, case_id: str, question: str, reason: str, criteria: dict[str, Any] | None = None) -> dict[str, Any]:
+        answer = (
+            "Não consegui calcular essa métrica operacional pela base estruturada disponível. "
+            "Verifique se o case foi sincronizado/reindexado com os campos necessários."
+        )
+        return self._response(case_id, answer, "operational_safe_failure", criteria or {"question": question}, {"reason": reason})
+
+    def _is_operational_question(self, q: str) -> bool:
+        return any(term in q for term in self.OPERATIONAL_TERMS)
 
     def _normalize_month(self, value: Any) -> str:
         match = re.search(r"(20\d{2})[-/](\d{1,2})", _safe(value))
@@ -1313,6 +1392,9 @@ class KnowledgeStructuredStore:
 
     def _is_systemic_question(self, q: str) -> bool:
         return any(x in q for x in ["parada sistemica", "parada sistêmica", "indisponibilidade sistemica", "indisponibilidade sistêmica", "tela de manutencao", "tela de manutenção"])
+
+    def _is_change_related_question(self, q: str) -> bool:
+        return any(x in q for x in ["causados por mudança", "causados por mudanca", "causado por mudança", "causado por mudanca", "causados por uma change", "causado pela mudança", "causado pela mudanca", "incidentes foram causados por mudança", "incidentes foram causados por mudanca"])
 
     def _is_executive_summary_question(self, q: str) -> bool:
         return ("resumo executivo" in q) or ("kpi" in q) or ("kpis" in q)
