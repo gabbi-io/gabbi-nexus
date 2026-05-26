@@ -129,7 +129,7 @@ def _duration_to_seconds(value: Any) -> int:
     return 0
 
 
-def self._seconds_to_hhmmss(seconds: int | float | None) -> str:
+def _seconds_to_hhmmss(seconds: int | float | None) -> str:
     seconds = int(seconds or 0)
     h = seconds // 3600
     m = (seconds % 3600) // 60
