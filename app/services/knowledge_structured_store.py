@@ -602,8 +602,10 @@ class KnowledgeStructuredStore:
         if "detalhe cada uma" in q or "detalhar cada uma" in q or "detalhe todas" in q or "detalhar todas" in q:
             return self._answer_bulk_detail_guard(case_id, context)
 
-        if "quais os codigos" in q or "quais os códigos" in question.lower() or "quais são os codigos" in q or "quais são os códigos" in question.lower():
+        if "quais os codigos" in q or "quais os códigos" in question.lower() or "quais são os codigos" in q or "quais são os códigos" in question.lower() or self._is_code_followup_question(q):
             codes = context.get("last_codes") or []
+            only_codes = [c for c in codes if re.match(r"^(CHG|INC)\d{5,}$", str(c))]
+            codes = only_codes or codes
             return self._response(case_id, "\n".join(codes) if codes else "Não há códigos em memória para listar.", "list", context, {"memory_only": True, "codes": codes})
 
         if "aura whatsapp" in q and context.get("last_codes"):
@@ -829,6 +831,9 @@ class KnowledgeStructuredStore:
         if month:
             # Mês explícito representa nova intenção raiz; não deve herdar filtros do last_plan.
             plan = {"mes": month}
+        elif any(x in q for x in ["do mes", "do mês", "deste mes", "deste mês", "neste mes", "neste mês"]) and context.get("mes"):
+            # Follow-up sem mês explícito: usa o último mês analisado.
+            plan["mes"] = context.get("mes")
 
         if any(x in q for x in ["change", "changes", "chg", "mudanca", "mudança"]):
             plan["codigo_tipo"] = "CHG"
@@ -864,8 +869,12 @@ class KnowledgeStructuredStore:
         if chg_ref:
             plan["change_ref"] = chg_ref.group(1).upper()
 
-        if re.search(r"\bapp\b", q) or "aplicativo" in q or "meu vivo" in q or "operacao app" in q or "operação app" in q:
+        if re.search(r"\bapp\b", q) or "aplicativo" in q or "meu vivo" in q or "operacao app" in q or "operação app" in q or "operacao de app" in q or "operação de app" in q:
             plan["is_app"] = True
+        if self._is_monthly_incident_list_question(q):
+            plan["codigo_tipo"] = "INC"
+            plan["is_app"] = True
+            plan["force_list"] = True
         if any(x in q for x in ["ecomm", "e commerce", "e-commerce", "ecommerce"]):
             plan["is_ecomm"] = True
 
@@ -883,6 +892,9 @@ class KnowledgeStructuredStore:
 
         if self._is_systemic_question(q):
             plan["parada_sistemica"] = True
+            plan["codigo_tipo"] = plan.get("codigo_tipo") or "INC"
+            if self._is_explicit_list_request(q):
+                plan["force_list"] = True
 
         funcionalidade = self._extract_functionality_from_question(question)
         if funcionalidade:
@@ -1033,6 +1045,17 @@ class KnowledgeStructuredStore:
 
         return "WHERE " + " AND ".join(clauses), params
 
+    def _fetch_codes_for_plan(self, case_id: str, plan: dict[str, Any], limit: int = 2000) -> list[str]:
+        """
+        Busca códigos para um plano estruturado sem depender de memória.
+        Usado para follow-ups e listas operacionais como "liste eles".
+        """
+        where_sql, params = self._build_where(case_id, plan)
+        distinct_expr = "COALESCE(NULLIF(numero, ''), NULLIF(codigo_principal, ''), article_id)"
+        sql = f"SELECT DISTINCT {distinct_expr} AS codigo FROM {self.TABLE} {where_sql} ORDER BY codigo LIMIT {int(limit)}"
+        with self._connect() as con:
+            return [r[0] for r in con.execute(sql, params).fetchall() if r[0]]
+
     def _answer_success_rate(self, case_id: str, where_sql: str, params: list[Any], plan: dict[str, Any]) -> dict[str, Any]:
         distinct_expr = "COALESCE(NULLIF(numero, ''), NULLIF(codigo_principal, ''), article_id)"
         success_condition = """
@@ -1139,12 +1162,21 @@ class KnowledgeStructuredStore:
         return self._response(case_id, answer, "bulk_detail_guard", context, {"memory_only": True, "codes_count": count})
 
     def _find_monthly_kpi_doc(self, case_id: str, plan: dict[str, Any]) -> str:
-        """Busca o documento mensal de KPI/FAQ quando existir."""
+        """
+        Busca documento mensal de KPI/FAQ.
+
+        Importante:
+        - Usa article_text OU raw_json, porque algumas cargas armazenam o texto do FAQ
+          dentro do JSON bruto.
+        - Não depende de pergunta escrita exatamente igual.
+        """
         mes = plan.get("mes")
         if not mes:
             return ""
+
         sql = f"""
-            SELECT article_text
+            SELECT
+                COALESCE(NULLIF(article_text, ''), NULLIF(raw_json, ''), '') AS doc_text
             FROM {self.TABLE}
             WHERE case_id = ?
             AND mes = ?
@@ -1153,22 +1185,32 @@ class KnowledgeStructuredStore:
                 OR article_text ILIKE '%KPIs do mes%'
                 OR article_text ILIKE '%Perguntas frequentes%'
                 OR article_text ILIKE '%Resumo executivo + FAQ%'
+                OR article_text ILIKE '%Incidentes da operação de APP%'
                 OR raw_json ILIKE '%KPIs do mês%'
+                OR raw_json ILIKE '%KPIs do mes%'
+                OR raw_json ILIKE '%Perguntas frequentes%'
                 OR raw_json ILIKE '%Resumo executivo + FAQ%'
+                OR raw_json ILIKE '%Incidentes da operação de APP%'
             )
             ORDER BY
-                CASE WHEN article_text ILIKE '%Categoria: APP%' OR raw_json ILIKE '%Categoria%APP%' THEN 0 ELSE 1 END,
-                LENGTH(article_text) DESC
+                CASE
+                    WHEN article_text ILIKE '%Categoria: APP%' OR raw_json ILIKE '%Categoria%APP%' THEN 0
+                    WHEN article_text ILIKE '%operação de APP%' OR raw_json ILIKE '%operação de APP%' THEN 1
+                    ELSE 2
+                END,
+                LENGTH(COALESCE(article_text, raw_json, '')) DESC
             LIMIT 1
         """
         with self._connect() as con:
             row = con.execute(sql, [case_id, mes]).fetchone()
         return row[0] if row and row[0] else ""
 
+
     def _parse_monthly_kpi_doc(self, text: str) -> dict[str, Any]:
         if not text:
             return {}
-        doc = text.replace("\r\n", "\n")
+
+        doc = text.replace("\\n", "\n").replace("\r\n", "\n").replace("\r", "\n")
         norm_doc = _norm(doc)
 
         def grab(pattern: str, flags: int = re.IGNORECASE | re.DOTALL) -> str:
@@ -1202,8 +1244,32 @@ class KnowledgeStructuredStore:
                     continue
                 functionality.append(line)
 
-        incidents_block = grab(r"Incidentes da operação de APP para\s*20\d{2}-\d{2}\s*(.+?)(?:\n\s*Incidentes por funcionalidade|\Z)")
+        # Lista completa mensal: bloco "Incidentes da operação de APP para YYYY-MM"
+        incidents_block = grab(r"Incidentes da operação de APP para\s*20\d{2}-\d{2}\s*(.+?)(?:\n\s*Incidentes por funcionalidade|\n\s*Mês:|\Z)")
         incidents = re.findall(r"\bINC\d{5,}\b", incidents_block or "")
+
+        # Linhas de top por impacto com código, prioridade, tempo e descrição.
+        top_rows = []
+        for m in re.finditer(
+            r"-\s*(INC\d{5,})\s*\|\s*(P[1-5])\s*\|\s*([0-9]{1,4}:[0-9]{2}:[0-9]{2})\s*\|\s*([^\n]+)",
+            doc,
+            flags=re.IGNORECASE,
+        ):
+            item = {
+                "codigo": m.group(1).upper(),
+                "prioridade": m.group(2).upper(),
+                "tempo": m.group(3),
+                "descricao": m.group(4).strip(),
+            }
+            top_rows.append(item)
+
+        systemic_codes = [
+            row["codigo"]
+            for row in top_rows
+            if "indisponibilidade" in _norm(row.get("descricao"))
+            or "tela de manutencao" in _norm(row.get("descricao"))
+            or "tela de manutenção" in _norm(row.get("descricao"))
+        ]
 
         return {
             "total": int(total) if str(total).isdigit() else None,
@@ -1218,12 +1284,19 @@ class KnowledgeStructuredStore:
             "causes": causes,
             "functionality": functionality,
             "incidents": incidents,
+            "top_rows": top_rows,
+            "systemic_codes": systemic_codes,
             "is_app_doc": "categoria app" in norm_doc or "operação de app" in norm_doc or "operacao de app" in norm_doc,
         }
+
 
     def _answer_monthly_kpi_if_applicable(self, case_id: str, question: str, q: str, plan: dict[str, Any]) -> dict[str, Any] | None:
         if not plan.get("mes"):
             return None
+
+        explicit_list = self._is_explicit_list_request(q)
+        wants_monthly_incidents = self._is_monthly_incident_list_question(q)
+        wants_functionality_compare = self._is_functionality_comparison_question(q)
 
         is_kpi_question = any([
             self._is_executive_summary_question(q),
@@ -1235,6 +1308,8 @@ class KnowledgeStructuredStore:
             self._is_systemic_question(q),
             self._extract_priority_from_question(q) != "",
             self._is_change_related_question(q),
+            wants_monthly_incidents,
+            wants_functionality_compare,
             "total de incidentes criticos" in q,
             "total de incidentes críticos" in q,
         ])
@@ -1248,6 +1323,36 @@ class KnowledgeStructuredStore:
         if not kpi:
             return None
 
+        # Lista mensal completa de incidentes APP.
+        if wants_monthly_incidents and kpi.get("incidents"):
+            codes = kpi["incidents"]
+            self._save_memory(case_id, {**plan, "codigo_tipo": "INC", "is_app": True, "monthly_kpi": True}, codes)
+            return self._response(
+                case_id,
+                "\n".join(codes),
+                "monthly_kpi_incident_list",
+                plan,
+                {"source": "monthly_kpi_doc", "count": len(codes)},
+            )
+
+        # Lista de indisponibilidade/parada sistêmica: se for pedido explícito de lista/código,
+        # tenta SQL dos incidentes individuais; se não houver, usa códigos encontrados no FAQ mensal.
+        if self._is_systemic_question(q) and explicit_list:
+            list_plan = {**plan, "codigo_tipo": "INC", "parada_sistemica": True}
+            codes = self._fetch_codes_for_plan(case_id, list_plan, limit=2000)
+            if not codes:
+                codes = kpi.get("systemic_codes") or []
+            self._save_memory(case_id, list_plan, codes)
+            if codes:
+                return self._response(
+                    case_id,
+                    "\n".join(codes),
+                    "monthly_or_sql_systemic_incident_list",
+                    list_plan,
+                    {"source": "sql_or_monthly_kpi_doc", "count": len(codes)},
+                )
+            return self._response(case_id, "Nenhum registro encontrado.", "monthly_or_sql_systemic_incident_list", list_plan, {"source": "sql_or_monthly_kpi_doc"})
+
         priority = self._extract_priority_from_question(q)
         if priority:
             value = kpi.get(priority.lower())
@@ -1258,7 +1363,11 @@ class KnowledgeStructuredStore:
             return self._response(case_id, kpi["major_impact"], "monthly_kpi_major_impact", plan, {"source": "monthly_kpi_doc"})
 
         if self._is_systemic_question(q) and kpi.get("parada_sistemica"):
-            return self._response(case_id, kpi["parada_sistemica"], "monthly_kpi_systemic_stop", plan, {"source": "monthly_kpi_doc"})
+            # Métrica executiva: retorna tempo; salva códigos se conseguir para follow-up "liste eles".
+            list_plan = {**plan, "codigo_tipo": "INC", "parada_sistemica": True}
+            codes = self._fetch_codes_for_plan(case_id, list_plan, limit=2000) or (kpi.get("systemic_codes") or [])
+            self._save_memory(case_id, list_plan, codes)
+            return self._response(case_id, kpi["parada_sistemica"], "monthly_kpi_systemic_stop", plan, {"source": "monthly_kpi_doc", "codes_count": len(codes)})
 
         if self._is_mttr_question(q) and kpi.get("mttr"):
             return self._response(case_id, kpi["mttr"], "monthly_kpi_mttr", plan, {"source": "monthly_kpi_doc"})
@@ -1272,7 +1381,32 @@ class KnowledgeStructuredStore:
         if self._is_causes_ranking_question(q) and kpi.get("causes"):
             return self._response(case_id, "Principais causas de origem:\n\n" + kpi["causes"], "monthly_kpi_causes", plan, {"source": "monthly_kpi_doc"})
 
-        if self._is_functionality_ranking_question(q) and kpi.get("functionality"):
+        if (self._is_functionality_ranking_question(q) or wants_functionality_compare) and kpi.get("functionality"):
+            funcionalidade = self._extract_functionality_from_question(question)
+            if wants_functionality_compare and (not funcionalidade or funcionalidade.lower() == "x"):
+                answer = (
+                    "Para comparar uma funcionalidade específica, informe o nome dela. "
+                    "Enquanto isso, segue o ranking do mês:\n\n"
+                    + "\n".join(f"- {x}" for x in kpi["functionality"])
+                )
+                return self._response(case_id, answer, "monthly_kpi_functionality_comparison_missing_target", plan, {"source": "monthly_kpi_doc"})
+
+            if wants_functionality_compare and funcionalidade:
+                target_norm = _norm(funcionalidade)
+                rows = []
+                for idx, item in enumerate(kpi["functionality"], start=1):
+                    parts = item.rsplit(":", 1)
+                    name = parts[0].strip()
+                    count = parts[1].strip() if len(parts) > 1 else ""
+                    rows.append((idx, name, count, item))
+                found = [r for r in rows if target_norm in _norm(r[1]) or _norm(r[1]) in target_norm]
+                if found:
+                    idx, name, count, _item = found[0]
+                    answer = f"{name}: {count} incidente(s), posição {idx} no ranking do mês.\n\nRanking comparativo:\n" + "\n".join(f"- {r[3]}" for r in rows)
+                else:
+                    answer = f"Não encontrei a funcionalidade '{funcionalidade}' no ranking do mês.\n\nRanking disponível:\n" + "\n".join(f"- {r[3]}" for r in rows)
+                return self._response(case_id, answer, "monthly_kpi_functionality_comparison", plan, {"source": "monthly_kpi_doc", "target": funcionalidade})
+
             return self._response(case_id, "Incidentes por funcionalidade:\n\n" + "\n".join(f"- {x}" for x in kpi["functionality"]), "monthly_kpi_functionality", plan, {"source": "monthly_kpi_doc"})
 
         if self._is_executive_summary_question(q):
@@ -1297,6 +1431,7 @@ class KnowledgeStructuredStore:
             return self._response(case_id, str(kpi["total"]), "monthly_kpi_total", plan, {"source": "monthly_kpi_doc"})
 
         return None
+
 
     def _answer_impact_sum(self, case_id: str, where_sql: str, params: list[Any], plan: dict[str, Any]) -> dict[str, Any]:
         sql = f"""
@@ -1625,6 +1760,33 @@ class KnowledgeStructuredStore:
                 return item
         return ""
 
+    def _is_explicit_list_request(self, q: str) -> bool:
+        return any(x in q for x in [
+            "liste", "listar", "me liste", "mostre", "traga a lista",
+            "código", "codigo", "códigos", "codigos", "apenas os com",
+            "lista de", "quais são os códigos", "quais os códigos"
+        ])
+
+    def _is_code_followup_question(self, q: str) -> bool:
+        return any(x in q for x in [
+            "liste eles", "listar eles", "me liste eles", "liste os codigos deles",
+            "liste os códigos deles", "me liste o codigo deles", "me liste o código deles",
+            "quais são eles", "quais sao eles", "quais os codigos deles", "quais os códigos deles"
+        ])
+
+    def _is_monthly_incident_list_question(self, q: str) -> bool:
+        return (
+            ("incidentes da operacao de app" in q)
+            or ("incidentes da operação de app" in q)
+            or ("quais incidentes tivemos neste mes" in q)
+            or ("quais incidentes tivemos neste mês" in q)
+            or ("lista de incidentes" in q and "app" in q)
+            or ("liste os incidentes" in q and "app" in q)
+        )
+
+    def _is_functionality_comparison_question(self, q: str) -> bool:
+        return "comparativo" in q and "funcionalidade" in q and "incidente" in q
+
     def _is_exists_question(self, q: str) -> bool:
         return any(x in q for x in ["temos alguma", "tem alguma", "existe alguma", "existe algum", "temos algum", "ha alguma", "há alguma"])
 
@@ -1647,7 +1809,15 @@ class KnowledgeStructuredStore:
         return ("causa" in q or "causas" in q or "causa origem" in q) and any(x in q for x in ["principais", "top", "ranking", "resumo"])
 
     def _is_functionality_ranking_question(self, q: str) -> bool:
-        return any(x in q for x in ["incidentes por funcionalidade", "ranking de funcionalidade", "ranking por funcionalidade", "funcionalidades mais"])
+        return any(x in q for x in [
+            "incidentes por funcionalidade",
+            "ranking de funcionalidade",
+            "ranking por funcionalidade",
+            "funcionalidades mais",
+            "comparativo de incidentes da funcionalidade",
+            "comparar funcionalidade",
+            "compare a funcionalidade",
+        ])
 
     def _is_success_rate_question(self, q: str) -> bool:
         return any(x in q for x in ["percentual", "porcentagem", "taxa"]) and any(
