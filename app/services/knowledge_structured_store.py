@@ -44,15 +44,64 @@ def _json_loads_maybe(value: Any) -> dict[str, Any]:
 
 
 def _extract_field(text: str, label: str) -> str:
+    """Extrai campo no formato 'Label: valor' de forma segura.
+
+    Esta versão evita que campos curtos, como Estado/Prioridade/Tipo,
+    capturem acidentalmente os próximos rótulos, mesmo quando o texto vem
+    colado ou com quebras inconsistentes.
+    """
     if not text:
         return ""
-    # Regex mais tolerante: para em qualquer novo rótulo no início da linha.
-    # Corrige casos como: Estado: Encerrado(a)\nData de início planejada: ...
-    pattern = rf"(?ims)^\s*{re.escape(label)}\s*:\s*(.+?)(?=\n\s*[A-Za-zÀ-ÿ0-9 _/\-().]+:\s|\Z)"
-    match = re.search(pattern, text)
-    if not match:
-        return ""
-    return re.sub(r"\n\s+", "\n", match.group(1).strip()).strip()
+
+    label_re = re.escape(label)
+
+    lines = str(text).splitlines()
+    collecting = False
+    collected: list[str] = []
+    label_norm = _norm(label)
+
+    for raw_line in lines:
+        line = raw_line.strip()
+        if not line:
+            if collecting:
+                collected.append("")
+            continue
+
+        current_norm = _norm(line.split(":", 1)[0]) if ":" in line else ""
+
+        if not collecting:
+            if current_norm == label_norm:
+                collecting = True
+                value = line.split(":", 1)[1].strip() if ":" in line else ""
+                if value:
+                    collected.append(value)
+            continue
+
+        if re.match(r"^[A-Za-zÀ-ÿ0-9 _/\-().]+\s*:\s*", line):
+            break
+
+        collected.append(line)
+
+    value = "\n".join(collected).strip()
+
+    if not value:
+        stop_labels = [
+            "Mês", "Categoria", "Tipo", "Estado", "Status", "Data de início planejada",
+            "Data de termino planejada", "Data de término planejada", "IC Impactado",
+            "Grupo de atribuição", "Tipo de Indisponibilidade", "Solicitação de",
+            "Aberta por", "Atribuído a", "Descrição resumida", "Descrição",
+            "Tipo de teste", "Plano de teste", "Código de fechamento",
+            "Anotações de encerramento", "Aberto", "Resolvido", "Encerrado",
+            "Prioridade", "Causa Origem", "Causado pela mudança", "Canal impactado",
+            "Canal Impactado", "Tempo total de impacto", "Tempo de impacto",
+            "u_rpt_tempo_total_de_impacto",
+        ]
+        stops = "|".join(re.escape(x) for x in stop_labels if _norm(x) != label_norm)
+        rx = rf"(?is){label_re}\s*:\s*(.+?)(?=\s+(?:{stops})\s*:|\Z)"
+        match = re.search(rx, str(text))
+        value = match.group(1).strip() if match else ""
+
+    return _clean_extracted_value(value)
 
 
 def _extract_numero(text: str) -> str:
@@ -115,23 +164,33 @@ def _first_non_empty(*values: Any) -> str:
             return text
     return ""
 
-def _find_first(patterns: list[str], text: str, flags: int = re.IGNORECASE | re.DOTALL) -> str:
-    for pattern in patterns:
-        match = re.search(pattern, text or "", flags)
-        if match:
-            return _safe(match.group(1))
-    return ""
+
+_FIELD_STOP_LABELS = [
+    "Mês", "Categoria", "Tipo", "Estado", "Status", "Data de início planejada",
+    "Data de termino planejada", "Data de término planejada", "IC Impactado",
+    "Grupo de atribuição", "Tipo de Indisponibilidade", "Solicitação de",
+    "Aberta por", "Atribuído a", "Descrição resumida", "Descrição", "Tipo de teste",
+    "Plano de teste", "Código de fechamento", "Anotações de encerramento", "Aberto",
+    "Resolvido", "Encerrado", "Prioridade", "Causa Origem", "Causado pela mudança",
+    "Canal impactado", "Canal Impactado", "Tempo total de impacto", "Tempo de impacto",
+    "u_rpt_tempo_total_de_impacto",
+]
 
 
-def _extract_int(value: Any) -> int:
+def _clean_extracted_value(value: Any) -> str:
+    """Remove rótulos que vazaram dentro do valor extraído."""
     text = _safe(value)
-    match = re.search(r"\d+", text)
-    return int(match.group(0)) if match else 0
+    if not text:
+        return ""
+    for label in _FIELD_STOP_LABELS:
+        m = re.search(rf"\s+{re.escape(label)}\s*:\s*", text, flags=re.IGNORECASE)
+        if m:
+            text = text[:m.start()].strip()
+    return re.sub(r"\s+", " ", text).strip()
 
 
-def _clean_inline(value: Any) -> str:
-    return re.sub(r"\s+", " ", _safe(value)).strip(" -–—")
-
+def _truthy_text(value: Any) -> bool:
+    return bool(_safe(value)) and _norm(value) not in {"-", "none", "null", "na", "n/a"}
 
 
 class KnowledgeStructuredStore:
@@ -382,21 +441,26 @@ class KnowledgeStructuredStore:
         )
         resolvido = _first_non_empty(row.get("resolvido"), document_obj.get("Resolvido"), _extract_field(article_text, "Resolvido"))
         encerrado = _first_non_empty(row.get("encerrado"), document_obj.get("Encerrado"), _extract_field(article_text, "Encerrado"))
-        funcionalidade = _first_non_empty(
-            row.get("funcionalidade"), row.get("Funcionalidade"), document_obj.get("Funcionalidade"), ic
-        )
 
-        blob = _norm(" ".join([canal, descricao_resumida, descricao, causa_origem, article_text, raw_json]))
+        # Limpeza defensiva contra vazamento de rótulos em campos curtos.
+        estado = _clean_extracted_value(estado)
+        status = estado
+        tipo = _clean_extracted_value(tipo)
+        prioridade = _clean_extracted_value(prioridade)
+        grupo = _clean_extracted_value(grupo)
+        ic = _clean_extracted_value(ic)
+        canal = _clean_extracted_value(canal)
+        causado = _clean_extracted_value(causado)
+        causa_origem = _clean_extracted_value(causa_origem)
+        descricao_resumida = _clean_extracted_value(descricao_resumida)
+
+        blob = _norm(" ".join([canal, descricao_resumida, descricao, article_text, raw_json]))
         is_app = bool(
             '"is_app": true' in raw_json.lower()
             or '"is_app":true' in raw_json.lower()
             or "canal impactado: app vivo" in blob
             or "canal impactado app vivo" in blob
             or "app vivo" in _norm(canal)
-            or "aplicativo vivo" in blob
-            or "meu vivo" in blob
-            or _upper(row.get("categoria")) == "APP"
-            or _upper(document_obj.get("Categoria")) == "APP"
         )
         is_ecomm = bool(
             '"is_ecomm": true' in raw_json.lower()
@@ -406,8 +470,25 @@ class KnowledgeStructuredStore:
             or "ecommerce" in blob
             or "loja online" in blob
         )
-        is_parada_sistemica = bool("indisponibilidade" in blob or "tela de manutencao" in blob or "tela de manutenção" in blob)
-        is_change_related = bool(causado or "mudanca" in _norm(causa_origem) or "mudança" in _norm(causa_origem) or "chg" in blob)
+
+        funcionalidade = _first_non_empty(
+            row.get("funcionalidade"),
+            row.get("Funcionalidade"),
+            document_obj.get("Funcionalidade"),
+            ic,
+        )
+        is_parada_sistemica = bool(
+            "indisponibilidade" in blob
+            or "tela de manutencao" in blob
+            or "tela de manutenção" in blob
+        )
+        is_change_related = bool(
+            _truthy_text(causado)
+            or "mudanca" in _norm(causa_origem)
+            or "mudança" in _norm(causa_origem)
+            or "causado pela mudanca" in blob
+            or "causado pela mudança" in blob
+        )
 
         canal_enriched = canal
         if is_app and "APP_MARKER" not in canal_enriched:
@@ -490,15 +571,10 @@ class KnowledgeStructuredStore:
             return {"fallback_to_rag": True}
 
         try:
-            result = self._answer_structured(case_id, question)
-            if result:
-                return result
-            if self._is_operational_question(q):
-                return self._safe_operational_failure(case_id, question, "unsupported_operational_intent")
-            return {"fallback_to_rag": True}
+            return self._answer_structured(case_id, question)
         except Exception as exc:
-            if self._is_operational_question(q):
-                return self._safe_operational_failure(case_id, question, f"{type(exc).__name__}: {exc}")
+            # Antes retornava erro ao usuário e bloqueava RAG.
+            # Agora preserva produção: em qualquer falha inesperada, volta para o fluxo RAG atual.
             return {
                 "fallback_to_rag": True,
                 "route": "knowledge_structured_error_fallback",
@@ -528,11 +604,9 @@ class KnowledgeStructuredStore:
         plan = self._build_plan(question, context)
         where_sql, params = self._build_where(case_id, plan)
 
-        # Documentos mensais de KPI/FAQ têm precedência para perguntas executivas de APP/INC.
-        # Isso evita calcular 1 incidente individual quando existe um consolidado mensal com 36/25 etc.
-        monthly_kpi = self._answer_from_monthly_kpi_doc(case_id, question, plan)
-        if monthly_kpi:
-            return monthly_kpi
+        monthly_answer = self._answer_monthly_kpi_if_applicable(case_id, question, q, plan)
+        if monthly_answer:
+            return monthly_answer
 
         # Intenções específicas ANTES de count/list.
         if self._is_success_rate_question(q):
@@ -566,7 +640,7 @@ class KnowledgeStructuredStore:
             return self._answer_grouped(case_id, where_sql, params, plan, "causa_origem", "Principais causas de origem", "top_causes")
 
         if self._is_functionality_ranking_question(q):
-            return self._answer_grouped(case_id, where_sql, params, plan, "funcionalidade", "Incidentes por funcionalidade", "top_functionality")
+            return self._answer_grouped(case_id, where_sql, params, plan, "ic_impactado", "Incidentes por funcionalidade", "top_functionality")
 
         is_exists = self._is_exists_question(q)
         is_count = any(x in q for x in ["quantos", "quantas", "quantidade", "qtd", "qtde", "total"])
@@ -673,7 +747,7 @@ class KnowledgeStructuredStore:
             f"- Tipo de registro: {data.get('codigo_tipo') or '-'}",
             f"- Mês: {data.get('mes') or '-'}",
             f"- Tipo: {data.get('tipo') or '-'}",
-            f"- Estado/Status: {data.get('estado') or data.get('status') or '-'}",
+            f"- Estado/Status: {_clean_extracted_value(data.get('estado') or data.get('status') or '-')}",
             f"- IC Impactado: {data.get('ic_impactado') or '-'}",
             f"- Grupo de atribuição: {data.get('grupo_atribuicao') or '-'}",
             f"- Canal: {data.get('canal') or '-'}",
@@ -706,12 +780,13 @@ class KnowledgeStructuredStore:
         if anotacoes:
             lines.extend(["", "Anotações de encerramento:", anotacoes[:2500]])
 
-        self.memory[case_id] = {
-            **(self.memory.get(case_id) or {}),
-            "last_detail_code": code,
-            "last_codes": [code],
-            "last_plan": {"codigo_tipo": data.get("codigo_tipo"), "mes": data.get("mes")},
-        }
+        memory = dict(self.memory.get(case_id) or {})
+        memory["last_detail_code"] = code
+        memory["last_detail_plan"] = {"codigo_tipo": data.get("codigo_tipo"), "mes": data.get("mes")}
+        # Não sobrescreve listas grandes de uma pergunta anterior.
+        if not memory.get("last_codes"):
+            memory["last_codes"] = [code]
+        self.memory[case_id] = memory
 
         return self._response(case_id, "\n".join(lines), "detail", {"code": code}, {"sql": sql, "record": {k: v for k, v in data.items() if k not in {"article_text", "raw_json"}}})
 
@@ -736,18 +811,12 @@ class KnowledgeStructuredStore:
 
         month = self._extract_month_from_question(q)
         if month:
-            # Mês explícito inicia novo escopo e evita contaminação do last_plan.
-            keep_tipo = plan.get("codigo_tipo")
-            plan = {}
-            if keep_tipo:
-                plan["codigo_tipo"] = keep_tipo
-            plan["mes"] = month
+            # Mês explícito representa nova intenção raiz; não deve herdar filtros do last_plan.
+            plan = {"mes": month}
 
         if any(x in q for x in ["change", "changes", "chg", "mudanca", "mudança"]):
             plan["codigo_tipo"] = "CHG"
         if any(x in q for x in ["incidente", "incidentes"]):
-            plan["codigo_tipo"] = "INC"
-        if any(x in q for x in ["total de incidentes criticos", "total de incidentes críticos", "kpi", "kpis", "mttr", "maior impacto", "parada sistemica", "parada sistêmica", "principais causas"]):
             plan["codigo_tipo"] = "INC"
         if ("referencia" in q or "referência" in q or "fazem referência" in q or "causado" in q) and re.search(r"\bchg\d{5,}\b", q):
             plan["codigo_tipo"] = "INC"
@@ -779,7 +848,7 @@ class KnowledgeStructuredStore:
         if chg_ref:
             plan["change_ref"] = chg_ref.group(1).upper()
 
-        if re.search(r"\bapp\b", q):
+        if re.search(r"\bapp\b", q) or "aplicativo" in q or "meu vivo" in q or "operacao app" in q or "operação app" in q:
             plan["is_app"] = True
         if any(x in q for x in ["ecomm", "e commerce", "e-commerce", "ecommerce"]):
             plan["is_ecomm"] = True
@@ -798,9 +867,6 @@ class KnowledgeStructuredStore:
 
         if self._is_systemic_question(q):
             plan["parada_sistemica"] = True
-        if self._is_change_related_question(q):
-            plan["change_related"] = True
-            plan["codigo_tipo"] = plan.get("codigo_tipo") or "INC"
 
         funcionalidade = self._extract_functionality_from_question(question)
         if funcionalidade:
@@ -890,8 +956,7 @@ class KnowledgeStructuredStore:
         if plan.get("parada_sistemica"):
             clauses.append("""
                 (
-                    is_parada_sistemica = true
-                    OR descricao_resumida ILIKE '%INDISPONIBILIDADE%'
+                    descricao_resumida ILIKE '%INDISPONIBILIDADE%'
                     OR descricao_resumida ILIKE '%TELA DE MANUTENÇÃO%'
                     OR descricao_resumida ILIKE '%TELA DE MANUTENCAO%'
                     OR article_text ILIKE '%INDISPONIBILIDADE%'
@@ -900,17 +965,6 @@ class KnowledgeStructuredStore:
                     OR raw_json ILIKE '%INDISPONIBILIDADE%'
                     OR raw_json ILIKE '%TELA DE MANUTENÇÃO%'
                     OR raw_json ILIKE '%TELA DE MANUTENCAO%'
-                )
-            """)
-
-        if plan.get("change_related"):
-            clauses.append("""
-                (
-                    is_change_related = true
-                    OR COALESCE(causado_pela_mudanca, '') <> ''
-                    OR causa_origem ILIKE '%MUDANCA%'
-                    OR causa_origem ILIKE '%MUDANÇA%'
-                    OR article_text ILIKE '%CAUSADO_PELA_MUDANCA_MARKER%'
                 )
             """)
 
@@ -988,9 +1042,13 @@ class KnowledgeStructuredStore:
 
     def _answer_grouped(self, case_id: str, where_sql: str, params: list[Any], plan: dict[str, Any], column: str, title: str, query_type: str) -> dict[str, Any]:
         distinct_expr = "COALESCE(NULLIF(numero, ''), NULLIF(codigo_principal, ''), article_id)"
+        if column in {"estado", "status"}:
+            item_expr = "regexp_replace(COALESCE(NULLIF(estado, ''), NULLIF(status, ''), '-'), '\s+Data de.*$', '')"
+        else:
+            item_expr = f"COALESCE(NULLIF({column}, ''), '-')"
         sql = f"""
             SELECT
-                COALESCE(NULLIF({column}, ''), '-') AS item,
+                {item_expr} AS item,
                 COUNT(DISTINCT {distinct_expr}) AS total
             FROM {self.TABLE}
             {where_sql}
@@ -1004,9 +1062,10 @@ class KnowledgeStructuredStore:
         if not rows:
             return self._response(case_id, "Nenhum registro encontrado.", query_type, plan, {"sql": sql, "params": params})
 
+        cleaned_rows = [(_clean_extracted_value(item), total) for item, total in rows]
         lines = [f"{title}:", ""]
-        lines.extend(f"- {item}: {int(total)}" for item, total in rows)
-        return self._response(case_id, "\n".join(lines), query_type, plan, {"sql": sql, "params": params, "rows": rows})
+        lines.extend(f"- {item}: {int(total)}" for item, total in cleaned_rows)
+        return self._response(case_id, "\n".join(lines), query_type, plan, {"sql": sql, "params": params, "rows": cleaned_rows})
 
     def _answer_distinct(self, case_id: str, where_sql: str, params: list[Any], plan: dict[str, Any], column: str, title: str, query_type: str) -> dict[str, Any]:
         sql = f"""
@@ -1047,114 +1106,164 @@ class KnowledgeStructuredStore:
 
         return self._response(case_id, answer, "bulk_detail_guard", context, {"memory_only": True, "codes_count": count})
 
-    def _get_monthly_kpi_doc(self, case_id: str, mes: str, prefer_app: bool = True) -> dict[str, Any] | None:
+    def _find_monthly_kpi_doc(self, case_id: str, plan: dict[str, Any]) -> str:
+        """Busca o documento mensal de KPI/FAQ quando existir."""
+        mes = plan.get("mes")
         if not mes:
-            return None
+            return ""
         sql = f"""
-            SELECT article_text, raw_json, numero, article_id
+            SELECT article_text
             FROM {self.TABLE}
             WHERE case_id = ?
-              AND mes = ?
-              AND (
-                    article_text ILIKE '%KPIs do mês%'
-                 OR article_text ILIKE '%Resumo executivo + FAQ%'
-                 OR article_text ILIKE '%Perguntas frequentes%'
-                 OR article_text ILIKE '%Total de incidentes críticos%'
-                 OR raw_json ILIKE '%KPIs do mês%'
-                 OR raw_json ILIKE '%Resumo executivo + FAQ%'
-              )
+            AND mes = ?
+            AND (
+                article_text ILIKE '%KPIs do mês%'
+                OR article_text ILIKE '%KPIs do mes%'
+                OR article_text ILIKE '%Perguntas frequentes%'
+                OR article_text ILIKE '%Resumo executivo + FAQ%'
+                OR raw_json ILIKE '%KPIs do mês%'
+                OR raw_json ILIKE '%Resumo executivo + FAQ%'
+            )
             ORDER BY
-              CASE WHEN article_text ILIKE '%Categoria: APP%' OR raw_json ILIKE '%Categoria%APP%' THEN 0 ELSE 1 END,
-              article_id
+                CASE WHEN article_text ILIKE '%Categoria: APP%' OR raw_json ILIKE '%Categoria%APP%' THEN 0 ELSE 1 END,
+                LENGTH(article_text) DESC
             LIMIT 1
         """
         with self._connect() as con:
             row = con.execute(sql, [case_id, mes]).fetchone()
-        if not row:
-            return None
-        return {"article_text": row[0] or "", "raw_json": row[1] or "", "numero": row[2] or "", "article_id": row[3] or ""}
+        return row[0] if row and row[0] else ""
 
-    def _parse_monthly_kpis(self, text: str) -> dict[str, Any]:
-        source = text or ""
-        data: dict[str, Any] = {}
-        data["total"] = _extract_int(_find_first([
-            r"Total de incidentes críticos[^:]*:\s*(\d+)",
-            r"Total:\s*(\d+)\s*\(P1=",
-            r"APP\s*\|\s*20\d{2}-\d{2}:\s*(\d+)\s+incidentes",
-        ], source))
-        p_line = _find_first([r"P1\s*:\s*(\d+)\s*\|\s*P2\s*:\s*(\d+)\s*\|\s*P3\s*:\s*(\d+)"], source)
-        m = re.search(r"P1\s*:\s*(\d+)\s*\|\s*P2\s*:\s*(\d+)\s*\|\s*P3\s*:\s*(\d+)", source, re.I)
-        if m:
-            data["p1"], data["p2"], data["p3"] = int(m.group(1)), int(m.group(2)), int(m.group(3))
-        else:
-            m = re.search(r"Total:\s*\d+\s*\(P1\s*=\s*(\d+)\s*,\s*P2\s*=\s*(\d+)\s*,\s*P3\s*=\s*(\d+)\)", source, re.I)
-            if m:
-                data["p1"], data["p2"], data["p3"] = int(m.group(1)), int(m.group(2)), int(m.group(3))
-        data.setdefault("p1", 0); data.setdefault("p2", 0); data.setdefault("p3", 0)
-        data["impacto_total"] = _find_first([r"Tempo total de impacto[^:]*:\s*([0-9]{1,4}:[0-9]{2}:[0-9]{2})", r"Impacto total somado:\s*([0-9]{1,4}:[0-9]{2}:[0-9]{2})"], source)
-        data["parada_sistemica"] = _find_first([r"Parada sist[eê]mica[^:]*:\s*([0-9]{1,4}:[0-9]{2}:[0-9]{2})", r"Parada sist[eê]mica:\s*([0-9]{1,4}:[0-9]{2}:[0-9]{2})"], source)
-        data["mttr"] = _find_first([r"MTTR[^:]*:\s*([0-9]{1,4}:[0-9]{2}:[0-9]{2})"], source)
-        data["change_related"] = _extract_int(_find_first([r"Incidentes causados por mudan[çc]a[^:]*:\s*(\d+)", r"Mudança/CHG:\s*(\d+)"], source))
-        data["systemic_count"] = _extract_int(_find_first([r"Total classificado:\s*(\d+)"], source))
-        # Maior impacto
-        m = re.search(r"Incidente de maior impacto:\s*(INC\d+)\s*\((P\d)\)\s*[—\-]\s*(.*?)\s*[—\-]\s*impacto\s*([0-9]{1,4}:[0-9]{2}:[0-9]{2})", source, re.I | re.S)
-        if not m:
-            m = re.search(r"(INC\d+)\s*\|\s*(P\d)\s*\|\s*([0-9]{1,4}:[0-9]{2}:[0-9]{2})\s*\|\s*(.+)", source, re.I)
-            if m:
-                data["maior_codigo"] = m.group(1).upper(); data["maior_prioridade"] = m.group(2).upper(); data["maior_tempo"] = m.group(3); data["maior_descricao"] = _clean_inline(m.group(4))
-        else:
-            data["maior_codigo"] = m.group(1).upper(); data["maior_prioridade"] = m.group(2).upper(); data["maior_descricao"] = _clean_inline(m.group(3)); data["maior_tempo"] = m.group(4)
-        # Ranking causas, trecho em uma linha
-        causes = _find_first([r"Principais [“\"]?Causa Origem[”\"]? \(top\):\s*(.+?)(?:\n\s*\d+\)|\n\s*10\)|\n\s*Incidentes|\Z)"], source)
-        data["causas_texto"] = _clean_inline(causes)
-        return data
+    def _parse_monthly_kpi_doc(self, text: str) -> dict[str, Any]:
+        if not text:
+            return {}
+        doc = text.replace("\r\n", "\n")
+        norm_doc = _norm(doc)
 
-    def _answer_from_monthly_kpi_doc(self, case_id: str, question: str, plan: dict[str, Any]) -> dict[str, Any] | None:
-        q = _norm(question)
-        mes = plan.get("mes") or self._extract_month_from_question(q)
-        if not mes:
+        def grab(pattern: str, flags: int = re.IGNORECASE | re.DOTALL) -> str:
+            m = re.search(pattern, doc, flags)
+            return m.group(1).strip() if m else ""
+
+        total = grab(r"Total de incidentes críticos[^:]*:\s*(\d+)") or grab(r"Total:\s*(\d+)\s*\(P1")
+        p_match = re.search(r"P1\s*:\s*(\d+)\s*\|\s*P2\s*:\s*(\d+)\s*\|\s*P3\s*:\s*(\d+)", doc, re.IGNORECASE)
+        p1 = p_match.group(1) if p_match else ""
+        p2 = p_match.group(2) if p_match else ""
+        p3 = p_match.group(3) if p_match else ""
+
+        impacto_total = grab(r"Tempo total de impacto[^:]*:\s*([0-9]{1,4}:[0-9]{2}:[0-9]{2})")
+        parada = grab(r"Parada sist[eê]mica[^:]*:\s*([0-9]{1,4}:[0-9]{2}:[0-9]{2})")
+        mttr = grab(r"MTTR[^:]*:\s*([0-9]{1,4}:[0-9]{2}:[0-9]{2})")
+        change_related = grab(r"Incidentes causados por mudan[çc]a[^:]*:\s*(\d+)")
+
+        major = grab(r"Incidente de maior impacto:\s*(INC\d+\s*\([^\n]+?impacto\s*[0-9]{1,4}:[0-9]{2}:[0-9]{2})")
+        if not major:
+            major = grab(r"Qual incidente teve maior impacto[^\n]*\n\s*-\s*(INC\d+[^\n]+)")
+
+        causes = grab(r"Principais [“\"]?Causa Origem[”\"]? \(top\):\s*(.+?)(?:\n\s*\d+\)|\n\s*10\)|\n\s*Incidentes da operação|\n\s*Incidentes por funcionalidade|\Z)")
+        causes = re.sub(r"\s+", " ", causes).strip(" -") if causes else ""
+
+        func_block = grab(r"Incidentes por funcionalidade \(Top 10\)\s*(.+?)(?:\n\s*Mês:|\Z)")
+        functionality = []
+        if func_block:
+            for line in func_block.splitlines():
+                line = line.strip(" -\t")
+                if not line or ":" not in line:
+                    continue
+                functionality.append(line)
+
+        incidents_block = grab(r"Incidentes da operação de APP para\s*20\d{2}-\d{2}\s*(.+?)(?:\n\s*Incidentes por funcionalidade|\Z)")
+        incidents = re.findall(r"\bINC\d{5,}\b", incidents_block or "")
+
+        return {
+            "total": int(total) if str(total).isdigit() else None,
+            "p1": int(p1) if str(p1).isdigit() else None,
+            "p2": int(p2) if str(p2).isdigit() else None,
+            "p3": int(p3) if str(p3).isdigit() else None,
+            "impacto_total": impacto_total,
+            "parada_sistemica": parada,
+            "mttr": mttr,
+            "change_related": int(change_related) if str(change_related).isdigit() else None,
+            "major_impact": major,
+            "causes": causes,
+            "functionality": functionality,
+            "incidents": incidents,
+            "is_app_doc": "categoria app" in norm_doc or "operação de app" in norm_doc or "operacao de app" in norm_doc,
+        }
+
+    def _answer_monthly_kpi_if_applicable(self, case_id: str, question: str, q: str, plan: dict[str, Any]) -> dict[str, Any] | None:
+        if not plan.get("mes"):
             return None
-        wants_incident_kpi = any(x in q for x in ["incidente", "incidentes", "mttr", "parada", "maior impacto", "p1", "p2", "p3", "kpi", "resumo executivo", "principais causas", "total de incidentes"])
-        if not wants_incident_kpi:
+
+        is_kpi_question = any([
+            self._is_executive_summary_question(q),
+            self._is_major_impact_question(q),
+            self._is_mttr_question(q),
+            self._is_impact_total_question(q),
+            self._is_causes_ranking_question(q),
+            self._is_functionality_ranking_question(q),
+            self._is_systemic_question(q),
+            self._extract_priority_from_question(q) != "",
+            self._is_change_related_question(q),
+            "total de incidentes criticos" in q,
+            "total de incidentes críticos" in q,
+        ])
+        if not is_kpi_question:
             return None
-        doc = self._get_monthly_kpi_doc(case_id, mes, prefer_app=plan.get("is_app", False))
+
+        doc = self._find_monthly_kpi_doc(case_id, plan)
         if not doc:
             return None
-        kpi = self._parse_monthly_kpis((doc.get("article_text") or "") + "\n" + (doc.get("raw_json") or ""))
-        # P1/P2/P3 específico
-        pr = self._extract_priority_from_question(q)
-        if pr:
-            value = int(kpi.get(pr.lower(), 0))
-            return self._response(case_id, str(value), "monthly_kpi_priority", {**plan, "source": "monthly_kpi_doc"}, {"kpi": kpi})
-        if self._is_major_impact_question(q) and kpi.get("maior_codigo"):
-            answer = f"{kpi.get('maior_codigo')} ({kpi.get('maior_prioridade') or '-'}) — {kpi.get('maior_descricao') or '-'} — impacto {kpi.get('maior_tempo') or '-'}"
-            return self._response(case_id, answer, "monthly_kpi_major_impact", {**plan, "source": "monthly_kpi_doc"}, {"kpi": kpi})
-        if self._is_systemic_question(q) and any(x in q for x in ["tempo", "qual", "quanto"]):
-            answer = kpi.get("parada_sistemica") or "00:00:00"
-            if kpi.get("systemic_count"):
-                answer += f"\n\n- Incidentes classificados como parada sistêmica: {kpi.get('systemic_count')}"
-            return self._response(case_id, answer, "monthly_kpi_systemic_time", {**plan, "source": "monthly_kpi_doc"}, {"kpi": kpi})
-        if self._is_mttr_question(q):
-            return self._response(case_id, kpi.get("mttr") or "00:00:00", "monthly_kpi_mttr", {**plan, "source": "monthly_kpi_doc"}, {"kpi": kpi})
-        if self._is_impact_total_question(q):
-            return self._response(case_id, kpi.get("impacto_total") or "00:00:00", "monthly_kpi_total_impact", {**plan, "source": "monthly_kpi_doc"}, {"kpi": kpi})
-        if self._is_change_related_question(q):
-            return self._response(case_id, str(int(kpi.get("change_related", 0))), "monthly_kpi_change_related", {**plan, "source": "monthly_kpi_doc"}, {"kpi": kpi})
-        if self._is_causes_ranking_question(q) and kpi.get("causas_texto"):
-            return self._response(case_id, f"Principais causas de origem:\n\n{kpi.get('causas_texto')}", "monthly_kpi_causes", {**plan, "source": "monthly_kpi_doc"}, {"kpi": kpi})
+        kpi = self._parse_monthly_kpi_doc(doc)
+        if not kpi:
+            return None
+
+        priority = self._extract_priority_from_question(q)
+        if priority:
+            value = kpi.get(priority.lower())
+            if value is not None:
+                return self._response(case_id, str(value), "monthly_kpi_priority", plan, {"source": "monthly_kpi_doc", "priority": priority})
+
+        if self._is_major_impact_question(q) and kpi.get("major_impact"):
+            return self._response(case_id, kpi["major_impact"], "monthly_kpi_major_impact", plan, {"source": "monthly_kpi_doc"})
+
+        if self._is_systemic_question(q) and kpi.get("parada_sistemica"):
+            return self._response(case_id, kpi["parada_sistemica"], "monthly_kpi_systemic_stop", plan, {"source": "monthly_kpi_doc"})
+
+        if self._is_mttr_question(q) and kpi.get("mttr"):
+            return self._response(case_id, kpi["mttr"], "monthly_kpi_mttr", plan, {"source": "monthly_kpi_doc"})
+
+        if self._is_impact_total_question(q) and kpi.get("impacto_total"):
+            return self._response(case_id, kpi["impacto_total"], "monthly_kpi_impact_total", plan, {"source": "monthly_kpi_doc"})
+
+        if self._is_change_related_question(q) and kpi.get("change_related") is not None:
+            return self._response(case_id, str(kpi["change_related"]), "monthly_kpi_change_related", plan, {"source": "monthly_kpi_doc"})
+
+        if self._is_causes_ranking_question(q) and kpi.get("causes"):
+            return self._response(case_id, "Principais causas de origem:\n\n" + kpi["causes"], "monthly_kpi_causes", plan, {"source": "monthly_kpi_doc"})
+
+        if self._is_functionality_ranking_question(q) and kpi.get("functionality"):
+            return self._response(case_id, "Incidentes por funcionalidade:\n\n" + "\n".join(f"- {x}" for x in kpi["functionality"]), "monthly_kpi_functionality", plan, {"source": "monthly_kpi_doc"})
+
         if self._is_executive_summary_question(q):
-            categoria = "APP" if plan.get("is_app") or "app" in q else "Operação"
+            scope = []
+            if kpi.get("is_app_doc") or plan.get("is_app"):
+                scope.append("APP")
+            if plan.get("mes"):
+                scope.append(plan["mes"])
+            scope_text = " | ".join(scope) if scope else "Base analisada"
             answer = (
-                f"{categoria} | {mes}: {int(kpi.get('total', 0))} incidentes críticos (P1={int(kpi.get('p1', 0))}, P2={int(kpi.get('p2', 0))}, P3={int(kpi.get('p3', 0))}).\n"
-                f"- Impacto total somado: {kpi.get('impacto_total') or '00:00:00'}.\n"
-                f"- Parada sistêmica: {kpi.get('parada_sistemica') or '00:00:00'}.\n"
-                f"- MTTR: {kpi.get('mttr') or '00:00:00'}.\n"
-                f"- Maior impacto: {kpi.get('maior_codigo') or '-'} ({kpi.get('maior_prioridade') or '-'}) — {kpi.get('maior_descricao') or '-'} — impacto {kpi.get('maior_tempo') or '-'}.\n"
-                f"- Mudança/CHG: {int(kpi.get('change_related', 0))} incidente(s) com indício de mudança."
+                f"{scope_text}: {kpi.get('total') or 0} incidentes críticos "
+                f"(P1={kpi.get('p1') or 0}, P2={kpi.get('p2') or 0}, P3={kpi.get('p3') or 0}).\n"
+                f"- Impacto total somado: {kpi.get('impacto_total') or '-'}.\n"
+                f"- Parada sistêmica: {kpi.get('parada_sistemica') or '-'}.\n"
+                f"- MTTR: {kpi.get('mttr') or '-'}.\n"
+                f"- Maior impacto: {kpi.get('major_impact') or '-'}.\n"
+                f"- Mudança/CHG: {kpi.get('change_related') if kpi.get('change_related') is not None else '-'} incidente(s) com indício de mudança."
             )
-            return self._response(case_id, answer, "monthly_kpi_executive_summary", {**plan, "source": "monthly_kpi_doc"}, {"kpi": kpi})
-        if any(x in q for x in ["total de incidentes criticos", "total de incidentes críticos", "quantos incidentes", "quantas incidentes"]):
-            return self._response(case_id, str(int(kpi.get("total", 0))), "monthly_kpi_total_incidents", {**plan, "source": "monthly_kpi_doc"}, {"kpi": kpi})
+            return self._response(case_id, answer, "monthly_kpi_executive_summary", plan, {"source": "monthly_kpi_doc"})
+
+        if ("total de incidentes criticos" in q or "total de incidentes críticos" in q) and kpi.get("total") is not None:
+            return self._response(case_id, str(kpi["total"]), "monthly_kpi_total", plan, {"source": "monthly_kpi_doc"})
+
         return None
 
     def _answer_impact_sum(self, case_id: str, where_sql: str, params: list[Any], plan: dict[str, Any]) -> dict[str, Any]:
@@ -1332,23 +1441,6 @@ class KnowledgeStructuredStore:
             "sources": {"deterministic": True, "engine": "duckdb", "table": self.TABLE},
         }
 
-    def _safe_operational_failure(self, case_id: str, question: str, reason: str) -> dict[str, Any]:
-        return self._response(
-            case_id,
-            "Não consegui calcular essa métrica operacional pela base estruturada disponível. Verifique se o case foi sincronizado/reindexado com os campos necessários ou se existe documento mensal de KPI/FAQ para o período.",
-            "operational_safe_failure",
-            {"question": question},
-            {"reason": reason},
-        )
-
-    def _is_operational_question(self, q: str) -> bool:
-        return any(x in q for x in [
-            "change", "changes", "chg", "mudanca", "mudança", "incidente", "incidentes",
-            "app", "aplicativo", "ecomm", "aura", "whatsapp", "impacto", "mttr",
-            "parada", "indisponibilidade", "prioridade", "p1", "p2", "p3",
-            "causa", "funcionalidade", "grupo", "ic", "estado", "status", "resumo executivo"
-        ])
-
     def _normalize_month(self, value: Any) -> str:
         match = re.search(r"(20\d{2})[-/](\d{1,2})", _safe(value))
         return f"{match.group(1)}-{match.group(2).zfill(2)}" if match else ""
@@ -1508,7 +1600,7 @@ class KnowledgeStructuredStore:
         return any(x in q for x in ["parada sistemica", "parada sistêmica", "indisponibilidade sistemica", "indisponibilidade sistêmica", "tela de manutencao", "tela de manutenção"])
 
     def _is_executive_summary_question(self, q: str) -> bool:
-        return ("resumo executivo" in q) or ("kpi" in q) or ("kpis" in q)
+        return ("resumo executivo" in q) or ("kpi" in q) or ("kpis" in q) or ("resumo" in q and "incidentes" in q and "principais causas" not in q)
 
     def _is_impact_total_question(self, q: str) -> bool:
         return any(x in q for x in ["tempo total de impacto", "impacto total somado", "tempo de impacto total"]) or ("tempo" in q and "parada" in q)
@@ -1524,14 +1616,6 @@ class KnowledgeStructuredStore:
 
     def _is_functionality_ranking_question(self, q: str) -> bool:
         return any(x in q for x in ["incidentes por funcionalidade", "ranking de funcionalidade", "ranking por funcionalidade", "funcionalidades mais"])
-
-    def _is_change_related_question(self, q: str) -> bool:
-        return any(x in q for x in [
-            "causados por mudança", "causados por mudanca", "causado por mudança",
-            "causado por mudanca", "causados por uma change", "causado pela mudança",
-            "causado pela mudanca", "incidentes foram causados por mudança",
-            "incidentes foram causados por mudanca"
-        ])
 
     def _is_success_rate_question(self, q: str) -> bool:
         return any(x in q for x in ["percentual", "porcentagem", "taxa"]) and any(
