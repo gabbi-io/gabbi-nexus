@@ -84,6 +84,36 @@ def _looks_like_assignment_group(value: str) -> bool:
     return bool(re.fullmatch(r"[A-Z0-9]+(?:_[A-Z0-9]+){1,}", value))
 
 
+def _duration_to_seconds(value: Any) -> int:
+    """Converte durações HH:MM:SS, H:MM:SS ou MM:SS para segundos."""
+    text = _safe(value)
+    if not text:
+        return 0
+    match = re.search(r"(\d{1,4}):(\d{2}):(\d{2})", text)
+    if match:
+        return int(match.group(1)) * 3600 + int(match.group(2)) * 60 + int(match.group(3))
+    match = re.search(r"(\d{1,4}):(\d{2})", text)
+    if match:
+        return int(match.group(1)) * 60 + int(match.group(2))
+    return 0
+
+
+def _seconds_to_hhmmss(seconds: int | float | None) -> str:
+    seconds = int(seconds or 0)
+    h = seconds // 3600
+    m = (seconds % 3600) // 60
+    s = seconds % 60
+    return f"{h:02d}:{m:02d}:{s:02d}"
+
+
+def _first_non_empty(*values: Any) -> str:
+    for value in values:
+        text = _safe(value)
+        if text:
+            return text
+    return ""
+
+
 class KnowledgeStructuredStore:
     TABLE = "knowledge_articles_structured"
 
@@ -105,6 +135,19 @@ class KnowledgeStructuredStore:
         "estado", "estados", "status", "cancelada", "canceladas", "cancelado",
         "cancelados", "encerrada", "encerradas", "encerrado", "encerrados",
         "emergencia", "emergência", "normal",
+        "temos", "tem", "existe", "existem", "alguma", "algum",
+        "temos alguma", "tem alguma", "existe alguma", "existe algum",
+        "kpi", "kpis", "indicador", "indicadores", "executivo", "executiva",
+        "faq", "treinamento", "operacao", "operação", "critico", "crítico",
+        "criticos", "críticos", "p1", "p2", "p3", "prioridade",
+        "impacto", "maior impacto", "tempo de impacto", "tempo total",
+        "parada", "sistemica", "sistêmica", "tela de manutencao", "tela de manutenção",
+        "mttr", "tempo medio", "tempo médio", "solucao", "solução",
+        "causa", "causas", "causa origem", "origem", "funcionalidade",
+        "funcionalidades", "comparativo", "compare", "top", "ranking",
+        "checkout", "fatura", "faturas", "troca de plano", "recarga", "esim",
+        "login", "ordem de servico", "ordem de serviço", "para voce", "pra voce",
+        "para você", "pra você", "meu vivo", "app vivo", "aplicativo vivo",
     }
 
     BASE_COLUMNS: dict[str, str] = {
@@ -150,6 +193,11 @@ class KnowledgeStructuredStore:
         "descricao_resumida": "TEXT",
         "causado_pela_mudanca": "TEXT",
         "aberto": "TEXT",
+        "tempo_impacto": "TEXT",
+        "tempo_impacto_segundos": "BIGINT",
+        "causa_origem": "TEXT",
+        "resolvido": "TEXT",
+        "encerrado": "TEXT",
 
         "updated_at": "TIMESTAMP DEFAULT CURRENT_TIMESTAMP",
     }
@@ -287,6 +335,30 @@ class KnowledgeStructuredStore:
         estado = _safe(row.get("estado")) or _safe(document_obj.get("Estado")) or _extract_field(article_text, "Estado")
         tipo = _safe(row.get("tipo")) or _safe(document_obj.get("Tipo")) or _extract_field(article_text, "Tipo")
         prioridade = _safe(row.get("prioridade")) or _safe(document_obj.get("Prioridade")) or _extract_field(article_text, "Prioridade")
+        tempo_impacto = _first_non_empty(
+            row.get("tempo_impacto"),
+            row.get("u_rpt_tempo_total_de_impacto"),
+            row.get("Tempo total de impacto"),
+            row.get("Tempo de impacto"),
+            row.get("tempo_total_impacto"),
+            document_obj.get("u_rpt_tempo_total_de_impacto"),
+            document_obj.get("Tempo total de impacto"),
+            document_obj.get("Tempo de impacto"),
+            _extract_field(article_text, "u_rpt_tempo_total_de_impacto"),
+            _extract_field(article_text, "Tempo total de impacto"),
+            _extract_field(article_text, "Tempo de impacto"),
+        )
+        causa_origem = _first_non_empty(
+            row.get("causa_origem"),
+            row.get("Causa Origem"),
+            row.get("causa origem"),
+            document_obj.get("Causa Origem"),
+            document_obj.get("causa_origem"),
+            _extract_field(article_text, "Causa Origem"),
+            _extract_field(article_text, "Causa origem"),
+        )
+        resolvido = _first_non_empty(row.get("resolvido"), document_obj.get("Resolvido"), _extract_field(article_text, "Resolvido"))
+        encerrado = _first_non_empty(row.get("encerrado"), document_obj.get("Encerrado"), _extract_field(article_text, "Encerrado"))
 
         blob = _norm(" ".join([canal, descricao_resumida, descricao, article_text, raw_json]))
         is_app = bool(
@@ -361,6 +433,11 @@ class KnowledgeStructuredStore:
             "descricao_resumida": descricao_resumida,
             "causado_pela_mudanca": causado,
             "aberto": aberto,
+            "tempo_impacto": tempo_impacto,
+            "tempo_impacto_segundos": _duration_to_seconds(tempo_impacto),
+            "causa_origem": causa_origem,
+            "resolvido": resolvido,
+            "encerrado": encerrado,
         }
 
     def answer_question(self, case_id: str, question: str, chat_history: list[dict[str, Any]] | None = None) -> dict[str, Any] | None:
@@ -423,6 +500,25 @@ class KnowledgeStructuredStore:
         if self._is_distinct_question(q, "grupo"):
             return self._answer_distinct(case_id, where_sql, params, plan, "grupo_atribuicao", "Grupos encontrados", "distinct_groups")
 
+        if self._is_executive_summary_question(q):
+            return self._answer_executive_summary(case_id, where_sql, params, plan)
+
+        if self._is_impact_total_question(q):
+            return self._answer_impact_sum(case_id, where_sql, params, plan)
+
+        if self._is_mttr_question(q):
+            return self._answer_mttr(case_id, where_sql, params, plan)
+
+        if self._is_major_impact_question(q):
+            return self._answer_major_impact(case_id, where_sql, params, plan)
+
+        if self._is_causes_ranking_question(q):
+            return self._answer_grouped(case_id, where_sql, params, plan, "causa_origem", "Principais causas de origem", "top_causes")
+
+        if self._is_functionality_ranking_question(q):
+            return self._answer_grouped(case_id, where_sql, params, plan, "ic_impactado", "Incidentes por funcionalidade", "top_functionality")
+
+        is_exists = self._is_exists_question(q)
         is_count = any(x in q for x in ["quantos", "quantas", "quantidade", "qtd", "qtde", "total"])
 
         # Removido "qual" como gatilho genérico, porque quebrava perguntas como:
@@ -438,6 +534,15 @@ class KnowledgeStructuredStore:
 
         with self._connect() as con:
             distinct_expr = "COALESCE(NULLIF(numero, ''), NULLIF(codigo_principal, ''), article_id)"
+
+            if is_exists:
+                sql = f"SELECT COUNT(DISTINCT {distinct_expr}) AS total FROM {self.TABLE} {where_sql}"
+                total = int(con.execute(sql, params).fetchone()[0] or 0)
+                codes_sql = f"SELECT DISTINCT {distinct_expr} AS codigo FROM {self.TABLE} {where_sql} ORDER BY codigo LIMIT 2000"
+                codes = [r[0] for r in con.execute(codes_sql, params).fetchall() if r[0]]
+                self._save_memory(case_id, plan, codes)
+                answer = f"Sim. Encontrei {total} registro(s)." if total > 0 else "Não encontrei registros."
+                return self._response(case_id, answer, "exists", plan, {"sql": sql, "params": params, "count": total, "codes_count": len(codes)})
 
             if is_count and not is_list:
                 sql = f"SELECT COUNT(DISTINCT {distinct_expr}) AS total FROM {self.TABLE} {where_sql}"
@@ -636,6 +741,17 @@ class KnowledgeStructuredStore:
         if tipo:
             plan["tipo"] = tipo
 
+        prioridade = self._extract_priority_from_question(q)
+        if prioridade:
+            plan["prioridade"] = prioridade
+
+        if self._is_systemic_question(q):
+            plan["parada_sistemica"] = True
+
+        funcionalidade = self._extract_functionality_from_question(question)
+        if funcionalidade:
+            plan["funcionalidade"] = funcionalidade
+
         return plan
 
     def _build_where(self, case_id: str, plan: dict[str, Any]) -> tuple[str, list[Any]]:
@@ -643,25 +759,25 @@ class KnowledgeStructuredStore:
         params: list[Any] = [case_id]
         codigo_tipo = plan.get("codigo_tipo")
 
-        if codigo_tipo == "CHG":
-            clauses.append("""
-                (
-                    numero LIKE 'CHG%'
-                    OR codigo_principal LIKE 'CHG%'
-                    OR codigo_tipo = 'CHG'
-                    OR categoria = 'CHG'
-                )
-            """)
-
-        elif codigo_tipo == "INC":
-            clauses.append("""
-                (
-                    numero LIKE 'INC%'
-                    OR codigo_principal LIKE 'INC%'
-                    OR codigo_tipo = 'INC'
-                    OR categoria = 'INC'
-                )
-            """)
+        if codigo_tipo:
+            if codigo_tipo == "CHG":
+                clauses.append("""
+                    (
+                        numero LIKE 'CHG%'
+                        OR codigo_principal LIKE 'CHG%'
+                        OR codigo_tipo = 'CHG'
+                        OR categoria = 'CHG'
+                    )
+                """)
+            elif codigo_tipo == "INC":
+                clauses.append("""
+                    (
+                        numero LIKE 'INC%'
+                        OR codigo_principal LIKE 'INC%'
+                        OR codigo_tipo = 'INC'
+                        OR categoria = 'INC'
+                    )
+                """)
 
         if plan.get("mes"):
             clauses.append("mes = ?")
@@ -707,6 +823,30 @@ class KnowledgeStructuredStore:
         if plan.get("tipo"):
             clauses.append("tipo ILIKE ?")
             params.append(f"%{plan['tipo']}%")
+
+        if plan.get("prioridade"):
+            clauses.append("prioridade ILIKE ?")
+            params.append(f"%{plan['prioridade']}%")
+
+        if plan.get("funcionalidade"):
+            clauses.append("(ic_impactado ILIKE ? OR descricao_resumida ILIKE ? OR descricao ILIKE ? OR article_text ILIKE ?)")
+            func = f"%{plan['funcionalidade']}%"
+            params.extend([func, func, func, func])
+
+        if plan.get("parada_sistemica"):
+            clauses.append("""
+                (
+                    descricao_resumida ILIKE '%INDISPONIBILIDADE%'
+                    OR descricao_resumida ILIKE '%TELA DE MANUTENÇÃO%'
+                    OR descricao_resumida ILIKE '%TELA DE MANUTENCAO%'
+                    OR article_text ILIKE '%INDISPONIBILIDADE%'
+                    OR article_text ILIKE '%TELA DE MANUTENÇÃO%'
+                    OR article_text ILIKE '%TELA DE MANUTENCAO%'
+                    OR raw_json ILIKE '%INDISPONIBILIDADE%'
+                    OR raw_json ILIKE '%TELA DE MANUTENÇÃO%'
+                    OR raw_json ILIKE '%TELA DE MANUTENCAO%'
+                )
+            """)
 
         if plan.get("is_app"):
             clauses.append("""
@@ -840,6 +980,131 @@ class KnowledgeStructuredStore:
         )
 
         return self._response(case_id, answer, "bulk_detail_guard", context, {"memory_only": True, "codes_count": count})
+
+    def _answer_impact_sum(self, case_id: str, where_sql: str, params: list[Any], plan: dict[str, Any]) -> dict[str, Any]:
+        sql = f"""
+            SELECT
+                COUNT(DISTINCT COALESCE(NULLIF(numero, ''), NULLIF(codigo_principal, ''), article_id)) AS total,
+                SUM(COALESCE(tempo_impacto_segundos, 0)) AS total_seconds
+            FROM {self.TABLE}
+            {where_sql}
+        """
+        with self._connect() as con:
+            row = con.execute(sql, params).fetchone()
+        total = int(row[0] or 0)
+        seconds = int(row[1] or 0)
+        return self._response(
+            case_id,
+            f"Tempo total de impacto: {_seconds_to_hhmmss(seconds)}\n\n- Registros analisados: {total}",
+            "impact_sum",
+            plan,
+            {"sql": sql, "params": params, "total": total, "seconds": seconds},
+        )
+
+    def _answer_mttr(self, case_id: str, where_sql: str, params: list[Any], plan: dict[str, Any]) -> dict[str, Any]:
+        sql = f"""
+            SELECT
+                COUNT(DISTINCT COALESCE(NULLIF(numero, ''), NULLIF(codigo_principal, ''), article_id)) AS total,
+                AVG(NULLIF(tempo_impacto_segundos, 0)) AS avg_seconds
+            FROM {self.TABLE}
+            {where_sql}
+        """
+        with self._connect() as con:
+            row = con.execute(sql, params).fetchone()
+        total = int(row[0] or 0)
+        seconds = int(row[1] or 0) if row and row[1] is not None else 0
+        return self._response(
+            case_id,
+            f"MTTR / tempo médio de solução: {_seconds_to_hhmmss(seconds)}\n\n- Registros analisados: {total}",
+            "mttr",
+            plan,
+            {"sql": sql, "params": params, "total": total, "avg_seconds": seconds},
+        )
+
+    def _answer_major_impact(self, case_id: str, where_sql: str, params: list[Any], plan: dict[str, Any]) -> dict[str, Any]:
+        sql = f"""
+            SELECT
+                COALESCE(NULLIF(numero, ''), NULLIF(codigo_principal, ''), article_id) AS codigo,
+                prioridade,
+                tempo_impacto,
+                tempo_impacto_segundos,
+                COALESCE(NULLIF(descricao_resumida, ''), NULLIF(descricao, ''), '-') AS descricao
+            FROM {self.TABLE}
+            {where_sql}
+            ORDER BY COALESCE(tempo_impacto_segundos, 0) DESC, codigo ASC
+            LIMIT 1
+        """
+        with self._connect() as con:
+            row = con.execute(sql, params).fetchone()
+        if not row:
+            return self._response(case_id, "Nenhum registro encontrado.", "major_impact", plan, {"sql": sql, "params": params})
+        codigo, prioridade, tempo, seconds, descricao = row
+        answer = f"{codigo} ({prioridade or '-'}) — {descricao or '-'} — impacto {tempo or _seconds_to_hhmmss(seconds or 0)}"
+        return self._response(case_id, answer, "major_impact", plan, {"sql": sql, "params": params, "record": row})
+
+    def _answer_executive_summary(self, case_id: str, where_sql: str, params: list[Any], plan: dict[str, Any]) -> dict[str, Any]:
+        distinct_expr = "COALESCE(NULLIF(numero, ''), NULLIF(codigo_principal, ''), article_id)"
+        sql_totals = f"""
+            SELECT
+                COUNT(DISTINCT {distinct_expr}) AS total,
+                COUNT(DISTINCT CASE WHEN prioridade ILIKE '%P1%' THEN {distinct_expr} END) AS p1,
+                COUNT(DISTINCT CASE WHEN prioridade ILIKE '%P2%' THEN {distinct_expr} END) AS p2,
+                COUNT(DISTINCT CASE WHEN prioridade ILIKE '%P3%' THEN {distinct_expr} END) AS p3,
+                SUM(COALESCE(tempo_impacto_segundos, 0)) AS impacto_total,
+                AVG(NULLIF(tempo_impacto_segundos, 0)) AS mttr,
+                COUNT(DISTINCT CASE WHEN (causado_pela_mudanca <> '' OR causa_origem ILIKE '%MUDANCA%' OR causa_origem ILIKE '%MUDANÇA%') THEN {distinct_expr} END) AS mudanca
+            FROM {self.TABLE}
+            {where_sql}
+        """
+        sql_systemic = f"""
+            SELECT
+                COUNT(DISTINCT {distinct_expr}) AS total,
+                SUM(COALESCE(tempo_impacto_segundos, 0)) AS impacto
+            FROM {self.TABLE}
+            {where_sql}
+            AND (
+                descricao_resumida ILIKE '%INDISPONIBILIDADE%'
+                OR descricao_resumida ILIKE '%TELA DE MANUTENÇÃO%'
+                OR descricao_resumida ILIKE '%TELA DE MANUTENCAO%'
+                OR article_text ILIKE '%INDISPONIBILIDADE%'
+                OR article_text ILIKE '%TELA DE MANUTENÇÃO%'
+                OR article_text ILIKE '%TELA DE MANUTENCAO%'
+            )
+        """
+        sql_top = f"""
+            SELECT
+                {distinct_expr} AS codigo,
+                prioridade,
+                tempo_impacto,
+                tempo_impacto_segundos,
+                COALESCE(NULLIF(descricao_resumida, ''), NULLIF(descricao, ''), '-') AS descricao
+            FROM {self.TABLE}
+            {where_sql}
+            ORDER BY COALESCE(tempo_impacto_segundos, 0) DESC, codigo ASC
+            LIMIT 1
+        """
+        with self._connect() as con:
+            totals = con.execute(sql_totals, params).fetchone()
+            systemic = con.execute(sql_systemic, params).fetchone()
+            top = con.execute(sql_top, params).fetchone()
+        total, p1, p2, p3, impacto, mttr, mudanca = [int(x or 0) for x in totals]
+        sys_total = int(systemic[0] or 0) if systemic else 0
+        sys_impact = int(systemic[1] or 0) if systemic else 0
+        scope = []
+        if plan.get("is_app"):
+            scope.append("APP")
+        if plan.get("mes"):
+            scope.append(plan["mes"])
+        scope_text = " | ".join(scope) if scope else "Base analisada"
+        lines = [
+            f"{scope_text}: {total} incidentes/registros críticos analisados (P1={p1}, P2={p2}, P3={p3}).",
+            f"Impacto total somado: {_seconds_to_hhmmss(impacto)}. Parada sistêmica: {_seconds_to_hhmmss(sys_impact)} ({sys_total} registro(s)). MTTR: {_seconds_to_hhmmss(mttr)}.",
+            f"Mudança/CHG: {mudanca} incidente(s) com indício de mudança.",
+        ]
+        if top:
+            codigo, prioridade, tempo, seconds, descricao = top
+            lines.append(f"Maior impacto: {codigo} ({prioridade or '-'}) — {descricao or '-'} — impacto {tempo or _seconds_to_hhmmss(seconds or 0)}.")
+        return self._response(case_id, "\n".join(lines), "executive_summary", plan, {"sql_totals": sql_totals, "sql_systemic": sql_systemic, "sql_top": sql_top, "params": params})
 
     def _answer_aura_whatsapp(self, case_id: str, context: dict[str, Any]) -> dict[str, Any]:
         codes = context.get("last_codes") or []
@@ -1021,6 +1286,51 @@ class KnowledgeStructuredStore:
         if re.search(r"\bchanges?\s+normal\b|\bmudancas?\s+normal\b|\btipo\s+normal\b", q):
             return "Normal"
         return ""
+
+    def _extract_priority_from_question(self, q: str) -> str:
+        match = re.search(r"\b(p[123])\b", q)
+        return match.group(1).upper() if match else ""
+
+    def _extract_functionality_from_question(self, question: str) -> str:
+        q = _norm(question)
+        match = re.search(r"funcionalidade\s+(.+?)(?:\s+no\s+m[eê]s|\s+em\s+20\d{2}|\?|$)", question, re.IGNORECASE)
+        if match:
+            return match.group(1).strip().strip('"\'')
+        # Termos comuns que aparecem nas perguntas reais.
+        known = [
+            "checkout", "fatura", "faturas", "troca de plano", "recarga", "esim", "login",
+            "ordem de servico", "ordem de serviço", "aba para voce", "aba para você",
+            "pra voce", "pra você", "para voce", "para você", "vivo travel", "portabilidade",
+            "seguros", "modo seguro", "vivo up", "planos", "fila de atendimento",
+        ]
+        for item in known:
+            if item in q:
+                return item
+        return ""
+
+    def _is_exists_question(self, q: str) -> bool:
+        return any(x in q for x in ["temos alguma", "tem alguma", "existe alguma", "existe algum", "temos algum", "ha alguma", "há alguma"])
+
+    def _is_systemic_question(self, q: str) -> bool:
+        return any(x in q for x in ["parada sistemica", "parada sistêmica", "indisponibilidade sistemica", "indisponibilidade sistêmica", "tela de manutencao", "tela de manutenção"])
+
+    def _is_executive_summary_question(self, q: str) -> bool:
+        return ("resumo executivo" in q) or ("kpi" in q) or ("kpis" in q)
+
+    def _is_impact_total_question(self, q: str) -> bool:
+        return any(x in q for x in ["tempo total de impacto", "impacto total somado", "tempo de impacto total"]) or ("tempo" in q and "parada" in q)
+
+    def _is_mttr_question(self, q: str) -> bool:
+        return "mttr" in q or "tempo medio de solucao" in q or "tempo médio de solução" in q or "tempo medio de solução" in q
+
+    def _is_major_impact_question(self, q: str) -> bool:
+        return "maior impacto" in q or "incidente teve maior impacto" in q or "qual incidente mais impactou" in q
+
+    def _is_causes_ranking_question(self, q: str) -> bool:
+        return ("causa" in q or "causas" in q or "causa origem" in q) and any(x in q for x in ["principais", "top", "ranking", "resumo"])
+
+    def _is_functionality_ranking_question(self, q: str) -> bool:
+        return any(x in q for x in ["incidentes por funcionalidade", "ranking de funcionalidade", "ranking por funcionalidade", "funcionalidades mais"])
 
     def _is_success_rate_question(self, q: str) -> bool:
         return any(x in q for x in ["percentual", "porcentagem", "taxa"]) and any(
