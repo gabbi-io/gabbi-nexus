@@ -543,14 +543,12 @@ class KnowledgeStructuredStore:
     def answer_question(self, case_id: str, question: str, chat_history: list[dict[str, Any]] | None = None) -> dict[str, Any] | None:
         q = _norm(question)
 
-        # Só perguntas realmente candidatas entram na camada estruturada.
-        # Conversas abertas continuam indo para o RAG.
-        is_structured_candidate = any(term in q for term in self.ANALYTIC_TERMS)
-        if not is_structured_candidate:
-            return {"fallback_to_rag": True}
+        # V11 FRONT-DOOR ROUTER
+        # O erro da v10 era arquitetural: perguntas naturais como
+        # "como foi o mês 10 para operação APP?" eram bloqueadas ANTES
+        # de chegar no classificador natural, pois não batiam no dicionário antigo.
+        # Agora o roteador operacional roda antes do gate de ANALYTIC_TERMS.
 
-        # Se a pergunta é analítica/operacional, NUNCA deixe cair silenciosamente no RAG,
-        # porque o RAG estava respondendo textos genéricos do tipo "Os dados indicam...".
         if not self.enabled:
             return {
                 "fallback_to_rag": False,
@@ -562,24 +560,66 @@ class KnowledgeStructuredStore:
                 "sources": {"deterministic": True, "engine": "duckdb", "table": self.TABLE},
             }
 
+        def _safe_no_match(route: str = "knowledge_structured_no_match") -> dict[str, Any]:
+            return {
+                "fallback_to_rag": False,
+                "route": route,
+                "query_type": "structured_no_match",
+                "answer_text": "Não consegui calcular essa pergunta pela base estruturada disponível. Verifique se o case foi sincronizado/reindexado e se os campos necessários existem.",
+                "summary": "Não consegui calcular essa pergunta pela base estruturada disponível.",
+                "technical": {"case_id": case_id, "question": question},
+                "sources": {"deterministic": True, "engine": "duckdb", "table": self.TABLE},
+            }
+
         try:
+            # 1) Follow-up sempre deve ser tentado primeiro, mesmo sem termos analíticos.
+            if hasattr(self, "_v10_is_followup_context_filter") and self._v10_is_followup_context_filter(q):
+                followup = self._v10_answer_followup(case_id, question)
+                if followup:
+                    return followup
+
+            # 2) Perguntas naturais operacionais passam antes do gate antigo.
+            # Exemplos: "como foi o mês 10 para operação APP",
+            # "como ficou o P1/P2/P3 de outubro", "volume crítico do app".
+            plan_for_natural: dict[str, Any] = {}
+            try:
+                plan_for_natural = self._build_plan(question, dict(self.memory.get(case_id) or {}))
+            except Exception:
+                plan_for_natural = {}
+
+            natural_candidate = False
+            if hasattr(self, "_v10_is_natural_summary_question") and self._v10_is_natural_summary_question(q):
+                natural_candidate = True
+            if hasattr(self, "_v10_is_volume_critical_question") and self._v10_is_volume_critical_question(q):
+                natural_candidate = True
+            if hasattr(self, "_v10_is_priority_distribution_question") and self._v10_is_priority_distribution_question(q):
+                natural_candidate = True
+            if hasattr(self, "_v10_is_app_incident_list_question") and self._v10_is_app_incident_list_question(q):
+                natural_candidate = True
+
+            # Heurística extra: app + mês/período + operação/volume/p1 já é operacional.
+            if ("app" in q or "operacao" in q or "operação" in q) and any(x in q for x in ["mes", "mês", "outubro", "setembro", "agosto", "2025", "p1", "p2", "p3", "volume", "critico", "crítico"]):
+                natural_candidate = True
+
+            if natural_candidate and hasattr(self, "_v10_answer_natural_operational"):
+                natural = self._v10_answer_natural_operational(case_id, question, plan_for_natural)
+                if natural:
+                    return natural
+                # Se foi uma pergunta operacional natural e não conseguimos responder,
+                # não deve cair no RAG genérico nem no fallback antigo.
+                return _safe_no_match("knowledge_structured_natural_no_match")
+
+            # 3) Gate antigo preservado para todos os fluxos que já funcionavam.
+            is_structured_candidate = any(term in q for term in self.ANALYTIC_TERMS)
+            if not is_structured_candidate:
+                return {"fallback_to_rag": True}
+
             result = self._answer_structured(case_id, question)
             if result and result.get("fallback_to_rag"):
-                # Proteção anti-alucinação: se era pergunta estruturada e a engine não conseguiu resolver,
-                # não delega para o RAG genérico.
-                return {
-                    "fallback_to_rag": False,
-                    "route": "knowledge_structured_no_match",
-                    "query_type": "structured_no_match",
-                    "answer_text": "Não consegui calcular essa pergunta pela base estruturada disponível. Verifique se o case foi sincronizado/reindexado e se os campos necessários existem.",
-                    "summary": "Não consegui calcular essa pergunta pela base estruturada disponível.",
-                    "technical": {"case_id": case_id, "question": question, "original_result": result},
-                    "sources": {"deterministic": True, "engine": "duckdb", "table": self.TABLE},
-                }
+                return _safe_no_match()
             return result
+
         except Exception as exc:
-            # Em pergunta estruturada, erro deve aparecer de forma determinística para diagnóstico,
-            # em vez de cair no RAG e parecer resposta válida.
             return {
                 "fallback_to_rag": False,
                 "route": "knowledge_structured_error_visible",
@@ -2016,6 +2056,7 @@ class KnowledgeStructuredStore:
 
     def _v10_is_natural_summary_question(self, q: str) -> bool:
         return any(x in q for x in [
+            "como foi",
             "como foi o mes",
             "como foi o mês",
             "como foi outubro",
@@ -2030,6 +2071,8 @@ class KnowledgeStructuredStore:
             "resumo do app",
             "situacao do app",
             "situação do app",
+            "mes para operacao app",
+            "mês para operação app",
         ])
 
     def _v10_is_volume_critical_question(self, q: str) -> bool:
