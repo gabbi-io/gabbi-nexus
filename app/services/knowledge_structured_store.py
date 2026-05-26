@@ -1404,6 +1404,15 @@ class KnowledgeStructuredStore:
             return self._response(case_id, answer, "v15_executive_summary", {"mes": month}, {"source": "monthly_kpi"})
 
         return None
+    
+    def _parse_duration_to_seconds(value: Any) -> int | None:
+        text = _safe(value)
+        if not text:
+            return None
+        match = re.search(r"\b(\d{1,4}):([0-5]?\d):([0-5]?\d)\b", text)
+        if not match:
+            return None
+        return int(match.group(1)) * 3600 + int(match.group(2)) * 60 + int(match.group(3))
 
     def _v15_compare_months(self, case_id: str, months: list[str]) -> dict[str, Any] | None:
         if len(months) < 2:
