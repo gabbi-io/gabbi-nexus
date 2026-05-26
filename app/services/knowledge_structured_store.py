@@ -594,6 +594,13 @@ class KnowledgeStructuredStore:
         q = _norm(question)
         context = dict(self.memory.get(case_id) or {})
 
+        # V10: follow-ups conversacionais devem operar sobre o último conjunto tipado,
+        # não abrir consulta global.
+        if self._v10_is_followup_context_filter(q):
+            followup_answer = self._v10_answer_followup(case_id, question)
+            if followup_answer:
+                return followup_answer
+
         code_match = re.search(r"\b(CHG\d{5,}|INC\d{5,})\b", question, re.IGNORECASE)
 
         # V9: pergunta de tempo/parada sobre "ele" usa último detalhe consultado.
@@ -622,6 +629,11 @@ class KnowledgeStructuredStore:
             return self._answer_aura_whatsapp(case_id, context)
 
         plan = self._build_plan(question, context)
+
+        # V10: linguagem natural operacional ("como foi o mês 10", "volume crítico", etc.).
+        natural_answer = self._v10_answer_natural_operational(case_id, question, plan)
+        if natural_answer:
+            return natural_answer
 
         # V9: para perguntas de KPI/FAQ mensal, prioriza documento executivo mensal
         # antes de calcular por registros individuais. Isso evita contaminação e discrepâncias.
@@ -1071,7 +1083,7 @@ class KnowledgeStructuredStore:
         distinct_expr = "COALESCE(NULLIF(numero, ''), NULLIF(codigo_principal, ''), article_id)"
         sql = f"SELECT DISTINCT {distinct_expr} AS codigo FROM {self.TABLE} {where_sql} ORDER BY codigo LIMIT {int(limit)}"
         with self._connect() as con:
-            return [r[0] for r in con.execute(sql, params).fetchall() if r[0]]
+            return self._v10_clean_codes([r[0] for r in con.execute(sql, params).fetchall() if r[0]])
 
     def _answer_success_rate(self, case_id: str, where_sql: str, params: list[Any], plan: dict[str, Any]) -> dict[str, Any]:
         distinct_expr = "COALESCE(NULLIF(numero, ''), NULLIF(codigo_principal, ''), article_id)"
@@ -1923,6 +1935,296 @@ class KnowledgeStructuredStore:
             answer = "Não encontrei tempo de impacto/parada preenchido para esse incidente."
         return self._response(case_id, answer, "single_incident_time", {"code": code}, {"sql": sql, "desc": desc})
 
+    # ---------------------------------------------------------------------
+    # V10 - Conversational Operational Planner
+    # Camada complementar: não remove fluxos antigos; só intercepta linguagem
+    # natural, follow-ups e evita vazamento de UUID/código técnico.
+    # ---------------------------------------------------------------------
+
+    def _v10_is_operational_code(self, value: Any) -> bool:
+        return bool(re.match(r"^(INC|CHG)\d{5,}$", _safe(value), flags=re.I))
+
+    def _v10_clean_codes(self, codes: list[Any], code_type: str | None = None) -> list[str]:
+        cleaned: list[str] = []
+        for code in codes or []:
+            c = _safe(code).upper()
+            if not self._v10_is_operational_code(c):
+                continue
+            if code_type and not c.startswith(code_type.upper()):
+                continue
+            if c not in cleaned:
+                cleaned.append(c)
+        return cleaned
+
+    def _v10_save_result_context(
+        self,
+        case_id: str,
+        codes: list[Any],
+        *,
+        code_type: str | None = None,
+        month: str | None = None,
+        scope: str | None = None,
+        query_type: str | None = None,
+        filters: dict[str, Any] | None = None,
+    ) -> None:
+        cleaned = self._v10_clean_codes(codes, code_type)
+        memory = dict(self.memory.get(case_id) or {})
+        memory["last_result"] = {
+            "codes": cleaned,
+            "type": code_type,
+            "month": month,
+            "scope": scope,
+            "query_type": query_type,
+            "filters": filters or {},
+        }
+        memory["last_codes"] = cleaned[:200]
+        memory["last_result_count"] = len(cleaned)
+        if month:
+            memory["mes"] = month
+        if code_type:
+            memory["codigo_tipo"] = code_type
+        if scope:
+            memory["scope"] = scope
+        self.memory[case_id] = memory
+
+    def _v10_get_result_context(self, case_id: str) -> dict[str, Any]:
+        memory = dict(self.memory.get(case_id) or {})
+        last = memory.get("last_result") or {}
+        if not last and memory.get("last_codes"):
+            last = {
+                "codes": self._v10_clean_codes(memory.get("last_codes") or []),
+                "type": memory.get("codigo_tipo"),
+                "month": memory.get("mes") or (memory.get("last_plan") or {}).get("mes"),
+                "scope": memory.get("scope"),
+                "query_type": memory.get("last_query_type"),
+                "filters": {},
+            }
+        return last
+
+    def _v10_month_from_question_or_context(self, case_id: str, question: str) -> str:
+        q = _norm(question)
+        month = self._extract_month_from_question(q)
+        if month:
+            return month
+        memory = dict(self.memory.get(case_id) or {})
+        return (
+            memory.get("mes")
+            or (memory.get("last_plan") or {}).get("mes")
+            or (memory.get("last_result") or {}).get("month")
+            or ""
+        )
+
+    def _v10_is_natural_summary_question(self, q: str) -> bool:
+        return (
+            any(x in q for x in [
+                "como foi", "cenario operacional", "cenário operacional",
+                "como ficou", "foi critico", "foi crítico",
+                "mes foi critico", "mês foi crítico",
+                "operacionalmente", "resumo do app", "situacao do app", "situação do app",
+            ])
+            and any(x in q for x in ["app", "operacao", "operação", "mes", "mês", "outubro", "setembro", "2025"])
+        )
+
+    def _v10_is_volume_critical_question(self, q: str) -> bool:
+        return (
+            any(x in q for x in ["volume critico", "volume crítico", "total critico", "total crítico"])
+            and any(x in q for x in ["app", "incidente", "incidentes"])
+        )
+
+    def _v10_is_priority_distribution_question(self, q: str) -> bool:
+        return (
+            ("p1" in q and "p2" in q and "p3" in q)
+            or "distribuicao p1" in q
+            or "distribuição p1" in q
+            or "como ficou o p1" in q
+        )
+
+    def _v10_is_app_incident_list_question(self, q: str) -> bool:
+        return (
+            any(x in q for x in ["incidentes da operacao app", "incidentes da operação app", "incidentes da operacao de app", "incidentes da operação de app", "incidentes app", "operação app", "operacao app"])
+            and any(x in q for x in ["liste", "listar", "traga", "quais", "incidentes"])
+        )
+
+    def _v10_is_followup_context_filter(self, q: str) -> bool:
+        return any(x in q for x in [
+            "quais deles", "quais delas", "deles", "delas",
+            "eles tiveram", "elas tiveram", "tiveram indisponibilidade",
+            "com indisponibilidade", "tiveram parada", "foram sistêmicos", "foram sistemicos",
+            "me mande somente os codigos", "me mande somente os códigos",
+            "me mande os codigos", "me mande os códigos",
+            "liste eles", "liste elas", "detalhe o primeiro", "detalhe ele",
+            "qual deles", "qual delas", "quanto tempo ele", "tempo de parada dele",
+        ])
+
+    def _v10_is_systemic_text(self, text: str) -> bool:
+        return bool(re.search(r"INDISPONIBILIDADE|TELA DE MANUTENÇÃO|TELA DE MANUTENCAO", text or "", flags=re.I))
+
+    def _v10_fetch_codes_by_month_scope(
+        self,
+        case_id: str,
+        *,
+        month: str,
+        code_type: str = "INC",
+        is_app: bool = False,
+        systemic_only: bool = False,
+        limit: int = 200,
+    ) -> list[str]:
+        clauses = ["case_id = ?", "(numero LIKE ? OR codigo_principal LIKE ? OR codigo_tipo = ? OR categoria = ?)"]
+        params: list[Any] = [case_id, f"{code_type}%", f"{code_type}%", code_type, code_type]
+
+        if month:
+            clauses.append("mes = ?")
+            params.append(month)
+
+        if is_app:
+            clauses.append("""
+                (
+                    is_app = true
+                    OR canal ILIKE '%APP_MARKER%'
+                    OR article_text ILIKE '%APP_MARKER: true%'
+                    OR article_text ILIKE '%APLICATIVO VIVO%'
+                    OR article_text ILIKE '%MEU VIVO%'
+                    OR raw_json ILIKE '%Categoria: APP%'
+                    OR raw_json ILIKE '%"Categoria": "APP"%'
+                )
+            """)
+
+        if systemic_only:
+            clauses.append("""
+                (
+                    is_parada_sistemica = true
+                    OR descricao_resumida ILIKE '%INDISPONIBILIDADE%'
+                    OR descricao_resumida ILIKE '%TELA DE MANUTENÇÃO%'
+                    OR descricao_resumida ILIKE '%TELA DE MANUTENCAO%'
+                    OR article_text ILIKE '%INDISPONIBILIDADE%'
+                    OR article_text ILIKE '%TELA DE MANUTENÇÃO%'
+                    OR article_text ILIKE '%TELA DE MANUTENCAO%'
+                )
+            """)
+
+        sql = f"""
+            SELECT DISTINCT COALESCE(NULLIF(numero, ''), NULLIF(codigo_principal, '')) AS codigo
+            FROM {self.TABLE}
+            WHERE {" AND ".join(clauses)}
+              AND COALESCE(NULLIF(numero, ''), NULLIF(codigo_principal, '')) IS NOT NULL
+            ORDER BY codigo
+            LIMIT {int(limit)}
+        """
+        with self._connect() as con:
+            rows = con.execute(sql, params).fetchall()
+        return self._v10_clean_codes([r[0] for r in rows], code_type)
+
+    def _v10_fetch_code_texts(self, case_id: str, codes: list[str]) -> dict[str, str]:
+        codes = self._v10_clean_codes(codes)
+        if not codes:
+            return {}
+        placeholders = ",".join(["?"] * len(codes))
+        sql = f"""
+            SELECT COALESCE(NULLIF(numero, ''), NULLIF(codigo_principal, '')) AS codigo,
+                   COALESCE(descricao_resumida, '') || ' ' || COALESCE(descricao, '') || ' ' || COALESCE(article_text, '') AS blob
+            FROM {self.TABLE}
+            WHERE case_id = ?
+              AND COALESCE(NULLIF(numero, ''), NULLIF(codigo_principal, '')) IN ({placeholders})
+        """
+        with self._connect() as con:
+            rows = con.execute(sql, [case_id] + codes).fetchall()
+        return {str(code).upper(): str(blob or "") for code, blob in rows if code}
+
+    def _v10_filter_context_codes_systemic(self, case_id: str, codes: list[str]) -> list[str]:
+        texts = self._v10_fetch_code_texts(case_id, codes)
+        filtered = [code for code, blob in texts.items() if self._v10_is_systemic_text(blob)]
+        return self._v10_clean_codes(filtered, "INC")
+
+    def _v10_answer_followup(self, case_id: str, question: str) -> dict[str, Any] | None:
+        q = _norm(question)
+        ctx = self._v10_get_result_context(case_id)
+        codes = self._v10_clean_codes(ctx.get("codes") or [], ctx.get("type"))
+        if not codes:
+            return None
+
+        if any(x in q for x in ["me mande somente os codigos", "me mande somente os códigos", "me mande os codigos", "me mande os códigos", "liste eles", "liste elas"]):
+            return self._response(case_id, "\n".join(codes), "v10_followup_codes", ctx, {"memory_only": True, "count": len(codes)})
+
+        if any(x in q for x in ["indisponibilidade", "parada", "sistemica", "sistêmica"]):
+            filtered = self._v10_filter_context_codes_systemic(case_id, codes)
+            if filtered:
+                self._v10_save_result_context(
+                    case_id,
+                    filtered,
+                    code_type="INC",
+                    month=ctx.get("month"),
+                    scope=ctx.get("scope"),
+                    query_type="systemic_followup",
+                    filters={"systemic": True},
+                )
+                return self._response(case_id, "\n".join(filtered), "v10_followup_systemic", ctx, {"memory_only": True, "count": len(filtered)})
+            return self._response(case_id, "Nenhum incidente do último conjunto foi classificado com indisponibilidade sistêmica.", "v10_followup_systemic", ctx, {"memory_only": True})
+
+        if "primeiro" in q:
+            first = codes[0]
+            if "detalhe" in q:
+                return self._answer_detail(case_id, first, question)
+            return self._response(case_id, first, "v10_followup_first", ctx, {"memory_only": True})
+
+        if any(x in q for x in ["detalhe ele", "detalhe esse", "detalhe este"]):
+            last = codes[0]
+            return self._answer_detail(case_id, last, question)
+
+        if any(x in q for x in ["quanto tempo ele", "tempo de parada dele", "tempo dele", "tempo de impacto dele"]):
+            code = codes[0]
+            if hasattr(self, "_v9_answer_single_incident_time"):
+                return self._v9_answer_single_incident_time(case_id, code)
+
+        return None
+
+    def _v10_answer_natural_operational(self, case_id: str, question: str, plan: dict[str, Any]) -> dict[str, Any] | None:
+        q = _norm(question)
+        month = plan.get("mes") or self._v10_month_from_question_or_context(case_id, question)
+
+        # Normaliza "mês 10", "outubro", etc. quando o parser antigo não capturar.
+        if not month:
+            m = re.search(r"\b(?:mes|mês)\s*(\d{1,2})\b", q)
+            if m:
+                month = f"2025-{m.group(1).zfill(2)}"
+        if not month:
+            for name, mm in {"outubro": "10", "setembro": "09", "agosto": "08", "dezembro": "12", "julho": "07"}.items():
+                if name in q:
+                    month = f"2025-{mm}"
+                    break
+
+        if not month:
+            return None
+
+        # Resumo natural: como foi / cenário / operacionalmente
+        if self._v10_is_natural_summary_question(q):
+            rewritten = f"me traga um resumo executivo dos incidentes para o mês {month}"
+            return self._v9_answer_from_monthly_kpi(case_id, rewritten, {**plan, "mes": month, "codigo_tipo": "INC", "is_app": True})
+
+        if self._v10_is_volume_critical_question(q):
+            rewritten = f"Total de incidentes críticos para operar o app (P1-P3) mês {month}"
+            return self._v9_answer_from_monthly_kpi(case_id, rewritten, {**plan, "mes": month, "codigo_tipo": "INC", "is_app": True})
+
+        if self._v10_is_priority_distribution_question(q):
+            rewritten = f"quantos p1, p2 e p3 no mês {month}"
+            return self._v9_answer_from_monthly_kpi(case_id, rewritten, {**plan, "mes": month, "codigo_tipo": "INC", "is_app": True})
+
+        if self._v10_is_app_incident_list_question(q):
+            # Primeiro tenta FAQ mensal; se não achar, cai para SQL filtrado.
+            answer = self._v9_answer_from_monthly_kpi(case_id, f"liste os incidentes da operação APP para {month}", {**plan, "mes": month, "codigo_tipo": "INC", "is_app": True})
+            if answer and answer.get("answer_text") and "Não consegui" not in answer.get("answer_text", ""):
+                # Garante memória tipada.
+                codes = self._v10_clean_codes(str(answer.get("answer_text", "")).splitlines(), "INC")
+                if codes:
+                    self._v10_save_result_context(case_id, codes, code_type="INC", month=month, scope="APP", query_type="app_incident_list")
+                return answer
+
+            codes = self._v10_fetch_codes_by_month_scope(case_id, month=month, code_type="INC", is_app=True)
+            if codes:
+                self._v10_save_result_context(case_id, codes, code_type="INC", month=month, scope="APP", query_type="app_incident_list")
+                return self._response(case_id, "\n".join(codes), "v10_app_incident_list", {**plan, "mes": month}, {"count": len(codes)})
+
+        return None
+
     def _v9_get_last_context(self, case_id: str) -> dict[str, Any]:
         return dict(self.memory.get(case_id) or {})
 
@@ -1948,7 +2250,7 @@ class KnowledgeStructuredStore:
 
     def _v9_distinct_code_expr(self) -> str:
         # Evita UUIDs quando houver número operacional. UUIDs só entram como último fallback.
-        return "COALESCE(NULLIF(numero, ''), NULLIF(codigo_principal, ''), NULLIF(article_ref_id, ''), article_id)"
+        return "COALESCE(NULLIF(numero, ''), NULLIF(codigo_principal, ''))"
 
     def _v9_extract_incident_codes_from_text(self, text: str) -> list[str]:
         if not text:
