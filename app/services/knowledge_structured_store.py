@@ -543,12 +543,14 @@ class KnowledgeStructuredStore:
     def answer_question(self, case_id: str, question: str, chat_history: list[dict[str, Any]] | None = None) -> dict[str, Any] | None:
         q = _norm(question)
 
-        # V11 FRONT-DOOR ROUTER
-        # O erro da v10 era arquitetural: perguntas naturais como
-        # "como foi o mês 10 para operação APP?" eram bloqueadas ANTES
-        # de chegar no classificador natural, pois não batiam no dicionário antigo.
-        # Agora o roteador operacional roda antes do gate de ANALYTIC_TERMS.
+        # Só perguntas realmente candidatas entram na camada estruturada.
+        # Conversas abertas continuam indo para o RAG.
+        is_structured_candidate = any(term in q for term in self.ANALYTIC_TERMS)
+        if not is_structured_candidate:
+            return {"fallback_to_rag": True}
 
+        # Se a pergunta é analítica/operacional, NUNCA deixe cair silenciosamente no RAG,
+        # porque o RAG estava respondendo textos genéricos do tipo "Os dados indicam...".
         if not self.enabled:
             return {
                 "fallback_to_rag": False,
@@ -560,66 +562,24 @@ class KnowledgeStructuredStore:
                 "sources": {"deterministic": True, "engine": "duckdb", "table": self.TABLE},
             }
 
-        def _safe_no_match(route: str = "knowledge_structured_no_match") -> dict[str, Any]:
-            return {
-                "fallback_to_rag": False,
-                "route": route,
-                "query_type": "structured_no_match",
-                "answer_text": "Não consegui calcular essa pergunta pela base estruturada disponível. Verifique se o case foi sincronizado/reindexado e se os campos necessários existem.",
-                "summary": "Não consegui calcular essa pergunta pela base estruturada disponível.",
-                "technical": {"case_id": case_id, "question": question},
-                "sources": {"deterministic": True, "engine": "duckdb", "table": self.TABLE},
-            }
-
         try:
-            # 1) Follow-up sempre deve ser tentado primeiro, mesmo sem termos analíticos.
-            if hasattr(self, "_v10_is_followup_context_filter") and self._v10_is_followup_context_filter(q):
-                followup = self._v10_answer_followup(case_id, question)
-                if followup:
-                    return followup
-
-            # 2) Perguntas naturais operacionais passam antes do gate antigo.
-            # Exemplos: "como foi o mês 10 para operação APP",
-            # "como ficou o P1/P2/P3 de outubro", "volume crítico do app".
-            plan_for_natural: dict[str, Any] = {}
-            try:
-                plan_for_natural = self._build_plan(question, dict(self.memory.get(case_id) or {}))
-            except Exception:
-                plan_for_natural = {}
-
-            natural_candidate = False
-            if hasattr(self, "_v10_is_natural_summary_question") and self._v10_is_natural_summary_question(q):
-                natural_candidate = True
-            if hasattr(self, "_v10_is_volume_critical_question") and self._v10_is_volume_critical_question(q):
-                natural_candidate = True
-            if hasattr(self, "_v10_is_priority_distribution_question") and self._v10_is_priority_distribution_question(q):
-                natural_candidate = True
-            if hasattr(self, "_v10_is_app_incident_list_question") and self._v10_is_app_incident_list_question(q):
-                natural_candidate = True
-
-            # Heurística extra: app + mês/período + operação/volume/p1 já é operacional.
-            if ("app" in q or "operacao" in q or "operação" in q) and any(x in q for x in ["mes", "mês", "outubro", "setembro", "agosto", "2025", "p1", "p2", "p3", "volume", "critico", "crítico"]):
-                natural_candidate = True
-
-            if natural_candidate and hasattr(self, "_v10_answer_natural_operational"):
-                natural = self._v10_answer_natural_operational(case_id, question, plan_for_natural)
-                if natural:
-                    return natural
-                # Se foi uma pergunta operacional natural e não conseguimos responder,
-                # não deve cair no RAG genérico nem no fallback antigo.
-                return _safe_no_match("knowledge_structured_natural_no_match")
-
-            # 3) Gate antigo preservado para todos os fluxos que já funcionavam.
-            is_structured_candidate = any(term in q for term in self.ANALYTIC_TERMS)
-            if not is_structured_candidate:
-                return {"fallback_to_rag": True}
-
             result = self._answer_structured(case_id, question)
             if result and result.get("fallback_to_rag"):
-                return _safe_no_match()
+                # Proteção anti-alucinação: se era pergunta estruturada e a engine não conseguiu resolver,
+                # não delega para o RAG genérico.
+                return {
+                    "fallback_to_rag": False,
+                    "route": "knowledge_structured_no_match",
+                    "query_type": "structured_no_match",
+                    "answer_text": "Não consegui calcular essa pergunta pela base estruturada disponível. Verifique se o case foi sincronizado/reindexado e se os campos necessários existem.",
+                    "summary": "Não consegui calcular essa pergunta pela base estruturada disponível.",
+                    "technical": {"case_id": case_id, "question": question, "original_result": result},
+                    "sources": {"deterministic": True, "engine": "duckdb", "table": self.TABLE},
+                }
             return result
-
         except Exception as exc:
+            # Em pergunta estruturada, erro deve aparecer de forma determinística para diagnóstico,
+            # em vez de cair no RAG e parecer resposta válida.
             return {
                 "fallback_to_rag": False,
                 "route": "knowledge_structured_error_visible",
@@ -634,20 +594,12 @@ class KnowledgeStructuredStore:
         q = _norm(question)
         context = dict(self.memory.get(case_id) or {})
 
-        # V10: follow-ups conversacionais devem operar sobre o último conjunto tipado,
-        # não abrir consulta global.
-        if self._v10_is_followup_context_filter(q):
-            followup_answer = self._v10_answer_followup(case_id, question)
-            if followup_answer:
-                return followup_answer
-
-        # V12: protege fluxos CHG/INC/IC/grupo que já estavam corretos antes da camada natural.
-        # Esse guard evita que perguntas como "Quantas changes tivemos em agosto de 2025?"
-        # sejam capturadas por rotas APP/KPI e retornem totais globais.
-        if self._v12_has_strong_legacy_filters(q):
-            legacy_answer = self._v12_legacy_count_or_list(case_id, question)
-            if legacy_answer:
-                return legacy_answer
+        # STABLE GUARD: perguntas explícitas de CHG/INC/IC/grupo usam o motor legado primeiro.
+        # Isso preserva os resultados validados: CHG agosto=75, CHG dezembro=92, INC 08-2025=37 etc.
+        if self._stable_has_legacy_analytics_intent(question):
+            stable_answer = self._stable_legacy_answer(case_id, question)
+            if stable_answer:
+                return stable_answer
 
         code_match = re.search(r"\b(CHG\d{5,}|INC\d{5,})\b", question, re.IGNORECASE)
 
@@ -677,11 +629,6 @@ class KnowledgeStructuredStore:
             return self._answer_aura_whatsapp(case_id, context)
 
         plan = self._build_plan(question, context)
-
-        # V10: linguagem natural operacional ("como foi o mês 10", "volume crítico", etc.).
-        natural_answer = self._v10_answer_natural_operational(case_id, question, plan)
-        if natural_answer:
-            return natural_answer
 
         # V9: para perguntas de KPI/FAQ mensal, prioriza documento executivo mensal
         # antes de calcular por registros individuais. Isso evita contaminação e discrepâncias.
@@ -1131,7 +1078,7 @@ class KnowledgeStructuredStore:
         distinct_expr = "COALESCE(NULLIF(numero, ''), NULLIF(codigo_principal, ''), article_id)"
         sql = f"SELECT DISTINCT {distinct_expr} AS codigo FROM {self.TABLE} {where_sql} ORDER BY codigo LIMIT {int(limit)}"
         with self._connect() as con:
-            return self._v10_clean_codes([r[0] for r in con.execute(sql, params).fetchall() if r[0]])
+            return [r[0] for r in con.execute(sql, params).fetchall() if r[0]]
 
     def _answer_success_rate(self, case_id: str, where_sql: str, params: list[Any], plan: dict[str, Any]) -> dict[str, Any]:
         distinct_expr = "COALESCE(NULLIF(numero, ''), NULLIF(codigo_principal, ''), article_id)"
@@ -1959,6 +1906,167 @@ class KnowledgeStructuredStore:
         ])
 
     # ---------------------------------------------------------------------
+    # STABLE GUARD - preserva analytics legados CHG/INC antes de rotas APP/KPI
+    # ---------------------------------------------------------------------
+
+    def _stable_month_from_question(self, question: str, default_year: str = "2025") -> str:
+        q = _norm(question)
+
+        m = re.search(r"\b(20\d{2})[-/](\d{1,2})\b", q)
+        if m:
+            return f"{m.group(1)}-{m.group(2).zfill(2)}"
+
+        m = re.search(r"\b(\d{1,2})[-/](20\d{2})\b", q)
+        if m and 1 <= int(m.group(1)) <= 12:
+            return f"{m.group(2)}-{m.group(1).zfill(2)}"
+
+        m = re.search(r"\b(?:mes|mês)\s*(\d{1,2})\b", q)
+        if m and 1 <= int(m.group(1)) <= 12:
+            return f"{default_year}-{m.group(1).zfill(2)}"
+
+        names = {
+            "janeiro": "01", "jan": "01",
+            "fevereiro": "02", "fev": "02",
+            "marco": "03", "março": "03", "mar": "03",
+            "abril": "04", "abr": "04",
+            "maio": "05", "mai": "05",
+            "junho": "06", "jun": "06",
+            "julho": "07", "jul": "07",
+            "agosto": "08", "ago": "08",
+            "setembro": "09", "set": "09",
+            "outubro": "10", "out": "10",
+            "novembro": "11", "nov": "11",
+            "dezembro": "12", "dez": "12",
+        }
+
+        for name, mm in names.items():
+            if name in q:
+                y = re.search(rf"\b{name}\s+(?:de\s+)?(20\d{{2}})\b", q)
+                year = y.group(1) if y else default_year
+                return f"{year}-{mm}"
+
+        return ""
+
+    def _stable_has_legacy_analytics_intent(self, question: str) -> bool:
+        q = _norm(question)
+        return bool(
+            any(x in q for x in ["change", "changes", "chg", "mudanca", "mudança", "incidente", "incidentes"])
+            or "ic impactado" in q
+            or "grupo de atribuicao" in q
+            or "grupo de atribuição" in q
+            or re.search(r"\bTLV_[A-Z0-9_ -]+", question or "", flags=re.I)
+            or re.search(r"\b(CHG|INC)\d{5,}\b", question or "", flags=re.I)
+        )
+
+    def _stable_extract_ic(self, question: str) -> str:
+        try:
+            ic = self._extract_ic_from_question(question)
+            if ic:
+                return ic.strip()
+        except Exception:
+            pass
+        m = re.search(r"\b(TLV_[A-Z0-9_ -]+)", question or "", flags=re.I)
+        if not m:
+            return ""
+        value = m.group(1).strip()
+        value = re.split(r"\b(?:em|no mês|no mes|grupo|quantas|quantos|quais)\b", value, flags=re.I)[0].strip()
+        return value
+
+    def _stable_extract_group(self, question: str) -> str:
+        try:
+            group = self._extract_group_from_question(question)
+            if group:
+                return group.strip()
+        except Exception:
+            pass
+        m = re.search(r"\b(VIVO_[A-Z0-9_\-]+)", question or "", flags=re.I)
+        return m.group(1).strip() if m else ""
+
+    def _stable_legacy_answer(self, case_id: str, question: str) -> dict[str, Any] | None:
+        q = _norm(question)
+
+        code_type = None
+        if any(x in q for x in ["change", "changes", "chg", "mudanca", "mudança"]):
+            code_type = "CHG"
+        elif any(x in q for x in ["incidente", "incidentes"]):
+            code_type = "INC"
+
+        ic = self._stable_extract_ic(question)
+        group = self._stable_extract_group(question)
+        month = self._stable_month_from_question(question)
+
+        if not code_type and not ic and not group:
+            return None
+
+        clauses = ["case_id = ?"]
+        params: list[Any] = [case_id]
+
+        if code_type == "CHG":
+            clauses.append("(numero LIKE 'CHG%' OR codigo_principal LIKE 'CHG%' OR codigo_tipo = 'CHG' OR categoria = 'CHG')")
+        elif code_type == "INC":
+            clauses.append("(numero LIKE 'INC%' OR codigo_principal LIKE 'INC%' OR codigo_tipo = 'INC' OR categoria = 'INC')")
+
+        if month:
+            clauses.append("mes = ?")
+            params.append(month)
+
+        if ic:
+            clauses.append("ic_impactado ILIKE ?")
+            params.append(f"%{ic}%")
+            # Quando usuário pergunta TLV sem falar CHG/INC, default para CHG porque esse fluxo original era de changes.
+            if not code_type:
+                clauses.append("(numero LIKE 'CHG%' OR codigo_principal LIKE 'CHG%' OR codigo_tipo = 'CHG' OR categoria = 'CHG')")
+
+        if group:
+            clauses.append("grupo_atribuicao ILIKE ?")
+            params.append(f"%{group}%")
+
+        where_sql = "WHERE " + " AND ".join(clauses)
+        code_expr = "COALESCE(NULLIF(numero, ''), NULLIF(codigo_principal, ''))"
+
+        is_count = any(x in q for x in ["quantos", "quantas", "quantidade", "qtd", "qtde", "total"])
+        is_list = any(x in q for x in ["quais", "liste", "listar", "lista", "mostre"])
+
+        if is_count:
+            sql = f"""
+                SELECT COUNT(DISTINCT {code_expr}) AS total
+                FROM {self.TABLE}
+                {where_sql}
+                AND {code_expr} IS NOT NULL
+            """
+            with self._connect() as con:
+                total = int(con.execute(sql, params).fetchone()[0] or 0)
+            return self._response(
+                case_id,
+                str(total),
+                "stable_legacy_count",
+                {"codigo_tipo": code_type, "mes": month, "ic_impactado": ic, "grupo_atribuicao": group},
+                {"sql": sql, "params": params, "guard": "legacy_first"},
+            )
+
+        if is_list:
+            sql = f"""
+                SELECT DISTINCT {code_expr} AS codigo
+                FROM {self.TABLE}
+                {where_sql}
+                AND {code_expr} IS NOT NULL
+                ORDER BY codigo
+                LIMIT 500
+            """
+            with self._connect() as con:
+                rows = [str(r[0]).upper() for r in con.execute(sql, params).fetchall() if r[0]]
+            rows = [r for r in rows if re.match(r"^(INC|CHG)\d{5,}$", r)]
+            return self._response(
+                case_id,
+                "\n".join(rows) if rows else "Nenhum registro encontrado.",
+                "stable_legacy_list",
+                {"codigo_tipo": code_type, "mes": month, "ic_impactado": ic, "grupo_atribuicao": group},
+                {"sql": sql, "params": params, "count": len(rows), "guard": "legacy_first"},
+            )
+
+        return None
+
+    # ---------------------------------------------------------------------
     # V9 - Camada profissional de robustez conversacional e FAQ/KPI mensal
     # ---------------------------------------------------------------------
 
@@ -1982,496 +2090,6 @@ class KnowledgeStructuredStore:
         else:
             answer = "Não encontrei tempo de impacto/parada preenchido para esse incidente."
         return self._response(case_id, answer, "single_incident_time", {"code": code}, {"sql": sql, "desc": desc})
-
-    # ---------------------------------------------------------------------
-    # V12 - Routing Guard
-    # Protege fluxos legacy CHG/INC que já funcionavam e deixa a camada
-    # natural atuar somente em perguntas APP/KPI/operacionais livres.
-    # ---------------------------------------------------------------------
-
-    def _v12_has_explicit_chg_legacy_intent(self, q: str) -> bool:
-        return any(x in q for x in [
-            "change", "changes", "chg", "mudanca", "mudança"
-        ])
-
-    def _v12_has_explicit_inc_legacy_intent(self, q: str) -> bool:
-        return any(x in q for x in [
-            "incidente", "incidentes"
-        ])
-
-    def _v12_has_strong_legacy_filters(self, q: str) -> bool:
-        return (
-            self._v12_has_explicit_chg_legacy_intent(q)
-            or self._v12_has_explicit_inc_legacy_intent(q)
-            or "ic impactado" in q
-            or "grupo de atribuicao" in q
-            or "grupo de atribuição" in q
-            or re.search(r"\bTLV_[A-Z0-9_ -]+", q, flags=re.I) is not None
-            or re.search(r"\b(CHG|INC)\d{5,}\b", q, flags=re.I) is not None
-        )
-
-    def _v12_is_free_natural_app_kpi(self, q: str) -> bool:
-        # Só deixa a camada natural interceptar perguntas de APP/KPI sem filtro legacy forte.
-        natural_markers = [
-            "como foi", "cenario operacional", "cenário operacional",
-            "volume critico", "volume crítico", "p1/p2/p3",
-            "como ficou o p1", "operacao app", "operação app",
-            "operacao de app", "operação de app",
-            "app em outubro", "app no mes", "app no mês",
-            "mttr do app", "funcionalidade teve mais", "top incidentes do app",
-            "compare outubro", "compare setembro",
-        ]
-        return any(x in q for x in natural_markers) and any(x in q for x in ["app", "p1", "p2", "p3", "outubro", "setembro", "mttr", "funcionalidade"])
-
-    def _v12_month_from_question(self, question: str, default_year: str = "2025") -> str:
-        q = _norm(question)
-
-        # formatos 2025-10, 2025/10
-        m = re.search(r"\b(20\d{2})[-/](\d{1,2})\b", q)
-        if m:
-            return f"{m.group(1)}-{m.group(2).zfill(2)}"
-
-        # formatos 10-2025, 10/2025, 08-2025
-        m = re.search(r"\b(\d{1,2})[-/](20\d{2})\b", q)
-        if m and 1 <= int(m.group(1)) <= 12:
-            return f"{m.group(2)}-{m.group(1).zfill(2)}"
-
-        # "mês 10", "mes 08"
-        m = re.search(r"\b(?:mes|mês)\s*(\d{1,2})\b", q)
-        if m and 1 <= int(m.group(1)) <= 12:
-            return f"{default_year}-{m.group(1).zfill(2)}"
-
-        # "agosto de 2025", "outubro"
-        names = {
-            "janeiro": "01", "jan": "01",
-            "fevereiro": "02", "fev": "02",
-            "marco": "03", "março": "03", "mar": "03",
-            "abril": "04", "abr": "04",
-            "maio": "05", "mai": "05",
-            "junho": "06", "jun": "06",
-            "julho": "07", "jul": "07",
-            "agosto": "08", "ago": "08",
-            "setembro": "09", "set": "09",
-            "outubro": "10", "out": "10",
-            "novembro": "11", "nov": "11",
-            "dezembro": "12", "dez": "12",
-        }
-        for name, mm in names.items():
-            if name in q:
-                ym = re.search(rf"\b{name}\s+(?:de\s+)?(20\d{{2}})\b", q)
-                year = ym.group(1) if ym else default_year
-                return f"{year}-{mm}"
-        return ""
-
-    def _v12_legacy_count_or_list(self, case_id: str, question: str) -> dict[str, Any] | None:
-        """
-        Caminho curto e determinístico para perguntas antigas de CHG/INC/IC/grupo.
-        Não passa pela camada APP/KPI natural.
-        """
-        q = _norm(question)
-        month = self._v12_month_from_question(question)
-
-        code_type = None
-        if self._v12_has_explicit_chg_legacy_intent(q):
-            code_type = "CHG"
-        elif self._v12_has_explicit_inc_legacy_intent(q):
-            code_type = "INC"
-
-        ic = self._extract_ic_from_question(question) if hasattr(self, "_extract_ic_from_question") else ""
-        group = self._extract_group_from_question(question) if hasattr(self, "_extract_group_from_question") else ""
-
-        if not code_type and not ic and not group:
-            return None
-
-        clauses = ["case_id = ?"]
-        params: list[Any] = [case_id]
-
-        if code_type == "CHG":
-            clauses.append("(numero LIKE 'CHG%' OR codigo_principal LIKE 'CHG%' OR codigo_tipo = 'CHG' OR categoria = 'CHG')")
-        elif code_type == "INC":
-            clauses.append("(numero LIKE 'INC%' OR codigo_principal LIKE 'INC%' OR codigo_tipo = 'INC' OR categoria = 'INC')")
-
-        if month:
-            clauses.append("mes = ?")
-            params.append(month)
-
-        if ic:
-            clauses.append("ic_impactado ILIKE ?")
-            params.append(f"%{ic}%")
-            if not code_type:
-                clauses.append("(numero LIKE 'CHG%' OR codigo_principal LIKE 'CHG%' OR codigo_tipo = 'CHG' OR categoria = 'CHG')")
-
-        if group:
-            clauses.append("grupo_atribuicao ILIKE ?")
-            params.append(f"%{group}%")
-
-        where = "WHERE " + " AND ".join(clauses)
-        code_expr = "COALESCE(NULLIF(numero, ''), NULLIF(codigo_principal, ''))"
-
-        is_count = any(x in q for x in ["quantos", "quantas", "quantidade", "qtd", "qtde", "total"])
-        is_list = any(x in q for x in ["quais", "liste", "listar", "lista", "mostre"])
-
-        # Perguntas tipo "Quantas changes impactaram TLV..." são contagem, não lista.
-        if is_count:
-            sql = f"""
-                SELECT COUNT(DISTINCT {code_expr}) AS total
-                FROM {self.TABLE}
-                {where}
-                AND {code_expr} IS NOT NULL
-            """
-            with self._connect() as con:
-                total = int(con.execute(sql, params).fetchone()[0] or 0)
-            return self._response(
-                case_id,
-                str(total),
-                "v12_legacy_count",
-                {"codigo_tipo": code_type, "mes": month, "ic_impactado": ic, "grupo_atribuicao": group},
-                {"sql": sql, "params": params, "source": "legacy_guard"},
-            )
-
-        if is_list:
-            sql = f"""
-                SELECT DISTINCT {code_expr} AS codigo
-                FROM {self.TABLE}
-                {where}
-                AND {code_expr} IS NOT NULL
-                ORDER BY codigo
-                LIMIT 500
-            """
-            with self._connect() as con:
-                rows = [r[0] for r in con.execute(sql, params).fetchall() if r[0]]
-            codes = self._v10_clean_codes(rows, code_type) if hasattr(self, "_v10_clean_codes") else rows
-            if hasattr(self, "_v10_save_result_context"):
-                self._v10_save_result_context(case_id, codes, code_type=code_type, month=month, scope=None, query_type="legacy_list")
-            return self._response(
-                case_id,
-                "\n".join(codes) if codes else "Nenhum registro encontrado.",
-                "v12_legacy_list",
-                {"codigo_tipo": code_type, "mes": month, "ic_impactado": ic, "grupo_atribuicao": group},
-                {"sql": sql, "params": params, "source": "legacy_guard", "count": len(codes)},
-            )
-
-        return None
-
-    # ---------------------------------------------------------------------
-    # V10 - Conversational Operational Planner
-    # Camada complementar: não remove fluxos antigos; só intercepta linguagem
-    # natural, follow-ups e evita vazamento de UUID/código técnico.
-    # ---------------------------------------------------------------------
-
-    def _v10_is_operational_code(self, value: Any) -> bool:
-        return bool(re.match(r"^(INC|CHG)\d{5,}$", _safe(value), flags=re.I))
-
-    def _v10_clean_codes(self, codes: list[Any], code_type: str | None = None) -> list[str]:
-        cleaned: list[str] = []
-        for code in codes or []:
-            c = _safe(code).upper()
-            if not self._v10_is_operational_code(c):
-                continue
-            if code_type and not c.startswith(code_type.upper()):
-                continue
-            if c not in cleaned:
-                cleaned.append(c)
-        return cleaned
-
-    def _v10_save_result_context(
-        self,
-        case_id: str,
-        codes: list[Any],
-        *,
-        code_type: str | None = None,
-        month: str | None = None,
-        scope: str | None = None,
-        query_type: str | None = None,
-        filters: dict[str, Any] | None = None,
-    ) -> None:
-        cleaned = self._v10_clean_codes(codes, code_type)
-        memory = dict(self.memory.get(case_id) or {})
-        memory["last_result"] = {
-            "codes": cleaned,
-            "type": code_type,
-            "month": month,
-            "scope": scope,
-            "query_type": query_type,
-            "filters": filters or {},
-        }
-        memory["last_codes"] = cleaned[:200]
-        memory["last_result_count"] = len(cleaned)
-        if month:
-            memory["mes"] = month
-        if code_type:
-            memory["codigo_tipo"] = code_type
-        if scope:
-            memory["scope"] = scope
-        self.memory[case_id] = memory
-
-    def _v10_get_result_context(self, case_id: str) -> dict[str, Any]:
-        memory = dict(self.memory.get(case_id) or {})
-        last = memory.get("last_result") or {}
-        if not last and memory.get("last_codes"):
-            last = {
-                "codes": self._v10_clean_codes(memory.get("last_codes") or []),
-                "type": memory.get("codigo_tipo"),
-                "month": memory.get("mes") or (memory.get("last_plan") or {}).get("mes"),
-                "scope": memory.get("scope"),
-                "query_type": memory.get("last_query_type"),
-                "filters": {},
-            }
-        return last
-
-    def _v10_month_from_question_or_context(self, case_id: str, question: str) -> str:
-        q = _norm(question)
-        month = self._extract_month_from_question(q)
-        if month:
-            return month
-        memory = dict(self.memory.get(case_id) or {})
-        return (
-            memory.get("mes")
-            or (memory.get("last_plan") or {}).get("mes")
-            or (memory.get("last_result") or {}).get("month")
-            or ""
-        )
-
-    def _v10_is_natural_summary_question(self, q: str) -> bool:
-        return any(x in q for x in [
-            "como foi",
-            "como foi o mes",
-            "como foi o mês",
-            "como foi outubro",
-            "como foi setembro",
-            "cenario operacional",
-            "cenário operacional",
-            "operacao app",
-            "operação app",
-            "operacao de app",
-            "operação de app",
-            "operacionalmente",
-            "resumo do app",
-            "situacao do app",
-            "situação do app",
-            "mes para operacao app",
-            "mês para operação app",
-        ])
-
-    def _v10_is_volume_critical_question(self, q: str) -> bool:
-        return (
-            any(x in q for x in [
-                "volume critico",
-                "volume crítico",
-                "total critico",
-                "total crítico",
-                "volume do app",
-                "volume operacional",
-                "incidentes criticos",
-                "incidentes críticos",
-            ])
-            and any(x in q for x in ["app", "incidente", "incidentes"])
-        )
-
-    def _v10_is_priority_distribution_question(self, q: str) -> bool:
-        return (
-            ("p1" in q and "p2" in q and "p3" in q)
-            or "distribuicao p1" in q
-            or "distribuição p1" in q
-            or "como ficou o p1" in q
-            or "como ficou o p1/p2/p3" in q
-            or "como ficou p1/p2/p3" in q
-        )
-
-    def _v10_is_app_incident_list_question(self, q: str) -> bool:
-        return (
-            any(x in q for x in ["incidentes da operacao app", "incidentes da operação app", "incidentes da operacao de app", "incidentes da operação de app", "incidentes app", "operação app", "operacao app"])
-            and any(x in q for x in ["liste", "listar", "traga", "quais", "incidentes"])
-        )
-
-    def _v10_is_followup_context_filter(self, q: str) -> bool:
-        return any(x in q for x in [
-            "quais deles", "quais delas", "deles", "delas",
-            "eles tiveram", "elas tiveram", "tiveram indisponibilidade",
-            "com indisponibilidade", "tiveram parada", "foram sistêmicos", "foram sistemicos",
-            "me mande somente os codigos", "me mande somente os códigos",
-            "me mande os codigos", "me mande os códigos",
-            "liste eles", "liste elas", "detalhe o primeiro", "detalhe ele",
-            "qual deles", "qual delas", "quanto tempo ele", "tempo de parada dele",
-        ])
-
-    def _v10_is_systemic_text(self, text: str) -> bool:
-        return bool(re.search(r"INDISPONIBILIDADE|TELA DE MANUTENÇÃO|TELA DE MANUTENCAO", text or "", flags=re.I))
-
-    def _v10_fetch_codes_by_month_scope(
-        self,
-        case_id: str,
-        *,
-        month: str,
-        code_type: str = "INC",
-        is_app: bool = False,
-        systemic_only: bool = False,
-        limit: int = 200,
-    ) -> list[str]:
-        clauses = ["case_id = ?", "(numero LIKE ? OR codigo_principal LIKE ? OR codigo_tipo = ? OR categoria = ?)"]
-        params: list[Any] = [case_id, f"{code_type}%", f"{code_type}%", code_type, code_type]
-
-        if month:
-            clauses.append("mes = ?")
-            params.append(month)
-
-        if is_app:
-            clauses.append("""
-                (
-                    is_app = true
-                    OR canal ILIKE '%APP_MARKER%'
-                    OR article_text ILIKE '%APP_MARKER: true%'
-                    OR article_text ILIKE '%APLICATIVO VIVO%'
-                    OR article_text ILIKE '%MEU VIVO%'
-                    OR raw_json ILIKE '%Categoria: APP%'
-                    OR raw_json ILIKE '%"Categoria": "APP"%'
-                )
-            """)
-
-        if systemic_only:
-            clauses.append("""
-                (
-                    is_parada_sistemica = true
-                    OR descricao_resumida ILIKE '%INDISPONIBILIDADE%'
-                    OR descricao_resumida ILIKE '%TELA DE MANUTENÇÃO%'
-                    OR descricao_resumida ILIKE '%TELA DE MANUTENCAO%'
-                    OR article_text ILIKE '%INDISPONIBILIDADE%'
-                    OR article_text ILIKE '%TELA DE MANUTENÇÃO%'
-                    OR article_text ILIKE '%TELA DE MANUTENCAO%'
-                )
-            """)
-
-        sql = f"""
-            SELECT DISTINCT COALESCE(NULLIF(numero, ''), NULLIF(codigo_principal, '')) AS codigo
-            FROM {self.TABLE}
-            WHERE {" AND ".join(clauses)}
-              AND COALESCE(NULLIF(numero, ''), NULLIF(codigo_principal, '')) IS NOT NULL
-            ORDER BY codigo
-            LIMIT {int(limit)}
-        """
-        with self._connect() as con:
-            rows = con.execute(sql, params).fetchall()
-        return self._v10_clean_codes([r[0] for r in rows], code_type)
-
-    def _v10_fetch_code_texts(self, case_id: str, codes: list[str]) -> dict[str, str]:
-        codes = self._v10_clean_codes(codes)
-        if not codes:
-            return {}
-        placeholders = ",".join(["?"] * len(codes))
-        sql = f"""
-            SELECT COALESCE(NULLIF(numero, ''), NULLIF(codigo_principal, '')) AS codigo,
-                   COALESCE(descricao_resumida, '') || ' ' || COALESCE(descricao, '') || ' ' || COALESCE(article_text, '') AS blob
-            FROM {self.TABLE}
-            WHERE case_id = ?
-              AND COALESCE(NULLIF(numero, ''), NULLIF(codigo_principal, '')) IN ({placeholders})
-        """
-        with self._connect() as con:
-            rows = con.execute(sql, [case_id] + codes).fetchall()
-        return {str(code).upper(): str(blob or "") for code, blob in rows if code}
-
-    def _v10_filter_context_codes_systemic(self, case_id: str, codes: list[str]) -> list[str]:
-        texts = self._v10_fetch_code_texts(case_id, codes)
-        filtered = [code for code, blob in texts.items() if self._v10_is_systemic_text(blob)]
-        return self._v10_clean_codes(filtered, "INC")
-
-    def _v10_answer_followup(self, case_id: str, question: str) -> dict[str, Any] | None:
-        q = _norm(question)
-        ctx = self._v10_get_result_context(case_id)
-        codes = self._v10_clean_codes(ctx.get("codes") or [], ctx.get("type"))
-        if not codes:
-            return None
-
-        if any(x in q for x in ["me mande somente os codigos", "me mande somente os códigos", "me mande os codigos", "me mande os códigos", "liste eles", "liste elas"]):
-            return self._response(case_id, "\n".join(codes), "v10_followup_codes", ctx, {"memory_only": True, "count": len(codes)})
-
-        if any(x in q for x in ["indisponibilidade", "parada", "sistemica", "sistêmica"]):
-            filtered = self._v10_filter_context_codes_systemic(case_id, codes)
-            if filtered:
-                self._v10_save_result_context(
-                    case_id,
-                    filtered,
-                    code_type="INC",
-                    month=ctx.get("month"),
-                    scope=ctx.get("scope"),
-                    query_type="systemic_followup",
-                    filters={"systemic": True},
-                )
-                return self._response(case_id, "\n".join(filtered), "v10_followup_systemic", ctx, {"memory_only": True, "count": len(filtered)})
-            return self._response(case_id, "Nenhum incidente do último conjunto foi classificado com indisponibilidade sistêmica.", "v10_followup_systemic", ctx, {"memory_only": True})
-
-        if "primeiro" in q:
-            first = codes[0]
-            if "detalhe" in q:
-                return self._answer_detail(case_id, first, question)
-            return self._response(case_id, first, "v10_followup_first", ctx, {"memory_only": True})
-
-        if any(x in q for x in ["detalhe ele", "detalhe esse", "detalhe este"]):
-            last = codes[0]
-            return self._answer_detail(case_id, last, question)
-
-        if any(x in q for x in ["quanto tempo ele", "tempo de parada dele", "tempo dele", "tempo de impacto dele"]):
-            code = codes[0]
-            if hasattr(self, "_v9_answer_single_incident_time"):
-                return self._v9_answer_single_incident_time(case_id, code)
-
-        return None
-
-    def _v10_answer_natural_operational(self, case_id: str, question: str, plan: dict[str, Any]) -> dict[str, Any] | None:
-        q = _norm(question)
-
-        # V12: perguntas legacy explícitas de CHG/INC/IC/grupo não passam por natural APP/KPI.
-        if self._v12_has_strong_legacy_filters(q) and not self._v12_is_free_natural_app_kpi(q):
-            return None
-        month = plan.get("mes") or self._v10_month_from_question_or_context(case_id, question)
-
-        # Normaliza "mês 10", "outubro", etc. quando o parser antigo não capturar.
-        if not month:
-            m = re.search(r"\b(?:mes|mês)\s*(\d{1,2})\b", q)
-            if m:
-                month = f"2025-{m.group(1).zfill(2)}"
-
-        if not month:
-            m = re.search(r"\b(\d{1,2})[-/](2025|25)\b", q)
-            if m:
-                month = f"2025-{m.group(1).zfill(2)}"
-        if not month:
-            for name, mm in {"outubro": "10", "setembro": "09", "agosto": "08", "dezembro": "12", "julho": "07"}.items():
-                if name in q:
-                    month = f"2025-{mm}"
-                    break
-
-        if not month:
-            return None
-
-        # Resumo natural: como foi / cenário / operacionalmente
-        if self._v10_is_natural_summary_question(q):
-            rewritten = f"me traga um resumo executivo dos incidentes para o mês {month}"
-            return self._v9_answer_from_monthly_kpi(case_id, rewritten, {**plan, "mes": month, "codigo_tipo": "INC", "is_app": True})
-
-        if self._v10_is_volume_critical_question(q):
-            rewritten = f"Total de incidentes críticos para operar o app (P1-P3) mês {month}"
-            return self._v9_answer_from_monthly_kpi(case_id, rewritten, {**plan, "mes": month, "codigo_tipo": "INC", "is_app": True})
-
-        if self._v10_is_priority_distribution_question(q):
-            rewritten = f"quantos p1, p2 e p3 no mês {month}"
-            return self._v9_answer_from_monthly_kpi(case_id, rewritten, {**plan, "mes": month, "codigo_tipo": "INC", "is_app": True})
-
-        if self._v10_is_app_incident_list_question(q):
-            # Primeiro tenta FAQ mensal; se não achar, cai para SQL filtrado.
-            answer = self._v9_answer_from_monthly_kpi(case_id, f"liste os incidentes da operação APP para {month}", {**plan, "mes": month, "codigo_tipo": "INC", "is_app": True})
-            if answer and answer.get("answer_text") and "Não consegui" not in answer.get("answer_text", ""):
-                # Garante memória tipada.
-                codes = self._v10_clean_codes(str(answer.get("answer_text", "")).splitlines(), "INC")
-                if codes:
-                    self._v10_save_result_context(case_id, codes, code_type="INC", month=month, scope="APP", query_type="app_incident_list")
-                return answer
-
-            codes = self._v10_fetch_codes_by_month_scope(case_id, month=month, code_type="INC", is_app=True)
-            if codes:
-                self._v10_save_result_context(case_id, codes, code_type="INC", month=month, scope="APP", query_type="app_incident_list")
-                return self._response(case_id, "\n".join(codes), "v10_app_incident_list", {**plan, "mes": month}, {"count": len(codes)})
-
-        return None
 
     def _v9_get_last_context(self, case_id: str) -> dict[str, Any]:
         return dict(self.memory.get(case_id) or {})
@@ -2498,7 +2116,7 @@ class KnowledgeStructuredStore:
 
     def _v9_distinct_code_expr(self) -> str:
         # Evita UUIDs quando houver número operacional. UUIDs só entram como último fallback.
-        return "COALESCE(NULLIF(numero, ''), NULLIF(codigo_principal, ''))"
+        return "COALESCE(NULLIF(numero, ''), NULLIF(codigo_principal, ''), NULLIF(article_ref_id, ''), article_id)"
 
     def _v9_extract_incident_codes_from_text(self, text: str) -> list[str]:
         if not text:
