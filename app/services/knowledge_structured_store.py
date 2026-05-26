@@ -46,12 +46,10 @@ def _json_loads_maybe(value: Any) -> dict[str, Any]:
 def _extract_field(text: str, label: str) -> str:
     if not text:
         return ""
-
     pattern = rf"(?im)^\s*{re.escape(label)}\s*:\s*(.+?)(?=\n[A-ZÁÉÍÓÚÂÊÔÃÕÇ][A-Za-zÀ-ÿ0-9 _/\-()]+:\s|\Z)"
     match = re.search(pattern, text, flags=re.DOTALL)
     if not match:
         return ""
-
     return re.sub(r"\n\s+", "\n", match.group(1).strip()).strip()
 
 
@@ -59,7 +57,6 @@ def _extract_numero(text: str) -> str:
     direct = _extract_field(text, "Número")
     if direct:
         return _upper(direct)
-
     match = re.search(r"\b(CHG\d{5,}|INC\d{5,})\b", text or "", re.IGNORECASE)
     return _upper(match.group(1)) if match else ""
 
@@ -94,6 +91,9 @@ class KnowledgeStructuredStore:
         "incidente", "incidentes", "inc",
         "app", "ecomm", "aura", "whatsapp", "dia", "mes", "mês",
         "aberta", "abertas", "aberto", "abertos",
+        "detalhe", "detalhar", "detalhes", "explique", "explicar",
+        "resuma", "resumo", "descreva", "descricao", "descrição",
+        "plano", "rollback", "teste", "janela", "indisponibilidade",
     }
 
     BASE_COLUMNS: dict[str, str] = {
@@ -141,7 +141,6 @@ class KnowledgeStructuredStore:
         self.db_path = Path(db_path or default_path)
         self.enabled = HAS_DUCKDB
         self.memory: dict[str, dict[str, Any]] = {}
-
         if self.enabled:
             self.db_path.parent.mkdir(parents=True, exist_ok=True)
             self._ensure_schema()
@@ -160,43 +159,25 @@ class KnowledgeStructuredStore:
             con.execute(f"CREATE TABLE IF NOT EXISTS {self.TABLE} ({cols_sql})")
 
     def _table_cols(self, con) -> list[str]:
-        return [
-            row[1]
-            for row in con.execute(f"PRAGMA table_info('{self.TABLE}')").fetchall()
-        ]
+        return [row[1] for row in con.execute(f"PRAGMA table_info('{self.TABLE}')").fetchall()]
 
     def status(self) -> dict[str, Any]:
         if not self.enabled:
             return {"enabled": False, "reason": "duckdb_not_installed"}
-
         try:
             with self._connect() as con:
                 total = con.execute(f"SELECT COUNT(*) FROM {self.TABLE}").fetchone()[0]
                 cases = con.execute(f"SELECT COUNT(DISTINCT case_id) FROM {self.TABLE}").fetchone()[0]
                 cols = self._table_cols(con)
-            return {
-                "enabled": True,
-                "db_path": str(self.db_path),
-                "rows": int(total),
-                "cases": int(cases),
-                "columns": cols,
-            }
+            return {"enabled": True, "db_path": str(self.db_path), "rows": int(total), "cases": int(cases), "columns": cols}
         except Exception as exc:
             return {"enabled": False, "error": str(exc), "db_path": str(self.db_path)}
 
-    def replace_case_rows(
-        self,
-        case_id: str,
-        rows: list[dict[str, Any]],
-        knowledge_version: str | None = None,
-    ) -> dict[str, Any]:
+    def replace_case_rows(self, case_id: str, rows: list[dict[str, Any]], knowledge_version: str | None = None) -> dict[str, Any]:
         if not self.enabled:
             raise RuntimeError("DuckDB não está instalado. Instale com: pip install duckdb")
 
-        normalized = [
-            self._normalize_row(case_id, row, knowledge_version)
-            for row in (rows or [])
-        ]
+        normalized = [self._normalize_row(case_id, row, knowledge_version) for row in (rows or [])]
 
         with self._connect() as con:
             table_cols = self._table_cols(con)
@@ -208,53 +189,24 @@ class KnowledgeStructuredStore:
                 con.execute(f"DELETE FROM {self.TABLE}")
 
             if normalized:
-                insert_cols = [
-                    col
-                    for col in normalized[0].keys()
-                    if col in table_col_set and col != "updated_at"
-                ]
-
+                insert_cols = [col for col in normalized[0].keys() if col in table_col_set and col != "updated_at"]
                 if not insert_cols:
-                    raise RuntimeError(
-                        "Nenhuma coluna compatível encontrada. "
-                        f"Tabela={table_cols}; Normalizado={list(normalized[0].keys())}"
-                    )
+                    raise RuntimeError(f"Nenhuma coluna compatível encontrada. Tabela={table_cols}; Normalizado={list(normalized[0].keys())}")
 
                 cols_sql = ", ".join(_sql_ident(c) for c in insert_cols)
                 placeholders = ", ".join(["?"] * len(insert_cols))
                 sql = f"INSERT INTO {self.TABLE} ({cols_sql}) VALUES ({placeholders})"
-
-                values = [
-                    [row.get(col) for col in insert_cols]
-                    for row in normalized
-                ]
+                values = [[row.get(col) for col in insert_cols] for row in normalized]
                 con.executemany(sql, values)
 
         self.memory.pop(case_id, None)
+        return {"success": True, "case_id": case_id, "rows_received": len(rows or []), "rows_saved": len(normalized), "knowledge_version": knowledge_version}
 
-        return {
-            "success": True,
-            "case_id": case_id,
-            "rows_received": len(rows or []),
-            "rows_saved": len(normalized),
-            "knowledge_version": knowledge_version,
-        }
-
-    def _normalize_row(
-        self,
-        case_id: str,
-        row: dict[str, Any],
-        knowledge_version: str | None,
-    ) -> dict[str, Any]:
+    def _normalize_row(self, case_id: str, row: dict[str, Any], knowledge_version: str | None) -> dict[str, Any]:
         raw_json = json.dumps(row, ensure_ascii=False, default=str)
         document_obj = _json_loads_maybe(row.get("document"))
 
-        article_text = _safe(
-            row.get("article")
-            or row.get("article_text")
-            or row.get("text")
-            or ""
-        )
+        article_text = _safe(row.get("article") or row.get("article_text") or row.get("text") or "")
         if not article_text:
             article_text = raw_json
 
@@ -285,89 +237,30 @@ class KnowledgeStructuredStore:
         )
         mes = self._normalize_month(mes)
 
-        data_inicio = (
-            _safe(row.get("data_inicio_planejada"))
-            or _safe(document_obj.get("Data de início planejada"))
-            or _extract_field(article_text, "Data de início planejada")
-        )
-
-        data_termino = (
-            _safe(row.get("data_termino_planejada"))
-            or _safe(document_obj.get("Data de término planejada"))
-            or _extract_field(article_text, "Data de término planejada")
-        )
-
-        aberto = (
-            _safe(row.get("aberto"))
-            or _safe(document_obj.get("Aberto"))
-            or _extract_field(article_text, "Aberto")
-        )
+        data_inicio = _safe(row.get("data_inicio_planejada")) or _safe(document_obj.get("Data de início planejada")) or _extract_field(article_text, "Data de início planejada")
+        data_termino = _safe(row.get("data_termino_planejada")) or _safe(document_obj.get("Data de término planejada")) or _extract_field(article_text, "Data de término planejada")
+        aberto = _safe(row.get("aberto")) or _safe(document_obj.get("Aberto")) or _extract_field(article_text, "Aberto")
 
         if not mes:
             mes = self._normalize_month(data_inicio if codigo_tipo == "CHG" else aberto)
 
         dia = _extract_day(data_inicio if codigo_tipo == "CHG" else aberto)
 
-        ic = (
-            _safe(row.get("ic_impactado"))
-            or _safe(document_obj.get("IC Impactado"))
-            or _extract_field(article_text, "IC Impactado")
-        )
-
-        grupo = (
-            _safe(row.get("grupo_atribuicao"))
-            or _safe(row.get("grupo_de_atribuicao"))
-            or _safe(document_obj.get("Grupo de atribuição"))
-            or _extract_field(article_text, "Grupo de atribuição")
-        )
-
+        ic = _safe(row.get("ic_impactado")) or _safe(document_obj.get("IC Impactado")) or _extract_field(article_text, "IC Impactado")
+        grupo = _safe(row.get("grupo_atribuicao")) or _safe(row.get("grupo_de_atribuicao")) or _safe(document_obj.get("Grupo de atribuição")) or _extract_field(article_text, "Grupo de atribuição")
         canal = (
-            _safe(row.get("canal"))
-            or _safe(row.get("canal_impactado"))
-            or _safe(document_obj.get("Canal impactado"))
-            or _safe(document_obj.get("Canal Impactado"))
-            or _extract_field(article_text, "Canal impactado")
-            or _extract_field(article_text, "Canal Impactado")
+            _safe(row.get("canal")) or _safe(row.get("canal_impactado"))
+            or _safe(document_obj.get("Canal impactado")) or _safe(document_obj.get("Canal Impactado"))
+            or _extract_field(article_text, "Canal impactado") or _extract_field(article_text, "Canal Impactado")
         )
-
-        descricao_resumida = (
-            _safe(row.get("descricao_resumida"))
-            or _safe(document_obj.get("Descrição resumida"))
-            or _extract_field(article_text, "Descrição resumida")
-        )
-
-        descricao = (
-            _safe(row.get("descricao"))
-            or _safe(document_obj.get("Descrição"))
-            or _extract_field(article_text, "Descrição")
-        )
-
-        causado = (
-            _safe(row.get("causado_pela_mudanca"))
-            or _safe(document_obj.get("Causado pela mudança"))
-            or _extract_field(article_text, "Causado pela mudança")
-        )
-
-        estado = (
-            _safe(row.get("estado"))
-            or _safe(document_obj.get("Estado"))
-            or _extract_field(article_text, "Estado")
-        )
-
-        tipo = (
-            _safe(row.get("tipo"))
-            or _safe(document_obj.get("Tipo"))
-            or _extract_field(article_text, "Tipo")
-        )
-
-        prioridade = (
-            _safe(row.get("prioridade"))
-            or _safe(document_obj.get("Prioridade"))
-            or _extract_field(article_text, "Prioridade")
-        )
+        descricao_resumida = _safe(row.get("descricao_resumida")) or _safe(document_obj.get("Descrição resumida")) or _extract_field(article_text, "Descrição resumida")
+        descricao = _safe(row.get("descricao")) or _safe(document_obj.get("Descrição")) or _extract_field(article_text, "Descrição")
+        causado = _safe(row.get("causado_pela_mudanca")) or _safe(document_obj.get("Causado pela mudança")) or _extract_field(article_text, "Causado pela mudança")
+        estado = _safe(row.get("estado")) or _safe(document_obj.get("Estado")) or _extract_field(article_text, "Estado")
+        tipo = _safe(row.get("tipo")) or _safe(document_obj.get("Tipo")) or _extract_field(article_text, "Tipo")
+        prioridade = _safe(row.get("prioridade")) or _safe(document_obj.get("Prioridade")) or _extract_field(article_text, "Prioridade")
 
         blob = _norm(" ".join([canal, descricao_resumida, descricao, article_text, raw_json]))
-
         is_app = bool(
             '"is_app": true' in raw_json.lower()
             or '"is_app":true' in raw_json.lower()
@@ -375,7 +268,6 @@ class KnowledgeStructuredStore:
             or "canal impactado app vivo" in blob
             or "app vivo" in _norm(canal)
         )
-
         is_ecomm = bool(
             '"is_ecomm": true' in raw_json.lower()
             or '"is_ecomm":true' in raw_json.lower()
@@ -443,20 +335,12 @@ class KnowledgeStructuredStore:
             "aberto": aberto,
         }
 
-    def answer_question(
-        self,
-        case_id: str,
-        question: str,
-        chat_history: list[dict[str, Any]] | None = None,
-    ) -> dict[str, Any] | None:
+    def answer_question(self, case_id: str, question: str, chat_history: list[dict[str, Any]] | None = None) -> dict[str, Any] | None:
         if not self.enabled:
             return {"fallback_to_rag": True}
-
         q = _norm(question)
-
         if not any(term in q for term in self.ANALYTIC_TERMS):
             return {"fallback_to_rag": True}
-
         try:
             return self._answer_structured(case_id, question)
         except Exception as exc:
@@ -473,15 +357,14 @@ class KnowledgeStructuredStore:
         q = _norm(question)
         context = dict(self.memory.get(case_id) or {})
 
-        if "quais os codigos" in q or "quais os códigos" in question.lower():
+        code_match = re.search(r"\b(CHG\d{5,}|INC\d{5,})\b", question, re.IGNORECASE)
+        is_detail = any(x in q for x in ["detalhe", "detalhar", "detalhes", "explique", "resuma", "resumo", "descreva", "descricao", "descrição"])
+        if code_match and is_detail:
+            return self._answer_detail(case_id, code_match.group(1).upper(), question)
+
+        if "quais os codigos" in q or "quais os códigos" in question.lower() or "quais são os codigos" in q or "quais são os códigos" in question.lower():
             codes = context.get("last_codes") or []
-            return self._response(
-                case_id,
-                "\n".join(codes) if codes else "Não há códigos em memória para listar.",
-                "list",
-                context,
-                {"memory_only": True, "codes": codes},
-            )
+            return self._response(case_id, "\n".join(codes) if codes else "Não há códigos em memória para listar.", "list", context, {"memory_only": True, "codes": codes})
 
         if "aura whatsapp" in q and context.get("last_codes"):
             return self._answer_aura_whatsapp(case_id, context)
@@ -495,7 +378,6 @@ class KnowledgeStructuredStore:
         if plan.get("force_list"):
             is_list = True
             is_count = False
-
         if plan.get("force_count"):
             is_count = True
             is_list = False
@@ -504,69 +386,119 @@ class KnowledgeStructuredStore:
             distinct_expr = "COALESCE(NULLIF(numero, ''), NULLIF(codigo_principal, ''), article_id)"
 
             if is_count and not is_list:
-                sql = f"""
-                    SELECT COUNT(DISTINCT {distinct_expr}) AS total
-                    FROM {self.TABLE}
-                    {where_sql}
-                """
+                sql = f"SELECT COUNT(DISTINCT {distinct_expr}) AS total FROM {self.TABLE} {where_sql}"
                 total = int(con.execute(sql, params).fetchone()[0] or 0)
-
-                codes_sql = f"""
-                    SELECT DISTINCT {distinct_expr} AS codigo
-                    FROM {self.TABLE}
-                    {where_sql}
-                    ORDER BY codigo
-                    LIMIT 2000
-                """
+                codes_sql = f"SELECT DISTINCT {distinct_expr} AS codigo FROM {self.TABLE} {where_sql} ORDER BY codigo LIMIT 2000"
                 codes = [r[0] for r in con.execute(codes_sql, params).fetchall() if r[0]]
                 self._save_memory(case_id, plan, codes)
-
-                return self._response(
-                    case_id,
-                    str(total),
-                    "count",
-                    plan,
-                    {"sql": sql, "params": params, "count": total, "codes_count": len(codes)},
-                )
+                return self._response(case_id, str(total), "count", plan, {"sql": sql, "params": params, "count": total, "codes_count": len(codes)})
 
             if is_list:
-                sql = f"""
-                    SELECT DISTINCT {distinct_expr} AS codigo
-                    FROM {self.TABLE}
-                    {where_sql}
-                    ORDER BY codigo
-                    LIMIT 2000
-                """
+                sql = f"SELECT DISTINCT {distinct_expr} AS codigo FROM {self.TABLE} {where_sql} ORDER BY codigo LIMIT 2000"
                 codes = [r[0] for r in con.execute(sql, params).fetchall() if r[0]]
                 self._save_memory(case_id, plan, codes)
+                return self._response(case_id, "\n".join(codes) if codes else "Nenhum registro encontrado.", "list", plan, {"sql": sql, "params": params, "count": len(codes)})
 
-                return self._response(
-                    case_id,
-                    "\n".join(codes) if codes else "Nenhum registro encontrado.",
-                    "list",
-                    plan,
-                    {"sql": sql, "params": params, "count": len(codes)},
-                )
+        return self._response(case_id, "Não consegui calcular pela base estruturada.", "unknown", plan, {"reason": "unsupported_analytic_intent"})
 
-        return self._response(
-            case_id,
-            "Não consegui calcular pela base estruturada.",
-            "unknown",
-            plan,
-            {"reason": "unsupported_analytic_intent"},
-        )
+    def _answer_detail(self, case_id: str, code: str, question: str) -> dict[str, Any]:
+        sql = f"""
+            SELECT
+                numero,
+                codigo_tipo,
+                mes,
+                tipo,
+                estado,
+                status,
+                grupo_atribuicao,
+                ic_impactado,
+                canal,
+                categoria,
+                prioridade,
+                data_inicio_planejada,
+                data_termino_planejada,
+                article_text,
+                raw_json
+            FROM {self.TABLE}
+            WHERE case_id = ?
+            AND numero = ?
+            LIMIT 1
+        """
+        with self._connect() as con:
+            row = con.execute(sql, [case_id, code]).fetchone()
+
+        if not row:
+            return self._response(case_id, f"Não encontrei o registro {code} na base estruturada deste case.", "detail", {"code": code}, {"sql": sql})
+
+        cols = [
+            "numero", "codigo_tipo", "mes", "tipo", "estado", "status",
+            "grupo_atribuicao", "ic_impactado", "canal", "categoria",
+            "prioridade", "data_inicio_planejada", "data_termino_planejada",
+            "article_text", "raw_json",
+        ]
+        data = dict(zip(cols, row))
+        article_text = data.get("article_text") or ""
+
+        descricao_resumida = _extract_field(article_text, "Descrição resumida")
+        descricao = _extract_field(article_text, "Descrição")
+        tipo_teste = _extract_field(article_text, "Tipo de teste")
+        plano_teste = _extract_field(article_text, "Plano de teste")
+        tipo_indisp = _extract_field(article_text, "Tipo de Indisponibilidade")
+        solicitacao = _extract_field(article_text, "Solicitação de")
+        aberta_por = _extract_field(article_text, "Aberta por")
+        atribuido = _extract_field(article_text, "Atribuído a")
+        causado = _extract_field(article_text, "Causado pela mudança")
+
+        lines = [
+            f"Detalhamento de {code}",
+            "",
+            f"- Tipo de registro: {data.get('codigo_tipo') or '-'}",
+            f"- Mês: {data.get('mes') or '-'}",
+            f"- Tipo: {data.get('tipo') or '-'}",
+            f"- Estado/Status: {data.get('estado') or data.get('status') or '-'}",
+            f"- IC Impactado: {data.get('ic_impactado') or '-'}",
+            f"- Grupo de atribuição: {data.get('grupo_atribuicao') or '-'}",
+            f"- Canal: {data.get('canal') or '-'}",
+            f"- Prioridade: {data.get('prioridade') or '-'}",
+            f"- Início planejado: {data.get('data_inicio_planejada') or '-'}",
+            f"- Término planejado: {data.get('data_termino_planejada') or '-'}",
+        ]
+
+        if tipo_indisp:
+            lines.append(f"- Tipo de indisponibilidade: {tipo_indisp}")
+        if solicitacao:
+            lines.append(f"- Solicitação de: {solicitacao}")
+        if aberta_por:
+            lines.append(f"- Aberta por: {aberta_por}")
+        if atribuido:
+            lines.append(f"- Atribuído a: {atribuido}")
+        if causado:
+            lines.append(f"- Causado pela mudança: {causado}")
+
+        if descricao_resumida:
+            lines.extend(["", "Descrição resumida:", descricao_resumida])
+        if descricao:
+            lines.extend(["", "Descrição:", descricao[:2500]])
+        if tipo_teste:
+            lines.extend(["", "Tipo de teste:", tipo_teste])
+        if plano_teste:
+            lines.extend(["", "Plano de teste:", plano_teste[:2500]])
+
+        # Guarda o registro detalhado como contexto para follow-up.
+        self.memory[case_id] = {
+            **(self.memory.get(case_id) or {}),
+            "last_detail_code": code,
+            "last_codes": [code],
+            "last_plan": {"codigo_tipo": data.get("codigo_tipo"), "mes": data.get("mes")},
+        }
+
+        return self._response(case_id, "\n".join(lines), "detail", {"code": code}, {"sql": sql, "record": {k: v for k, v in data.items() if k not in {"article_text", "raw_json"}}})
 
     def _build_plan(self, question: str, context: dict[str, Any]) -> dict[str, Any]:
         q = _norm(question)
-
         followup = (
             q.startswith("e ")
-            or any(x in q for x in [
-                "destes", "destas", "desses", "dessas", "deles", "delas",
-                "essas", "esses", "foram abertas", "quais os codigos",
-                "quais os códigos", "alguma dessas", "destes fazem",
-                "abertas no dia", "abertos no dia",
-            ])
+            or any(x in q for x in ["destes", "destas", "desses", "dessas", "deles", "delas", "essas", "esses", "foram abertas", "quais os codigos", "quais os códigos", "alguma dessas", "destes fazem", "abertas no dia", "abertos no dia"])
         )
 
         if followup:
@@ -577,18 +509,13 @@ class KnowledgeStructuredStore:
         else:
             plan = {}
 
-        # Perguntas de novo escopo limpam filtros específicos anteriores.
-        root_scope = any(x in q for x in [
-            "quantas changes", "quantos incidentes", "e quantas changes", "e quantos incidentes",
-        ])
+        root_scope = any(x in q for x in ["quantas changes", "quantos incidentes", "e quantas changes", "e quantos incidentes"])
         if root_scope:
-            preserved = {}
-            plan = preserved
+            plan = {}
 
         month = self._extract_month_from_question(q)
         if month:
             plan["mes"] = month
-            # Novo mês deve limpar filtros específicos antigos.
             plan.pop("ic_impactado", None)
             plan.pop("grupo_atribuicao", None)
             plan.pop("change_ref", None)
@@ -596,20 +523,16 @@ class KnowledgeStructuredStore:
             plan.pop("is_app", None)
             plan.pop("is_ecomm", None)
 
-        # Tipo é reavaliado após limpeza de escopo.
         if any(x in q for x in ["change", "changes", "chg", "mudanca", "mudança"]):
             plan["codigo_tipo"] = "CHG"
-
         if any(x in q for x in ["incidente", "incidentes"]):
             plan["codigo_tipo"] = "INC"
-
         if ("referencia" in q or "referência" in q or "fazem referência" in q or "causado" in q) and re.search(r"\bchg\d{5,}\b", q):
             plan["codigo_tipo"] = "INC"
 
         day = self._extract_day_from_question(q)
         if day:
             plan["dia"] = day
-            # "abertas no dia" em follow-up de CHG deve manter CHG/mês e só adicionar dia.
             if "aberta" in q or "abertas" in q:
                 plan["codigo_tipo"] = plan.get("codigo_tipo") or "CHG"
 
@@ -620,7 +543,6 @@ class KnowledgeStructuredStore:
 
         grupo = self._extract_after(question, r"grupo\s+de\s+atribui[cç][aã]o\s*=?\s*(.+)")
         if grupo:
-            # Grupo é filtro novo independente do IC anterior.
             plan.pop("ic_impactado", None)
             plan["grupo_atribuicao"] = grupo
             plan["force_count"] = True
@@ -632,7 +554,6 @@ class KnowledgeStructuredStore:
 
         if re.search(r"\bapp\b", q):
             plan["is_app"] = True
-
         if any(x in q for x in ["ecomm", "e commerce", "e-commerce", "ecommerce"]):
             plan["is_ecomm"] = True
 
@@ -641,7 +562,6 @@ class KnowledgeStructuredStore:
     def _build_where(self, case_id: str, plan: dict[str, Any]) -> tuple[str, list[Any]]:
         clauses = ["case_id = ?"]
         params: list[Any] = [case_id]
-
         codigo_tipo = plan.get("codigo_tipo")
 
         if codigo_tipo:
@@ -657,35 +577,24 @@ class KnowledgeStructuredStore:
         if plan.get("dia"):
             day_no_zero = str(int(plan["dia"]))
             day_zero = str(plan["dia"]).zfill(2)
-
             if codigo_tipo == "CHG":
-                clauses.append(
-                    """
+                clauses.append("""
                     (
                         regexp_extract(COALESCE(data_inicio_planejada, ''), '20[0-9]{2}[-/][0-9]{1,2}[-/]0?([0-9]{1,2})', 1) IN (?, ?)
                         OR article_text ILIKE ?
                     )
-                    """
-                )
+                """)
                 params.extend([day_no_zero, day_zero, f"%DIA_NORMALIZADO_MARKER: {day_zero}%"])
             elif codigo_tipo == "INC":
-                clauses.append(
-                    """
+                clauses.append("""
                     (
                         regexp_extract(COALESCE(article_text, ''), 'Aberto:\\s*20[0-9]{2}[-/][0-9]{1,2}[-/]0?([0-9]{1,2})', 1) IN (?, ?)
                         OR article_text ILIKE ?
                     )
-                    """
-                )
+                """)
                 params.extend([day_no_zero, day_zero, f"%DIA_NORMALIZADO_MARKER: {day_zero}%"])
             else:
-                clauses.append(
-                    """
-                    (
-                        article_text ILIKE ?
-                    )
-                    """
-                )
+                clauses.append("article_text ILIKE ?")
                 params.append(f"%DIA_NORMALIZADO_MARKER: {day_zero}%")
 
         if plan.get("ic_impactado"):
@@ -697,8 +606,7 @@ class KnowledgeStructuredStore:
             params.append(f"%{plan['grupo_atribuicao']}%")
 
         if plan.get("is_app"):
-            clauses.append(
-                """
+            clauses.append("""
                 (
                     canal ILIKE '%APP_MARKER%'
                     OR article_text ILIKE '%APP_MARKER: true%'
@@ -707,12 +615,10 @@ class KnowledgeStructuredStore:
                     OR raw_json ILIKE '%"is_app": true%'
                     OR raw_json ILIKE '%"is_app":true%'
                 )
-                """
-            )
+            """)
 
         if plan.get("is_ecomm"):
-            clauses.append(
-                """
+            clauses.append("""
                 (
                     canal ILIKE '%ECOMM_MARKER%'
                     OR article_text ILIKE '%ECOMM_MARKER: true%'
@@ -722,19 +628,10 @@ class KnowledgeStructuredStore:
                     OR raw_json ILIKE '%"is_ecomm": true%'
                     OR raw_json ILIKE '%"is_ecomm":true%'
                 )
-                """
-            )
+            """)
 
         if plan.get("change_ref"):
-            # Usa prioritariamente marker de "Causado pela mudança" para não contar qualquer menção textual.
-            clauses.append(
-                """
-                (
-                    article_text ILIKE ?
-                    OR raw_json ILIKE ?
-                )
-                """
-            )
+            clauses.append("(article_text ILIKE ? OR raw_json ILIKE ?)")
             ref = f"%CAUSADO_PELA_MUDANCA_MARKER: {plan['change_ref']}%"
             ref_json = f"%Causado pela mudança%{plan['change_ref']}%"
             params.extend([ref, ref_json])
@@ -748,7 +645,6 @@ class KnowledgeStructuredStore:
 
         placeholders = ",".join(["?"] * len(codes))
         params = [case_id] + list(codes)
-
         sql = f"""
             SELECT DISTINCT numero
             FROM {self.TABLE}
@@ -764,57 +660,30 @@ class KnowledgeStructuredStore:
             )
             ORDER BY numero
         """
-
         with self._connect() as con:
             found = [r[0] for r in con.execute(sql, params).fetchall() if r[0]]
-
-        return self._response(
-            case_id,
-            "Sim: " + ", ".join(found) if found else "Não",
-            "boolean",
-            context,
-            {"sql": sql, "found": found, "codes": codes},
-        )
+        return self._response(case_id, "Sim: " + ", ".join(found) if found else "Não", "boolean", context, {"sql": sql, "found": found, "codes": codes})
 
     def _save_memory(self, case_id: str, plan: dict[str, Any], codes: list[str]) -> None:
         memory = dict(self.memory.get(case_id) or {})
         memory["last_plan"] = dict(plan)
-
         for key in ["codigo_tipo", "mes", "dia", "is_app", "is_ecomm"]:
             if key in plan:
                 memory[key] = plan[key]
-
-        # Não polui a memória com listas gigantes.
         if codes and len(codes) <= 100:
             memory["last_codes"] = codes
-
         memory["last_result_count"] = len(codes)
         self.memory[case_id] = memory
 
-    def _response(
-        self,
-        case_id: str,
-        answer: str,
-        query_type: str,
-        criteria: dict[str, Any],
-        technical: dict[str, Any],
-    ) -> dict[str, Any]:
+    def _response(self, case_id: str, answer: str, query_type: str, criteria: dict[str, Any], technical: dict[str, Any]) -> dict[str, Any]:
         return {
             "fallback_to_rag": False,
             "route": "knowledge_structured_duckdb",
             "query_type": query_type,
             "answer_text": answer,
             "summary": answer,
-            "technical": {
-                "case_id": case_id,
-                "criteria": criteria,
-                **(technical or {}),
-            },
-            "sources": {
-                "deterministic": True,
-                "engine": "duckdb",
-                "table": self.TABLE,
-            },
+            "technical": {"case_id": case_id, "criteria": criteria, **(technical or {})},
+            "sources": {"deterministic": True, "engine": "duckdb", "table": self.TABLE},
         }
 
     def _normalize_month(self, value: Any) -> str:
@@ -827,22 +696,18 @@ class KnowledgeStructuredStore:
             r"\b(\d{1,2})\s+de\s+(20\d{2})\b",
             r"\b(20\d{2})[-/](\d{1,2})\b",
         ]
-
         for pattern in patterns:
             match = re.search(pattern, q)
             if not match:
                 continue
-
             if pattern.startswith(r"\b(20"):
                 yyyy = match.group(1)
                 mm = match.group(2).zfill(2)
             else:
                 mm = match.group(1).zfill(2)
                 yyyy = match.group(2)
-
             if 1 <= int(mm) <= 12:
                 return f"{yyyy}-{mm}"
-
         return ""
 
     def _extract_day_from_question(self, q: str) -> str:
@@ -850,30 +715,24 @@ class KnowledgeStructuredStore:
             r"(?:dia|abertas?\s+no\s+dia|abertos?\s+no\s+dia)\s+(\d{1,2})",
             r"\b(\d{1,2})\s*$",
         ]
-
         for pattern in patterns:
             match = re.search(pattern, q)
             if not match:
                 continue
-
             day = match.group(1).zfill(2)
             if 1 <= int(day) <= 31:
                 return day
-
         return ""
 
     def _extract_after(self, question: str, pattern: str) -> str:
         match = re.search(pattern, question, re.IGNORECASE)
         if not match:
             return ""
-
         value = match.group(1).strip().replace("?", "").strip()
         lower = value.lower()
         cut = len(value)
-
         for stop in ["\n", " e grupo ", " e com ", " e que ", " e quais ", " e quant"]:
             idx = lower.find(stop)
             if idx >= 0:
                 cut = min(cut, idx)
-
         return value[:cut].strip()
