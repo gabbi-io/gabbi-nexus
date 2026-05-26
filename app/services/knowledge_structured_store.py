@@ -1011,6 +1011,19 @@ class KnowledgeStructuredStore:
                 )
             """)
 
+
+        if plan.get("is_change_related"):
+            clauses.append("""
+                (
+                    causado_pela_mudanca IS NOT NULL AND causado_pela_mudanca <> ''
+                    OR causa_origem ILIKE '%MUDANCA%'
+                    OR causa_origem ILIKE '%MUDANÇA%'
+                    OR article_text ILIKE '%CAUSADO_PELA_MUDANCA_MARKER%'
+                    OR article_text ILIKE '%CHANGE_RELATED_MARKER%'
+                    OR raw_json ILIKE '%Causado pela mudança%'
+                )
+            """)
+
         if plan.get("change_ref"):
             clauses.append("(article_text ILIKE ? OR raw_json ILIKE ? OR causado_pela_mudanca ILIKE ?)")
             ref = f"%CAUSADO_PELA_MUDANCA_MARKER: {plan['change_ref']}%"
@@ -1648,6 +1661,55 @@ class KnowledgeStructuredStore:
 
     def _is_group_ranking_question(self, q: str) -> bool:
         return "grupo" in q and any(x in q for x in ["frequente", "frequentes", "mais", "ranking"])
+
+    def _is_change_related_question(self, q: str) -> bool:
+        """
+        Detecta perguntas sobre incidentes causados por mudança/change/CHG.
+        Ex.: "quantos incidentes foram causados por mudança no mês 2025-09?"
+        """
+        return any(x in q for x in [
+            "causados por mudança",
+            "causados por mudanca",
+            "causado por mudança",
+            "causado por mudanca",
+            "causados por uma change",
+            "causado por uma change",
+            "causado pela mudança",
+            "causado pela mudanca",
+            "relacionados a mudança",
+            "relacionados a mudanca",
+            "relacionado a change",
+            "relacionados a change",
+            "mudança relacionada",
+            "mudanca relacionada",
+        ])
+
+    def _is_systemic_stop_question(self, q: str) -> bool:
+        """
+        Alias compatível para perguntas de parada sistêmica.
+        Algumas versões chamam _is_systemic_stop_question e outras _is_systemic_question.
+        """
+        return self._is_systemic_question(q)
+
+    def _is_largest_impact_question(self, q: str) -> bool:
+        """
+        Alias compatível para maior impacto.
+        """
+        return self._is_major_impact_question(q)
+
+    def _is_total_impact_question(self, q: str) -> bool:
+        """
+        Alias compatível para impacto total.
+        """
+        return self._is_impact_total_question(q)
+
+    def _is_systemic_stop_time_question(self, q: str) -> bool:
+        """
+        Detecta tempo de parada sistêmica/indisponibilidade.
+        """
+        return self._is_systemic_question(q) and any(x in q for x in [
+            "tempo", "quanto", "qual", "total", "soma"
+        ])
 
     def _is_distinct_question(self, q: str, target: str) -> bool:
         if target == "estado":
