@@ -643,11 +643,25 @@ class KnowledgeStructuredStore:
         params: list[Any] = [case_id]
         codigo_tipo = plan.get("codigo_tipo")
 
-        if codigo_tipo:
-            if codigo_tipo == "CHG":
-                clauses.append("numero LIKE 'CHG%'")
-            elif codigo_tipo == "INC":
-                clauses.append("numero LIKE 'INC%'")
+        if codigo_tipo == "CHG":
+            clauses.append("""
+                (
+                    numero LIKE 'CHG%'
+                    OR codigo_principal LIKE 'CHG%'
+                    OR codigo_tipo = 'CHG'
+                    OR categoria = 'CHG'
+                )
+            """)
+
+        elif codigo_tipo == "INC":
+            clauses.append("""
+                (
+                    numero LIKE 'INC%'
+                    OR codigo_principal LIKE 'INC%'
+                    OR codigo_tipo = 'INC'
+                    OR categoria = 'INC'
+                )
+            """)
 
         if plan.get("mes"):
             clauses.append("mes = ?")
