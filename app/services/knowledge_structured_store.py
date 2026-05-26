@@ -129,7 +129,7 @@ def _duration_to_seconds(value: Any) -> int:
     return 0
 
 
-def _seconds_to_hhmmss(seconds: int | float | None) -> str:
+def self._seconds_to_hhmmss(seconds: int | float | None) -> str:
     seconds = int(seconds or 0)
     h = seconds // 3600
     m = (seconds % 3600) // 60
@@ -741,7 +741,7 @@ class KnowledgeStructuredStore:
             }
 
         def _sec(s):
-            return _parse_duration_to_seconds(s) or 0
+            return self._parse_duration_to_seconds(s) or 0
 
         more_inc = "2025-09" if rows["2025-09"]["total"] >= rows["2025-10"]["total"] else "2025-10"
         more_impact = "2025-09" if _sec(rows["2025-09"]["impacto"]) >= _sec(rows["2025-10"]["impacto"]) else "2025-10"
@@ -1034,7 +1034,7 @@ class KnowledgeStructuredStore:
                     "code": code.upper(),
                     "priority": prio.upper(),
                     "duration": duration,
-                    "duration_seconds": _parse_duration_to_seconds(duration) or 0,
+                    "duration_seconds": self._parse_duration_to_seconds(duration) or 0,
                     "description": " ".join(desc.split()),
                     "systemic": bool(re.search(r"INDISPONIBILIDADE|TELA DE MANUTENÇÃO|TELA DE MANUTENCAO", desc, flags=re.I)),
                 })
@@ -1190,9 +1190,9 @@ class KnowledgeStructuredStore:
                 if tempo and re.match(r"^\d{1,4}:\d{2}:\d{2}$", str(tempo).strip()):
                     answer = str(tempo).strip()
                 elif segundos:
-                    answer = _seconds_to_hhmmss(int(segundos))
+                    answer = self._seconds_to_hhmmss(int(segundos))
                 elif tempo and str(tempo).strip().isdigit():
-                    answer = _seconds_to_hhmmss(int(str(tempo).strip()))
+                    answer = self._seconds_to_hhmmss(int(str(tempo).strip()))
                 else:
                     answer = "Não encontrei tempo de impacto/parada preenchido para esse incidente."
                 return self._response(case_id, answer, "v15_single_code_time", {"code": code}, {"sql": sql})
@@ -1416,7 +1416,7 @@ class KnowledgeStructuredStore:
             kpis.append(k)
 
         def sec(v):
-            return _parse_duration_to_seconds(v or "") or 0
+            return self._parse_duration_to_seconds(v or "") or 0
 
         a, b = kpis
         def winner(metric, label, seconds=False):
@@ -2332,7 +2332,7 @@ class KnowledgeStructuredStore:
         seconds = int(row[1] or 0)
         return self._response(
             case_id,
-            f"Tempo total de impacto: {_seconds_to_hhmmss(seconds)}\n\n- Registros analisados: {total}",
+            f"Tempo total de impacto: {self._seconds_to_hhmmss(seconds)}\n\n- Registros analisados: {total}",
             "impact_sum",
             plan,
             {"sql": sql, "params": params, "total": total, "seconds": seconds},
@@ -2352,7 +2352,7 @@ class KnowledgeStructuredStore:
         seconds = int(row[1] or 0) if row and row[1] is not None else 0
         return self._response(
             case_id,
-            f"MTTR / tempo médio de solução: {_seconds_to_hhmmss(seconds)}\n\n- Registros analisados: {total}",
+            f"MTTR / tempo médio de solução: {self._seconds_to_hhmmss(seconds)}\n\n- Registros analisados: {total}",
             "mttr",
             plan,
             {"sql": sql, "params": params, "total": total, "avg_seconds": seconds},
@@ -2376,7 +2376,7 @@ class KnowledgeStructuredStore:
         if not row:
             return self._response(case_id, "Nenhum registro encontrado.", "major_impact", plan, {"sql": sql, "params": params})
         codigo, prioridade, tempo, seconds, descricao = row
-        answer = f"{codigo} ({prioridade or '-'}) — {descricao or '-'} — impacto {tempo or _seconds_to_hhmmss(seconds or 0)}"
+        answer = f"{codigo} ({prioridade or '-'}) — {descricao or '-'} — impacto {tempo or self._seconds_to_hhmmss(seconds or 0)}"
         return self._response(case_id, answer, "major_impact", plan, {"sql": sql, "params": params, "record": row})
 
     def _answer_executive_summary(self, case_id: str, where_sql: str, params: list[Any], plan: dict[str, Any]) -> dict[str, Any]:
@@ -2435,12 +2435,12 @@ class KnowledgeStructuredStore:
         scope_text = " | ".join(scope) if scope else "Base analisada"
         lines = [
             f"{scope_text}: {total} incidentes/registros críticos analisados (P1={p1}, P2={p2}, P3={p3}).",
-            f"Impacto total somado: {_seconds_to_hhmmss(impacto)}. Parada sistêmica: {_seconds_to_hhmmss(sys_impact)} ({sys_total} registro(s)). MTTR: {_seconds_to_hhmmss(mttr)}.",
+            f"Impacto total somado: {self._seconds_to_hhmmss(impacto)}. Parada sistêmica: {self._seconds_to_hhmmss(sys_impact)} ({sys_total} registro(s)). MTTR: {self._seconds_to_hhmmss(mttr)}.",
             f"Mudança/CHG: {mudanca} incidente(s) com indício de mudança.",
         ]
         if top:
             codigo, prioridade, tempo, seconds, descricao = top
-            lines.append(f"Maior impacto: {codigo} ({prioridade or '-'}) — {descricao or '-'} — impacto {tempo or _seconds_to_hhmmss(seconds or 0)}.")
+            lines.append(f"Maior impacto: {codigo} ({prioridade or '-'}) — {descricao or '-'} — impacto {tempo or self._seconds_to_hhmmss(seconds or 0)}.")
         return self._response(case_id, "\n".join(lines), "executive_summary", plan, {"sql_totals": sql_totals, "sql_systemic": sql_systemic, "sql_top": sql_top, "params": params})
 
     def _answer_aura_whatsapp(self, case_id: str, context: dict[str, Any]) -> dict[str, Any]:
@@ -2947,9 +2947,9 @@ class KnowledgeStructuredStore:
         if tempo and re.match(r"^\d{1,4}:\d{2}:\d{2}$", str(tempo).strip()):
             answer = str(tempo).strip()
         elif segundos:
-            answer = _seconds_to_hhmmss(segundos)
+            answer = self._seconds_to_hhmmss(segundos)
         elif tempo and str(tempo).strip().isdigit():
-            answer = _seconds_to_hhmmss(int(str(tempo).strip()))
+            answer = self._seconds_to_hhmmss(int(str(tempo).strip()))
         else:
             answer = "Não encontrei tempo de impacto/parada preenchido para esse incidente."
         return self._response(case_id, answer, "single_incident_time", {"code": code}, {"sql": sql, "desc": desc})
