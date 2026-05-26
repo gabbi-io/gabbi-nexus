@@ -1543,6 +1543,400 @@ class KnowledgeStructuredStore:
         ]
         return self._response(case_id, "\n".join(lines), "v15_compare_months", {"months": months[:2]}, {"source": "monthly_kpi"})
 
+    # ---------------------------------------------------------------------
+    # V17 - Robust Router Guard
+    # ---------------------------------------------------------------------
+
+    def _v17_q(self, question: str) -> str:
+        return _norm(question or "")
+
+    def _v17_is_operational_code(self, value: Any, code_type: str | None = None) -> bool:
+        c = _safe(value).upper()
+        if code_type:
+            return bool(re.fullmatch(rf"{code_type.upper()}\d{{5,}}", c))
+        return bool(re.fullmatch(r"(INC|CHG)\d{5,}", c))
+
+    def _v17_clean_codes(self, values: list[Any], code_type: str | None = None) -> list[str]:
+        result: list[str] = []
+        for value in values or []:
+            c = _safe(value).upper()
+            if not self._v17_is_operational_code(c, code_type):
+                continue
+            if c not in result:
+                result.append(c)
+        return result
+
+    def _v17_memory(self, case_id: str) -> dict[str, Any]:
+        return dict(self.memory.get(case_id) or {})
+
+    def _v17_save_context(
+        self,
+        case_id: str,
+        *,
+        context_type: str,
+        month: str | None = None,
+        scope: str | None = "APP",
+        codes: list[Any] | None = None,
+        code_type: str | None = "INC",
+        items: list[Any] | None = None,
+        focus_code: str | None = None,
+        extra: dict[str, Any] | None = None,
+    ) -> None:
+        memory = self._v17_memory(case_id)
+        if month:
+            memory["mes"] = month
+        if scope:
+            memory["scope"] = scope
+
+        clean_codes = self._v17_clean_codes(codes or [], code_type)
+        if clean_codes:
+            memory["last_codes"] = clean_codes[:300]
+            memory["last_result_count"] = len(clean_codes)
+
+        if focus_code and self._v17_is_operational_code(focus_code):
+            memory["last_focus_code"] = focus_code.upper()
+            memory["last_detail_code"] = focus_code.upper()
+
+        memory["last_result"] = {
+            "type": context_type,
+            "month": month or memory.get("mes"),
+            "scope": scope or memory.get("scope"),
+            "codes": clean_codes[:300],
+            "code_type": code_type,
+            "items": items or [],
+            "extra": extra or {},
+        }
+        memory["last_query_type"] = context_type
+        self.memory[case_id] = memory
+
+    def _v17_month(self, case_id: str, question: str, plan: dict[str, Any] | None = None) -> str:
+        plan = plan or {}
+        if plan.get("mes"):
+            return plan["mes"]
+
+        q = self._v17_q(question)
+        m = re.search(r"\b(20\d{2})[-/](\d{1,2})\b", q)
+        if m:
+            return f"{m.group(1)}-{m.group(2).zfill(2)}"
+
+        m = re.search(r"\b(\d{1,2})[-/](20\d{2})\b", q)
+        if m and 1 <= int(m.group(1)) <= 12:
+            return f"{m.group(2)}-{m.group(1).zfill(2)}"
+
+        m = re.search(r"\b(?:mes|mês)\s*(\d{1,2})\b", q)
+        if m and 1 <= int(m.group(1)) <= 12:
+            return f"2025-{m.group(1).zfill(2)}"
+
+        names = {
+            "janeiro": "01", "fevereiro": "02", "marco": "03", "março": "03",
+            "abril": "04", "maio": "05", "junho": "06", "julho": "07",
+            "agosto": "08", "setembro": "09", "outubro": "10",
+            "novembro": "11", "dezembro": "12",
+        }
+        for name, mm in names.items():
+            if name in q:
+                y = re.search(rf"\b{name}\s+(?:de\s+)?(20\d{{2}})\b", q)
+                return f"{y.group(1) if y else '2025'}-{mm}"
+
+        memory = self._v17_memory(case_id)
+        return memory.get("mes") or (memory.get("last_result") or {}).get("month") or (memory.get("last_plan") or {}).get("mes") or ""
+
+    def _v17_months(self, case_id: str, question: str) -> list[str]:
+        q = self._v17_q(question)
+        result: list[str] = []
+        for m in re.finditer(r"\b(20\d{2})[-/](\d{1,2})\b", q):
+            ym = f"{m.group(1)}-{m.group(2).zfill(2)}"
+            if ym not in result:
+                result.append(ym)
+        for m in re.finditer(r"\b(\d{1,2})[-/](20\d{2})\b", q):
+            if 1 <= int(m.group(1)) <= 12:
+                ym = f"{m.group(2)}-{m.group(1).zfill(2)}"
+                if ym not in result:
+                    result.append(ym)
+        names = {
+            "janeiro": "01", "fevereiro": "02", "marco": "03", "março": "03",
+            "abril": "04", "maio": "05", "junho": "06", "julho": "07",
+            "agosto": "08", "setembro": "09", "outubro": "10",
+            "novembro": "11", "dezembro": "12",
+        }
+        for name, mm in names.items():
+            if name in q:
+                y = re.search(rf"\b{name}\s+(?:de\s+)?(20\d{{2}})\b", q)
+                ym = f"{y.group(1) if y else '2025'}-{mm}"
+                if ym not in result:
+                    result.append(ym)
+        if "setembro" in q and "outubro" in q:
+            for ym in ["2025-09", "2025-10"]:
+                if ym not in result:
+                    result.append(ym)
+        return result
+
+    def _v17_kpi_text(self, case_id: str, month: str) -> str:
+        try:
+            return self._v9_fetch_monthly_kpi_text(case_id, month, "APP") or ""
+        except Exception:
+            return ""
+
+    def _v17_top_rows(self, kpi_text: str) -> list[dict[str, Any]]:
+        rows: list[dict[str, Any]] = []
+        for line in (kpi_text or "").splitlines():
+            m = re.search(r"^\s*-\s*(INC\d+)\s*\|\s*(P\d)\s*\|\s*([0-9]{1,4}:[0-9]{2}:[0-9]{2})\s*\|\s*(.+?)\s*$", line, flags=re.I)
+            if m:
+                code, prio, tempo, desc = m.groups()
+                rows.append({
+                    "code": code.upper(),
+                    "priority": prio.upper(),
+                    "duration": tempo,
+                    "seconds": _duration_to_seconds(tempo),
+                    "description": " ".join(desc.split()),
+                    "systemic": bool(re.search(r"INDISPONIBILIDADE|TELA DE MANUTENÇÃO|TELA DE MANUTENCAO", desc, flags=re.I)),
+                })
+        return rows
+
+    def _v17_functionality_rows(self, kpi_text: str) -> list[dict[str, Any]]:
+        rows: list[dict[str, Any]] = []
+        m = re.search(r"Incidentes por funcionalidade.*?(?:\n|\r\n)(.+?)(?:\n\s*\n|$)", kpi_text or "", flags=re.I | re.S)
+        section = m.group(1) if m else ""
+        for line in section.splitlines():
+            lm = re.search(r"^\s*-\s*(.+?)\s*:\s*(\d+)\s*$", line.strip())
+            if not lm:
+                continue
+            name, total = lm.group(1).strip(), int(lm.group(2))
+            if not name or name == "-" or "MARKER" in name.upper() or "Total classificado" in name:
+                continue
+            rows.append({"name": name, "total": total})
+        if not rows:
+            try:
+                raw = self._v9_extract_functionality_ranking(kpi_text)
+                for name, total in raw:
+                    n = str(name).strip()
+                    if not n or n == "-" or "MARKER" in n.upper() or "Total classificado" in n:
+                        continue
+                    rows.append({"name": n, "total": int(total)})
+            except Exception:
+                pass
+        return rows
+
+    def _v17_app_incident_codes(self, kpi_text: str) -> list[str]:
+        try:
+            codes = self._v9_extract_app_incident_list(kpi_text)
+        except Exception:
+            codes = []
+        return self._v17_clean_codes(codes, "INC")
+
+    def _v17_kpi(self, case_id: str, month: str) -> dict[str, Any] | None:
+        text = self._v17_kpi_text(case_id, month)
+        if not text:
+            return None
+        try:
+            largest = self._v9_extract_largest_impact(text) or ""
+        except Exception:
+            largest = ""
+        top_rows = self._v17_top_rows(text)
+        functionalities = self._v17_functionality_rows(text)
+        systemic_codes = self._v17_clean_codes([r["code"] for r in top_rows if r["systemic"]], "INC")
+        try:
+            causes_raw = self._v9_extract_causes(text) or ""
+        except Exception:
+            causes_raw = ""
+        causes = []
+        for item in causes_raw.split(","):
+            item = item.strip()
+            if not item:
+                continue
+            cm = re.match(r"(.+?)\s*\((\d+)\)\s*$", item)
+            causes.append({"name": cm.group(1).strip(), "total": int(cm.group(2))} if cm else {"name": item, "total": None})
+        return {
+            "month": month,
+            "text": text,
+            "total_incidents": self._v9_extract_kpi_value(text, "total_incidentes") or "",
+            "p1": self._v9_extract_kpi_value(text, "p1") or "0",
+            "p2": self._v9_extract_kpi_value(text, "p2") or "0",
+            "p3": self._v9_extract_kpi_value(text, "p3") or "0",
+            "impact_total": self._v9_extract_kpi_value(text, "impacto_total") or "",
+            "systemic_time": self._v9_extract_kpi_value(text, "parada_sistemica") or "",
+            "systemic_count": self._v9_extract_kpi_value(text, "parada_total_classificado") or str(len(systemic_codes)),
+            "mttr": self._v9_extract_kpi_value(text, "mttr") or "",
+            "change_related": self._v9_extract_kpi_value(text, "change_related") or "",
+            "largest_impact": largest,
+            "top_rows": top_rows,
+            "functionalities": functionalities,
+            "app_incident_codes": self._v17_app_incident_codes(text),
+            "systemic_codes": systemic_codes,
+            "causes": causes,
+        }
+
+    def _v17_is_functionality_question(self, q: str) -> bool:
+        return any(x in q for x in [
+            "funcionalidade", "funcionalidades", "esim", "recarga", "faturas",
+            "portabilidade", "seguros", "modo seguro", "vivo up", "top funcionalidades",
+            "mais impactadas", "mais impactada"
+        ])
+
+    def _v17_is_compare_question(self, q: str) -> bool:
+        return (
+            "compare" in q or "comparativo" in q or
+            ("setembro" in q and "outubro" in q and any(x in q for x in ["mais", "melhorou", "piorou", "teve"]))
+        )
+
+    def _v17_handle_functionality(self, case_id: str, question: str, plan: dict[str, Any] | None = None) -> dict[str, Any] | None:
+        q = self._v17_q(question)
+        month = self._v17_month(case_id, question, plan)
+        if not month:
+            return None
+        kpi = self._v17_kpi(case_id, month)
+        if not kpi or not kpi["functionalities"]:
+            return None
+
+        funcs = kpi["functionalities"]
+        aliases = {
+            "esim": ["esim", "e-sim", "e sim"],
+            "recarga": ["recarga"],
+            "faturas": ["fatura", "faturas"],
+            "portabilidade": ["portabilidade"],
+            "seguros": ["seguro", "seguros"],
+            "modo seguro": ["modo seguro"],
+            "vivo up": ["vivo up"],
+        }
+
+        for f in funcs:
+            fn = _norm(f["name"])
+            candidates = [fn]
+            for canonical, vals in aliases.items():
+                if canonical in fn:
+                    candidates.extend(vals)
+            if any(c and c in q for c in candidates):
+                if any(x in q for x in ["quantos", "quantas", "total", "qtd", "qtde"]):
+                    self._v17_save_context(case_id, context_type="functionality_count", month=month, items=[f])
+                    return self._response(case_id, f"{f['name']}: {f['total']} incidente(s)", "v17_functionality_count", {"mes": month, "funcionalidade": f["name"]}, {"source": "monthly_kpi"})
+
+        if "teve mais" in q or "mais incidentes" in q or ("mais impactada" in q and "qual" in q):
+            f = funcs[0]
+            self._v17_save_context(case_id, context_type="top_functionality", month=month, items=[f])
+            return self._response(case_id, f"{f['name']}: {f['total']} incidente(s)", "v17_top_functionality", {"mes": month}, {"source": "monthly_kpi"})
+
+        if "top" in q or "ranking" in q or "compare funcionalidades" in q or "comparativo" in q or "impactadas" in q:
+            lines = ["Top funcionalidades:"]
+            lines.extend(f"- {f['name']}: {f['total']}" for f in funcs[:10])
+            self._v17_save_context(case_id, context_type="functionality_ranking", month=month, items=funcs[:10])
+            return self._response(case_id, "\n".join(lines), "v17_functionality_ranking", {"mes": month}, {"source": "monthly_kpi", "count": len(funcs)})
+
+        return None
+
+    def _v17_handle_compare(self, case_id: str, question: str) -> dict[str, Any] | None:
+        q = self._v17_q(question)
+        if not self._v17_is_compare_question(q):
+            return None
+        months = self._v17_months(case_id, question)
+        if len(months) < 2 and "setembro" in q and "outubro" in q:
+            months = ["2025-09", "2025-10"]
+        if len(months) < 2:
+            return None
+
+        k1, k2 = self._v17_kpi(case_id, months[0]), self._v17_kpi(case_id, months[1])
+        if not k1 or not k2:
+            return None
+
+        def as_int(v: Any) -> int:
+            try:
+                return int(v or 0)
+            except Exception:
+                return 0
+
+        def duration(v: Any) -> int:
+            return _duration_to_seconds(v)
+
+        def pick(label: str, key: str, seconds: bool = False) -> str:
+            a = duration(k1[key]) if seconds else as_int(k1[key])
+            b = duration(k2[key]) if seconds else as_int(k2[key])
+            winner = k1 if a >= b else k2
+            return f"- {label}: {winner['month']} ({winner[key]})"
+
+        lines = [
+            f"Comparativo APP — {k1['month']} vs {k2['month']}",
+            "",
+            pick("Mais incidentes", "total_incidents"),
+            pick("Maior impacto total", "impact_total", seconds=True),
+            pick("Maior indisponibilidade/parada sistêmica", "systemic_time", seconds=True),
+            pick("Maior MTTR", "mttr", seconds=True),
+            pick("Mais incidentes relacionados a mudança", "change_related"),
+            "",
+            f"{k1['month']}: {k1['total_incidents']} incidentes | impacto {k1['impact_total']} | parada {k1['systemic_time']} | MTTR {k1['mttr']} | mudança {k1['change_related']}",
+            f"{k2['month']}: {k2['total_incidents']} incidentes | impacto {k2['impact_total']} | parada {k2['systemic_time']} | MTTR {k2['mttr']} | mudança {k2['change_related']}",
+        ]
+        self._v17_save_context(case_id, context_type="comparison", month=k2["month"], items=[k1, k2])
+        return self._response(case_id, "\n".join(lines), "v17_compare_months", {"months": months[:2]}, {"source": "monthly_kpi"})
+
+    def _v17_handle_followup(self, case_id: str, question: str) -> dict[str, Any] | None:
+        q = self._v17_q(question)
+        memory = self._v17_memory(case_id)
+        last = memory.get("last_result") or {}
+        context_type = last.get("type") or ""
+        items = last.get("items") or []
+        codes = self._v17_clean_codes(last.get("codes") or memory.get("last_codes") or [], last.get("code_type") or None)
+        month = last.get("month") or memory.get("mes") or ""
+
+        ordinals = {
+            "primeiro": 0, "primeira": 0,
+            "segundo": 1, "segunda": 1,
+            "terceiro": 2, "terceira": 2,
+            "quarto": 3, "quarta": 3,
+            "quinto": 4, "quinta": 4,
+        }
+        if "detalhe" in q:
+            for word, idx in ordinals.items():
+                if word in q:
+                    if idx < len(codes):
+                        code = codes[idx]
+                        self._v17_save_context(case_id, context_type="detail_focus", month=month, codes=[code], code_type="INC", focus_code=code)
+                        return self._v15_detail_by_code(case_id, code) if hasattr(self, "_v15_detail_by_code") else self._answer_detail(case_id, code, question)
+            if any(x in q for x in ["ele", "esse", "este"]):
+                focus = memory.get("last_focus_code") or (codes[0] if codes else "")
+                if focus and self._v17_is_operational_code(focus):
+                    return self._v15_detail_by_code(case_id, focus) if hasattr(self, "_v15_detail_by_code") else self._answer_detail(case_id, focus, question)
+
+        if any(x in q for x in ["me mande os codigos", "me mande os códigos", "liste os codigos", "liste os códigos", "me descreva quais sao", "me descreva quais são"]):
+            if context_type in {"functionality_ranking", "top_functionality"} and items:
+                lines = [f"- {it['name']}: {it['total']}" for it in items if isinstance(it, dict) and "name" in it]
+                if lines:
+                    return self._response(case_id, "\n".join(lines), "v17_followup_describe_items", {"context_type": context_type}, {"memory_only": True})
+            if codes:
+                return self._response(case_id, "\n".join(codes), "v17_followup_codes", {"context_type": context_type}, {"memory_only": True, "count": len(codes)})
+            return self._response(case_id, "Não há códigos operacionais em memória para listar.", "v17_followup_codes_empty", {}, {"memory_only": True})
+        return None
+
+    def _v17_pre_router(self, case_id: str, question: str, plan: dict[str, Any] | None = None) -> dict[str, Any] | None:
+        q = self._v17_q(question)
+
+        follow = self._v17_handle_followup(case_id, question)
+        if follow:
+            return follow
+
+        comp = self._v17_handle_compare(case_id, question)
+        if comp:
+            return comp
+
+        if self._v17_is_functionality_question(q):
+            func = self._v17_handle_functionality(case_id, question, plan)
+            if func:
+                return func
+
+        if "causa apareceu" in q or ("causa" in q and "mais vezes" in q):
+            month = self._v17_month(case_id, question, plan)
+            kpi = self._v17_kpi(case_id, month) if month else None
+            if kpi and kpi.get("causes"):
+                c = kpi["causes"][0]
+                return self._response(case_id, f"{c['name']} ({c['total']})", "v17_top_cause", {"mes": month}, {"source": "monthly_kpi"})
+
+        if "demorou mais" in q or "mais para resolver" in q:
+            month = self._v17_month(case_id, question, plan)
+            kpi = self._v17_kpi(case_id, month) if month else None
+            if kpi and kpi.get("largest_impact"):
+                codes = self._v17_clean_codes(re.findall(r"\bINC\d{5,}\b", kpi["largest_impact"]), "INC")
+                self._v17_save_context(case_id, context_type="largest_impact", month=month, codes=codes, code_type="INC", focus_code=(codes[0] if codes else None))
+                return self._response(case_id, kpi["largest_impact"], "v17_largest_impact", {"mes": month}, {"source": "monthly_kpi"})
+        return None
+
     def _answer_structured(self, case_id: str, question: str) -> dict[str, Any]:
         q = _norm(question)
         context = dict(self.memory.get(case_id) or {})
@@ -1555,7 +1949,17 @@ class KnowledgeStructuredStore:
 
         # STABLE GUARD: perguntas explícitas de CHG/INC/IC/grupo usam o motor legado primeiro.
         # Isso preserva os resultados validados: CHG agosto=75, CHG dezembro=92, INC 08-2025=37 etc.
-        if self._stable_has_legacy_analytics_intent(question) and not self._v15_is_monthly_app_question(question):
+        # Legado CHG/INC só ganha quando é realmente legado.
+        # Perguntas APP/funcionalidade/comparativo precisam seguir para V17/V15.
+        q_for_guard = _norm(question)
+        legacy_blocked_by_operational = (
+            self._v17_is_functionality_question(q_for_guard)
+            or self._v17_is_compare_question(q_for_guard)
+            or "app" in q_for_guard
+            or "operacao" in q_for_guard
+            or "operação" in q_for_guard
+        )
+        if self._stable_has_legacy_analytics_intent(question) and not legacy_blocked_by_operational:
             stable_answer = self._stable_legacy_answer(case_id, question)
             if stable_answer:
                 return stable_answer
@@ -1593,6 +1997,13 @@ class KnowledgeStructuredStore:
             return self._answer_aura_whatsapp(case_id, context)
 
         plan = self._build_plan(question, context)
+
+        # V17: prioridade robusta para follow-up, comparativo e funcionalidade
+        # antes de FAQ genérico/SQL, preservando legado CHG/INC protegido.
+        v17_answer = self._v17_pre_router(case_id, question, plan)
+        if v17_answer:
+            return v17_answer
+
 
         # V15: roteador operacional enterprise mensal, com follow-up/contexto/detalhe.
         v15_answer = self._v15_monthly_router(case_id, question, plan)
