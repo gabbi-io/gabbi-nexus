@@ -44,64 +44,44 @@ def _json_loads_maybe(value: Any) -> dict[str, Any]:
 
 
 def _extract_field(text: str, label: str) -> str:
-    """Extrai campo no formato 'Label: valor' de forma segura.
+    """
+    Parser robusto para campos no formato "Label: valor".
 
-    Esta versão evita que campos curtos, como Estado/Prioridade/Tipo,
-    capturem acidentalmente os próximos rótulos, mesmo quando o texto vem
-    colado ou com quebras inconsistentes.
+    Evita vazamento de um campo para o próximo, por exemplo:
+    Estado: Encerrado(a)
+    Data de início planejada: 2025-...
+
+    Também preserva campos multilinha até encontrar outro label.
     """
     if not text:
         return ""
 
-    label_re = re.escape(label)
-
+    label_norm = _norm(label)
     lines = str(text).splitlines()
     collecting = False
     collected: list[str] = []
-    label_norm = _norm(label)
 
-    for raw_line in lines:
-        line = raw_line.strip()
-        if not line:
-            if collecting:
-                collected.append("")
-            continue
+    label_pattern = re.compile(r"^\s*([^:]{1,80})\s*:\s*(.*)$")
 
-        current_norm = _norm(line.split(":", 1)[0]) if ":" in line else ""
+    for line in lines:
+        current = line.strip()
+        match = label_pattern.match(current)
 
         if not collecting:
-            if current_norm == label_norm:
+            if match and _norm(match.group(1)) == label_norm:
                 collecting = True
-                value = line.split(":", 1)[1].strip() if ":" in line else ""
+                value = match.group(2).strip()
                 if value:
                     collected.append(value)
             continue
 
-        if re.match(r"^[A-Za-zÀ-ÿ0-9 _/\-().]+\s*:\s*", line):
+        if match:
             break
 
-        collected.append(line)
+        if current:
+            collected.append(current)
 
-    value = "\n".join(collected).strip()
-
-    if not value:
-        stop_labels = [
-            "Mês", "Categoria", "Tipo", "Estado", "Status", "Data de início planejada",
-            "Data de termino planejada", "Data de término planejada", "IC Impactado",
-            "Grupo de atribuição", "Tipo de Indisponibilidade", "Solicitação de",
-            "Aberta por", "Atribuído a", "Descrição resumida", "Descrição",
-            "Tipo de teste", "Plano de teste", "Código de fechamento",
-            "Anotações de encerramento", "Aberto", "Resolvido", "Encerrado",
-            "Prioridade", "Causa Origem", "Causado pela mudança", "Canal impactado",
-            "Canal Impactado", "Tempo total de impacto", "Tempo de impacto",
-            "u_rpt_tempo_total_de_impacto",
-        ]
-        stops = "|".join(re.escape(x) for x in stop_labels if _norm(x) != label_norm)
-        rx = rf"(?is){label_re}\s*:\s*(.+?)(?=\s+(?:{stops})\s*:|\Z)"
-        match = re.search(rx, str(text))
-        value = match.group(1).strip() if match else ""
-
-    return _clean_extracted_value(value)
+    return "\n".join(collected).strip()
 
 
 def _extract_numero(text: str) -> str:
@@ -1078,9 +1058,14 @@ class KnowledgeStructuredStore:
 
     def _answer_grouped(self, case_id: str, where_sql: str, params: list[Any], plan: dict[str, Any], column: str, title: str, query_type: str) -> dict[str, Any]:
         distinct_expr = "COALESCE(NULLIF(numero, ''), NULLIF(codigo_principal, ''), article_id)"
-        if column in {"estado", "status"}:
-            item_expr = r"regexp_replace(COALESCE(NULLIF(estado, ''), NULLIF(status, ''), '-'), '\s+Data de.*$', '')"        else:
+
+        # Para estado/status, higieniza valores que possam ter sido contaminados por labels seguintes,
+        # como: "Encerrado(a) Data de início planejada: ..."
+        if column == "estado":
+            item_expr = r"regexp_replace(COALESCE(NULLIF(estado, ''), NULLIF(status, ''), '-'), '\s+Data de.*$', '')"
+        else:
             item_expr = f"COALESCE(NULLIF({column}, ''), '-')"
+
         sql = f"""
             SELECT
                 {item_expr} AS item,
@@ -1097,10 +1082,9 @@ class KnowledgeStructuredStore:
         if not rows:
             return self._response(case_id, "Nenhum registro encontrado.", query_type, plan, {"sql": sql, "params": params})
 
-        cleaned_rows = [(_clean_extracted_value(item), total) for item, total in rows]
         lines = [f"{title}:", ""]
-        lines.extend(f"- {item}: {int(total)}" for item, total in cleaned_rows)
-        return self._response(case_id, "\n".join(lines), query_type, plan, {"sql": sql, "params": params, "rows": cleaned_rows})
+        lines.extend(f"- {item}: {int(total)}" for item, total in rows)
+        return self._response(case_id, "\n".join(lines), query_type, plan, {"sql": sql, "params": params, "rows": rows})
 
     def _answer_distinct(self, case_id: str, where_sql: str, params: list[Any], plan: dict[str, Any], column: str, title: str, query_type: str) -> dict[str, Any]:
         sql = f"""
