@@ -561,25 +561,53 @@ class KnowledgeStructuredStore:
         }
 
     def answer_question(self, case_id: str, question: str, chat_history: list[dict[str, Any]] | None = None) -> dict[str, Any] | None:
-        if not self.enabled:
-            return {"fallback_to_rag": True}
-
         q = _norm(question)
 
-        # Evita interceptar perguntas puramente conversacionais.
-        if not any(term in q for term in self.ANALYTIC_TERMS):
+        # Só perguntas realmente candidatas entram na camada estruturada.
+        # Conversas abertas continuam indo para o RAG.
+        is_structured_candidate = any(term in q for term in self.ANALYTIC_TERMS)
+        if not is_structured_candidate:
             return {"fallback_to_rag": True}
 
-        try:
-            return self._answer_structured(case_id, question)
-        except Exception as exc:
-            # Antes retornava erro ao usuário e bloqueava RAG.
-            # Agora preserva produção: em qualquer falha inesperada, volta para o fluxo RAG atual.
+        # Se a pergunta é analítica/operacional, NUNCA deixe cair silenciosamente no RAG,
+        # porque o RAG estava respondendo textos genéricos do tipo "Os dados indicam...".
+        if not self.enabled:
             return {
-                "fallback_to_rag": True,
-                "route": "knowledge_structured_error_fallback",
-                "query_type": "error_fallback",
-                "technical": {"error": str(exc)},
+                "fallback_to_rag": False,
+                "route": "knowledge_structured_disabled",
+                "query_type": "structured_unavailable",
+                "answer_text": "Não consegui consultar a base estruturada porque o DuckDB não está disponível neste ambiente.",
+                "summary": "Não consegui consultar a base estruturada porque o DuckDB não está disponível neste ambiente.",
+                "technical": {"case_id": case_id, "reason": "duckdb_not_installed_or_import_failed"},
+                "sources": {"deterministic": True, "engine": "duckdb", "table": self.TABLE},
+            }
+
+        try:
+            result = self._answer_structured(case_id, question)
+            if result and result.get("fallback_to_rag"):
+                # Proteção anti-alucinação: se era pergunta estruturada e a engine não conseguiu resolver,
+                # não delega para o RAG genérico.
+                return {
+                    "fallback_to_rag": False,
+                    "route": "knowledge_structured_no_match",
+                    "query_type": "structured_no_match",
+                    "answer_text": "Não consegui calcular essa pergunta pela base estruturada disponível. Verifique se o case foi sincronizado/reindexado e se os campos necessários existem.",
+                    "summary": "Não consegui calcular essa pergunta pela base estruturada disponível.",
+                    "technical": {"case_id": case_id, "question": question, "original_result": result},
+                    "sources": {"deterministic": True, "engine": "duckdb", "table": self.TABLE},
+                }
+            return result
+        except Exception as exc:
+            # Em pergunta estruturada, erro deve aparecer de forma determinística para diagnóstico,
+            # em vez de cair no RAG e parecer resposta válida.
+            return {
+                "fallback_to_rag": False,
+                "route": "knowledge_structured_error_visible",
+                "query_type": "structured_error",
+                "answer_text": f"Erro ao consultar a base estruturada: {type(exc).__name__}: {exc}",
+                "summary": f"Erro ao consultar a base estruturada: {type(exc).__name__}: {exc}",
+                "technical": {"case_id": case_id, "error_type": type(exc).__name__, "error": str(exc), "question": question},
+                "sources": {"deterministic": True, "engine": "duckdb", "table": self.TABLE},
             }
 
     def _answer_structured(self, case_id: str, question: str) -> dict[str, Any]:
@@ -683,8 +711,16 @@ class KnowledgeStructuredStore:
                 return self._response(case_id, "\n".join(codes) if codes else "Nenhum registro encontrado.", "list", plan, {"sql": sql, "params": params, "count": len(codes)})
 
         # Se a pergunta parecia analítica, mas não conseguimos interpretar com segurança,
-        # deixa o RAG tentar responder em vez de retornar resposta ruim.
-        return {"fallback_to_rag": True, "route": "knowledge_structured_unknown_fallback", "query_type": "unknown"}
+        # não cai no RAG genérico para evitar alucinação operacional.
+        return {
+            "fallback_to_rag": False,
+            "route": "knowledge_structured_unknown_safe",
+            "query_type": "unknown_structured_intent",
+            "answer_text": "Não consegui interpretar essa pergunta como consulta estruturada suportada. Tente informar período, tipo do registro, grupo, IC ou métrica desejada.",
+            "summary": "Não consegui interpretar essa pergunta como consulta estruturada suportada.",
+            "technical": {"case_id": case_id, "question": question, "plan": plan},
+            "sources": {"deterministic": True, "engine": "duckdb", "table": self.TABLE},
+        }
 
     def _answer_detail(self, case_id: str, code: str, question: str) -> dict[str, Any]:
         sql = f"""
