@@ -595,6 +595,16 @@ class KnowledgeStructuredStore:
         context = dict(self.memory.get(case_id) or {})
 
         code_match = re.search(r"\b(CHG\d{5,}|INC\d{5,})\b", question, re.IGNORECASE)
+
+        # V9: pergunta de tempo/parada sobre "ele" usa último detalhe consultado.
+        if any(x in q for x in ["quanto tempo ele", "tempo dele", "tempo de parada dele", "tempo de impacto dele"]):
+            last_code = context.get("last_detail_code")
+            if last_code:
+                return self._v9_answer_single_incident_time(case_id, last_code)
+
+        if code_match and any(x in q for x in ["tempo de parada", "tempo de impacto", "quanto tempo"]):
+            return self._v9_answer_single_incident_time(case_id, code_match.group(1).upper())
+
         is_detail = any(x in q for x in ["detalhe", "detalhar", "detalhes", "explique", "resuma", "resumo", "descreva", "descricao", "descrição"])
         if code_match and is_detail:
             return self._answer_detail(case_id, code_match.group(1).upper(), question)
@@ -612,6 +622,13 @@ class KnowledgeStructuredStore:
             return self._answer_aura_whatsapp(case_id, context)
 
         plan = self._build_plan(question, context)
+
+        # V9: para perguntas de KPI/FAQ mensal, prioriza documento executivo mensal
+        # antes de calcular por registros individuais. Isso evita contaminação e discrepâncias.
+        monthly_answer = self._v9_answer_from_monthly_kpi(case_id, question, plan)
+        if monthly_answer:
+            return monthly_answer
+
         where_sql, params = self._build_where(case_id, plan)
 
         monthly_answer = self._answer_monthly_kpi_if_applicable(case_id, question, q, plan)
@@ -1880,6 +1897,350 @@ class KnowledgeStructuredStore:
         return self._is_systemic_question(q) and any(x in q for x in [
             "tempo", "quanto", "qual", "total", "soma"
         ])
+
+    # ---------------------------------------------------------------------
+    # V9 - Camada profissional de robustez conversacional e FAQ/KPI mensal
+    # ---------------------------------------------------------------------
+
+    def _v9_answer_single_incident_time(self, case_id: str, code: str) -> dict[str, Any]:
+        sql = f"""
+            SELECT numero, tempo_impacto, tempo_impacto_segundos, descricao_resumida
+            FROM {self.TABLE}
+            WHERE case_id = ?
+              AND (numero = ? OR codigo_principal = ?)
+            LIMIT 1
+        """
+        with self._connect() as con:
+            row = con.execute(sql, [case_id, code, code]).fetchone()
+        if not row:
+            return self._response(case_id, "Não encontrei esse incidente na base estruturada.", "single_incident_time", {"code": code}, {"sql": sql})
+        numero, tempo, segundos, desc = row
+        if tempo:
+            answer = str(tempo)
+        elif segundos:
+            answer = _seconds_to_hhmmss(segundos)
+        else:
+            answer = "Não encontrei tempo de impacto/parada preenchido para esse incidente."
+        return self._response(case_id, answer, "single_incident_time", {"code": code}, {"sql": sql, "desc": desc})
+
+    def _v9_get_last_context(self, case_id: str) -> dict[str, Any]:
+        return dict(self.memory.get(case_id) or {})
+
+    def _v9_save_last_codes(self, case_id: str, codes: list[str], plan: dict[str, Any] | None = None, query_type: str = "list") -> None:
+        memory = dict(self.memory.get(case_id) or {})
+        if plan:
+            memory["last_plan"] = dict(plan)
+            for key, value in plan.items():
+                if value is not None:
+                    memory[key] = value
+        memory["last_codes"] = [c for c in codes if c][:200]
+        memory["last_result_count"] = len([c for c in codes if c])
+        memory["last_query_type"] = query_type
+        self.memory[case_id] = memory
+
+    def _v9_extract_month_from_question_or_context(self, case_id: str, question: str) -> str:
+        q = _norm(question)
+        month = self._extract_month_from_question(q)
+        if month:
+            return month
+        memory = self._v9_get_last_context(case_id)
+        return memory.get("mes") or (memory.get("last_plan") or {}).get("mes") or ""
+
+    def _v9_distinct_code_expr(self) -> str:
+        # Evita UUIDs quando houver número operacional. UUIDs só entram como último fallback.
+        return "COALESCE(NULLIF(numero, ''), NULLIF(codigo_principal, ''), NULLIF(article_ref_id, ''), article_id)"
+
+    def _v9_extract_incident_codes_from_text(self, text: str) -> list[str]:
+        if not text:
+            return []
+        return list(dict.fromkeys(re.findall(r"\bINC\d{5,}\b", text, flags=re.I)))
+
+    def _v9_extract_change_codes_from_text(self, text: str) -> list[str]:
+        if not text:
+            return []
+        return list(dict.fromkeys(re.findall(r"\bCHG\d{5,}\b", text, flags=re.I)))
+
+    def _v9_fetch_monthly_kpi_text(self, case_id: str, month: str, category: str | None = "APP") -> str:
+        if not month:
+            return ""
+        cat = category or "APP"
+        sql = f"""
+            SELECT article_text, raw_json
+            FROM {self.TABLE}
+            WHERE case_id = ?
+              AND (
+                    mes = ?
+                    OR article_text ILIKE ?
+                    OR raw_json ILIKE ?
+              )
+              AND (
+                    article_text ILIKE '%Resumo executivo%'
+                    OR article_text ILIKE '%KPIs do mês%'
+                    OR article_text ILIKE '%Perguntas frequentes%'
+                    OR article_text ILIKE '%Incidentes da operação%'
+                    OR raw_json ILIKE '%Resumo executivo%'
+                    OR raw_json ILIKE '%KPIs do mês%'
+                    OR raw_json ILIKE '%Perguntas frequentes%'
+                    OR raw_json ILIKE '%Incidentes da operação%'
+              )
+              AND (
+                    article_text ILIKE ?
+                    OR raw_json ILIKE ?
+                    OR ? = ''
+              )
+            LIMIT 5
+        """
+        params = [case_id, month, f"%Mês: {month}%", f"%Mês: {month}%", f"%Categoria: {cat}%", f"%Categoria: {cat}%", cat]
+        try:
+            with self._connect() as con:
+                rows = con.execute(sql, params).fetchall()
+        except Exception:
+            return ""
+        chunks = []
+        for a, r in rows:
+            if a:
+                chunks.append(str(a))
+            if r:
+                chunks.append(str(r))
+        # prioriza texto que tenha KPIs do mês e o mês certo
+        return "\n\n".join(chunks)
+
+    def _v9_extract_kpi_value(self, kpi_text: str, key: str) -> str:
+        if not kpi_text:
+            return ""
+        text = kpi_text
+
+        patterns: dict[str, list[str]] = {
+            "total_incidentes": [
+                r"Total de incidentes críticos para operar o app \(P1[–-]P3\)\s*:\s*(\d+)",
+                r"Total:\s*(\d+)\s*\(P1\s*=\s*\d+",
+                r"APP\s*\|\s*\d{4}-\d{2}\s*:\s*(\d+)\s*incidentes críticos",
+            ],
+            "p1": [r"P1\s*:\s*(\d+)", r"P1\s*=\s*(\d+)"],
+            "p2": [r"P2\s*:\s*(\d+)", r"P2\s*=\s*(\d+)"],
+            "p3": [r"P3\s*:\s*(\d+)", r"P3\s*=\s*(\d+)"],
+            "impacto_total": [
+                r"Tempo total de impacto \(soma\)\s*:\s*([0-9]{1,4}:[0-9]{2}:[0-9]{2})",
+                r"Impacto total somado\s*:\s*([0-9]{1,4}:[0-9]{2}:[0-9]{2})",
+            ],
+            "parada_sistemica": [
+                r"Parada sistêmica.*?:\s*([0-9]{1,4}:[0-9]{2}:[0-9]{2})",
+                r"Tempo somado\s*:\s*([0-9]{1,4}:[0-9]{2}:[0-9]{2})",
+            ],
+            "mttr": [
+                r"MTTR.*?:\s*([0-9]{1,4}:[0-9]{2}:[0-9]{2})",
+                r"tempo médio de solução.*?:\s*([0-9]{1,4}:[0-9]{2}:[0-9]{2})",
+            ],
+            "change_related": [
+                r"Incidentes causados por mudança.*?:\s*(\d+)",
+                r"Mudança/CHG\s*:\s*(\d+)",
+                r"Total\s*:\s*(\d+)\s*\n\s*-\s*Critério",
+            ],
+            "parada_total_classificado": [
+                r"Total classificado\s*:\s*(\d+)",
+            ],
+        }
+        for pattern in patterns.get(key, []):
+            m = re.search(pattern, text, flags=re.I | re.S)
+            if m:
+                return m.group(1).strip()
+        return ""
+
+    def _v9_extract_largest_impact(self, kpi_text: str) -> str:
+        if not kpi_text:
+            return ""
+        patterns = [
+            r"Incidente de maior impacto\s*:\s*(INC\d+)\s*\((P\d)\)\s*[—-]\s*(.*?)\s*[—-]\s*impacto\s*([0-9]{1,4}:[0-9]{2}:[0-9]{2})",
+            r"Qual incidente teve maior impacto.*?\n\s*-\s*(INC\d+)\s*\((P\d)\)\s*[—-]\s*(.*?)\s*[—-]\s*impacto\s*([0-9]{1,4}:[0-9]{2}:[0-9]{2})",
+        ]
+        for pattern in patterns:
+            m = re.search(pattern, kpi_text, flags=re.I | re.S)
+            if m:
+                inc, p, desc, tempo = m.groups()
+                desc = " ".join(str(desc).split())
+                return f"{inc} ({p}) — {desc} — impacto {tempo}"
+        # fallback top por impacto da lista
+        m = re.search(r"-\s*(INC\d+)\s*\|\s*(P\d)\s*\|\s*([0-9]{1,4}:[0-9]{2}:[0-9]{2})\s*\|\s*(.+)", kpi_text, flags=re.I)
+        if m:
+            inc, p, tempo, desc = m.groups()
+            desc = " ".join(desc.split())
+            return f"{inc} ({p}) — {desc} — impacto {tempo}"
+        return ""
+
+    def _v9_extract_causes(self, kpi_text: str) -> str:
+        if not kpi_text:
+            return ""
+        m = re.search(r"Principais\s+[“\"]?Causa Origem[”\"]?\s*\(top\)\s*:\s*(.+)", kpi_text, flags=re.I)
+        if m:
+            return m.group(1).strip()
+        m = re.search(r"Principais causas.*?:\s*(.+)", kpi_text, flags=re.I)
+        if m:
+            return m.group(1).strip()
+        return ""
+
+    def _v9_extract_functionality_ranking(self, kpi_text: str) -> list[tuple[str, int]]:
+        if not kpi_text:
+            return []
+        # pega seção após Incidentes por funcionalidade
+        m = re.search(r"Incidentes por funcionalidade.*?(?:\n|\r\n)(.+?)(?:\n\s*\n|$)", kpi_text, flags=re.I | re.S)
+        section = m.group(1) if m else kpi_text
+        pairs = []
+        for line in section.splitlines():
+            lm = re.search(r"^\s*-\s*(.+?)\s*:\s*(\d+)\s*$", line.strip())
+            if lm:
+                pairs.append((lm.group(1).strip(), int(lm.group(2))))
+        return pairs
+
+    def _v9_extract_app_incident_list(self, kpi_text: str) -> list[str]:
+        if not kpi_text:
+            return []
+        # Tenta seção "Incidentes da operação de APP"
+        m = re.search(r"Incidentes da operação de APP.*?(?:\n|\r\n)(.+?)(?:\n\s*Incidentes por funcionalidade|\Z)", kpi_text, flags=re.I | re.S)
+        section = m.group(1) if m else kpi_text
+        return self._v9_extract_incident_codes_from_text(section)
+
+    def _v9_extract_systemic_incident_list(self, kpi_text: str) -> list[str]:
+        if not kpi_text:
+            return []
+        # O FAQ mensal normalmente não lista explicitamente todos os sistêmicos; usa top por impacto
+        # e filtra linhas que contenham INDISPONIBILIDADE ou TELA DE MANUTENÇÃO.
+        codes = []
+        for line in kpi_text.splitlines():
+            if re.search(r"INDISPONIBILIDADE|TELA DE MANUTENÇÃO|TELA DE MANUTENCAO", line, flags=re.I):
+                codes.extend(self._v9_extract_incident_codes_from_text(line))
+        return list(dict.fromkeys(codes))
+
+    def _v9_is_followup_list_codes(self, q: str) -> bool:
+        return any(x in q for x in [
+            "liste eles", "liste elas", "me liste quais foram", "me liste o codigo", "me liste o código",
+            "me mande o numero", "me mande o número", "quais foram", "quais sao eles", "quais são eles",
+            "me liste quais", "liste quais", "manda os codigos", "manda os códigos"
+        ])
+
+    def _v9_is_operational_incident_list_question(self, q: str) -> bool:
+        return (
+            ("incidentes da operacao de app" in q or "incidentes da operação de app" in q or "operação de app" in q or "operacao de app" in q)
+            and any(x in q for x in ["liste", "listar", "quais", "incidentes"])
+        )
+
+    def _v9_is_systemic_list_question(self, q: str) -> bool:
+        return (
+            any(x in q for x in ["liste", "listar", "quais", "me liste"])
+            and any(x in q for x in ["indisponibilidade sistemica", "indisponibilidade sistêmica", "parada sistemica", "parada sistêmica", "tela de manutencao", "tela de manutenção", "indisponibilidade"])
+        )
+
+    def _v9_answer_from_monthly_kpi(self, case_id: str, question: str, plan: dict[str, Any]) -> dict[str, Any] | None:
+        q = _norm(question)
+        month = plan.get("mes") or self._v9_extract_month_from_question_or_context(case_id, question)
+        if not month:
+            return None
+
+        kpi_text = self._v9_fetch_monthly_kpi_text(case_id, month, "APP")
+        if not kpi_text:
+            return None
+
+        # Garante que o mês atual entre na memória, evitando contaminação.
+        memory = dict(self.memory.get(case_id) or {})
+        memory["mes"] = month
+        memory["last_plan"] = {**(memory.get("last_plan") or {}), **plan, "mes": month}
+        self.memory[case_id] = memory
+
+        if "total de incidentes criticos" in q or "total de incidentes críticos" in q or ("quantos incidentes" in q and month):
+            total = self._v9_extract_kpi_value(kpi_text, "total_incidentes")
+            if total:
+                p1 = self._v9_extract_kpi_value(kpi_text, "p1") or "0"
+                p2 = self._v9_extract_kpi_value(kpi_text, "p2") or "0"
+                p3 = self._v9_extract_kpi_value(kpi_text, "p3") or "0"
+                return self._response(case_id, f"{total}\n\n- P1: {p1}\n- P2: {p2}\n- P3: {p3}", "monthly_kpi_total_incidents", {**plan, "mes": month}, {"source": "monthly_kpi"})
+
+        if re.search(r"\bp1\b", q) and re.search(r"\bp2\b", q) and re.search(r"\bp3\b", q):
+            p1 = self._v9_extract_kpi_value(kpi_text, "p1") or "0"
+            p2 = self._v9_extract_kpi_value(kpi_text, "p2") or "0"
+            p3 = self._v9_extract_kpi_value(kpi_text, "p3") or "0"
+            return self._response(case_id, f"P1: {p1}\nP2: {p2}\nP3: {p3}", "monthly_kpi_priorities", {**plan, "mes": month}, {"source": "monthly_kpi"})
+
+        if "p1" in q and any(x in q for x in ["quantos", "quantas", "total"]):
+            p1 = self._v9_extract_kpi_value(kpi_text, "p1")
+            if p1:
+                return self._response(case_id, p1, "monthly_kpi_p1", {**plan, "mes": month}, {"source": "monthly_kpi"})
+
+        if "tempo total de impacto" in q or "impacto total" in q:
+            value = self._v9_extract_kpi_value(kpi_text, "impacto_total")
+            if value:
+                return self._response(case_id, value, "monthly_kpi_impact_total", {**plan, "mes": month}, {"source": "monthly_kpi"})
+
+        if "mttr" in q or "tempo medio de solucao" in q or "tempo médio de solução" in q:
+            value = self._v9_extract_kpi_value(kpi_text, "mttr")
+            if value:
+                return self._response(case_id, value, "monthly_kpi_mttr", {**plan, "mes": month}, {"source": "monthly_kpi"})
+
+        if any(x in q for x in ["parada sistemica", "parada sistêmica", "indisponibilidade sistemica", "indisponibilidade sistêmica"]) and any(x in q for x in ["tempo", "qual", "quanto"]):
+            value = self._v9_extract_kpi_value(kpi_text, "parada_sistemica")
+            if value:
+                # salva códigos sistêmicos aproximados se houver linhas explícitas
+                sys_codes = self._v9_extract_systemic_incident_list(kpi_text)
+                if sys_codes:
+                    self._v9_save_last_codes(case_id, sys_codes, {**plan, "mes": month, "codigo_tipo": "INC", "parada_sistemica": True}, "systemic_incident_list")
+                return self._response(case_id, value, "monthly_kpi_systemic_stop", {**plan, "mes": month}, {"source": "monthly_kpi"})
+
+        if "maior impacto" in q:
+            value = self._v9_extract_largest_impact(kpi_text)
+            if value:
+                codes = self._v9_extract_incident_codes_from_text(value)
+                if codes:
+                    self._v9_save_last_codes(case_id, codes, {**plan, "mes": month, "codigo_tipo": "INC"}, "largest_impact")
+                return self._response(case_id, value, "monthly_kpi_largest_impact", {**plan, "mes": month}, {"source": "monthly_kpi"})
+
+        if ("causados por" in q or "causado por" in q or "change" in q or "mudanca" in q or "mudança" in q) and "incidente" in q:
+            value = self._v9_extract_kpi_value(kpi_text, "change_related")
+            if value:
+                return self._response(case_id, value, "monthly_kpi_change_related", {**plan, "mes": month}, {"source": "monthly_kpi"})
+
+        if "resumo executivo" in q or "kpis do mes" in q or "kpis do mês" in q:
+            total = self._v9_extract_kpi_value(kpi_text, "total_incidentes") or "-"
+            p1 = self._v9_extract_kpi_value(kpi_text, "p1") or "0"
+            p2 = self._v9_extract_kpi_value(kpi_text, "p2") or "0"
+            p3 = self._v9_extract_kpi_value(kpi_text, "p3") or "0"
+            impacto = self._v9_extract_kpi_value(kpi_text, "impacto_total") or "-"
+            parada = self._v9_extract_kpi_value(kpi_text, "parada_sistemica") or "-"
+            mttr = self._v9_extract_kpi_value(kpi_text, "mttr") or "-"
+            maior = self._v9_extract_largest_impact(kpi_text) or "-"
+            change = self._v9_extract_kpi_value(kpi_text, "change_related") or "0"
+            answer = (
+                f"APP | {month}: {total} incidentes críticos (P1={p1}, P2={p2}, P3={p3}).\n"
+                f"- Impacto total somado: {impacto}.\n"
+                f"- Parada sistêmica: {parada}.\n"
+                f"- MTTR: {mttr}.\n"
+                f"- Maior impacto: {maior}.\n"
+                f"- Mudança/CHG: {change} incidente(s) com indício de mudança."
+            )
+            return self._response(case_id, answer, "monthly_kpi_executive_summary", {**plan, "mes": month}, {"source": "monthly_kpi"})
+
+        if "principais causas" in q or "causa origem" in q or ("causas" in q and "incidentes" in q):
+            value = self._v9_extract_causes(kpi_text)
+            if value:
+                return self._response(case_id, "Principais causas de origem:\n\n" + value, "monthly_kpi_causes", {**plan, "mes": month}, {"source": "monthly_kpi"})
+
+        if self._v9_is_operational_incident_list_question(q):
+            codes = self._v9_extract_app_incident_list(kpi_text)
+            if codes:
+                self._v9_save_last_codes(case_id, codes, {**plan, "mes": month, "codigo_tipo": "INC", "is_app": True}, "app_incident_list")
+                return self._response(case_id, "\n".join(codes), "monthly_kpi_app_incident_list", {**plan, "mes": month}, {"source": "monthly_kpi", "count": len(codes)})
+
+        if self._v9_is_systemic_list_question(q):
+            codes = self._v9_extract_systemic_incident_list(kpi_text)
+            if codes:
+                self._v9_save_last_codes(case_id, codes, {**plan, "mes": month, "codigo_tipo": "INC", "parada_sistemica": True}, "systemic_incident_list")
+                return self._response(case_id, "\n".join(codes), "monthly_kpi_systemic_incident_list", {**plan, "mes": month}, {"source": "monthly_kpi", "count": len(codes)})
+
+        if "comparativo" in q and "funcionalidade" in q:
+            ranking = self._v9_extract_functionality_ranking(kpi_text)
+            if ranking:
+                lines = ["Comparativo de incidentes por funcionalidade:", ""]
+                lines.extend(f"- {name}: {total}" for name, total in ranking)
+                return self._response(case_id, "\n".join(lines), "monthly_kpi_functionality_comparison", {**plan, "mes": month}, {"source": "monthly_kpi", "count": len(ranking)})
+
+        return None
 
     def _is_distinct_question(self, q: str, target: str) -> bool:
         if target == "estado":
