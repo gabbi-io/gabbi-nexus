@@ -741,7 +741,7 @@ class KnowledgeStructuredStore:
             }
 
         def _sec(s):
-            return self._parse_duration_to_seconds(s) or 0
+            return _parse_duration_to_seconds(s) or 0
 
         more_inc = "2025-09" if rows["2025-09"]["total"] >= rows["2025-10"]["total"] else "2025-10"
         more_impact = "2025-09" if _sec(rows["2025-09"]["impacto"]) >= _sec(rows["2025-10"]["impacto"]) else "2025-10"
@@ -1034,7 +1034,7 @@ class KnowledgeStructuredStore:
                     "code": code.upper(),
                     "priority": prio.upper(),
                     "duration": duration,
-                    "duration_seconds": self._parse_duration_to_seconds(duration) or 0,
+                    "duration_seconds": _parse_duration_to_seconds(duration) or 0,
                     "description": " ".join(desc.split()),
                     "systemic": bool(re.search(r"INDISPONIBILIDADE|TELA DE MANUTENÇÃO|TELA DE MANUTENCAO", desc, flags=re.I)),
                 })
@@ -1139,9 +1139,12 @@ class KnowledgeStructuredStore:
         # Usa o detalhamento original quando houver registro individual.
         try:
             result = self._answer_detail(case_id, code.upper(), f"detalhe {code}")
+            # Só aceita o detalhe original quando vier como detail de fato e não como retorno de tempo.
             if result and result.get("query_type") == "detail":
-                self._v15_save_memory(case_id, focus_code=code.upper(), query_type="detail")
-                return result
+                answer_text = str(result.get("answer_text") or result.get("summary") or "")
+                if not re.fullmatch(r"\d{1,4}:\d{2}:\d{2}", answer_text.strip()):
+                    self._v15_save_memory(case_id, focus_code=code.upper(), query_type="detail")
+                    return result
         except Exception:
             pass
 
@@ -1190,9 +1193,9 @@ class KnowledgeStructuredStore:
                 if tempo and re.match(r"^\d{1,4}:\d{2}:\d{2}$", str(tempo).strip()):
                     answer = str(tempo).strip()
                 elif segundos:
-                    answer = self._seconds_to_hhmmss(int(segundos))
+                    answer = _seconds_to_hhmmss(int(segundos))
                 elif tempo and str(tempo).strip().isdigit():
-                    answer = self._seconds_to_hhmmss(int(str(tempo).strip()))
+                    answer = _seconds_to_hhmmss(int(str(tempo).strip()))
                 else:
                     answer = "Não encontrei tempo de impacto/parada preenchido para esse incidente."
                 return self._response(case_id, answer, "v15_single_code_time", {"code": code}, {"sql": sql})
@@ -1425,7 +1428,7 @@ class KnowledgeStructuredStore:
             kpis.append(k)
 
         def sec(v):
-            return self._parse_duration_to_seconds(v or "") or 0
+            return _parse_duration_to_seconds(v or "") or 0
 
         a, b = kpis
         def winner(metric, label, seconds=False):
@@ -1468,12 +1471,17 @@ class KnowledgeStructuredStore:
             if last_code:
                 return self._v9_answer_single_incident_time(case_id, last_code)
 
-        if code_match and any(x in q for x in ["tempo de parada", "tempo de impacto", "quanto tempo"]):
-            return self._v9_answer_single_incident_time(case_id, code_match.group(1).upper())
-
         is_detail = any(x in q for x in ["detalhe", "detalhar", "detalhes", "explique", "resuma", "resumo", "descreva", "descricao", "descrição"])
         if code_match and is_detail:
+            # V15 FIX: detalhe explícito deve ganhar do parser de tempo/impacto.
+            if hasattr(self, "_v15_detail_by_code"):
+                return self._v15_detail_by_code(case_id, code_match.group(1).upper())
             return self._answer_detail(case_id, code_match.group(1).upper(), question)
+
+        if code_match and any(x in q for x in ["tempo de parada", "tempo de impacto", "quanto tempo"]):
+            if hasattr(self, "_v15_single_code_time"):
+                return self._v15_single_code_time(case_id, code_match.group(1).upper())
+            return self._v9_answer_single_incident_time(case_id, code_match.group(1).upper())
 
         if "detalhe cada uma" in q or "detalhar cada uma" in q or "detalhe todas" in q or "detalhar todas" in q:
             return self._answer_bulk_detail_guard(case_id, context)
@@ -2341,7 +2349,7 @@ class KnowledgeStructuredStore:
         seconds = int(row[1] or 0)
         return self._response(
             case_id,
-            f"Tempo total de impacto: {self._seconds_to_hhmmss(seconds)}\n\n- Registros analisados: {total}",
+            f"Tempo total de impacto: {_seconds_to_hhmmss(seconds)}\n\n- Registros analisados: {total}",
             "impact_sum",
             plan,
             {"sql": sql, "params": params, "total": total, "seconds": seconds},
@@ -2361,7 +2369,7 @@ class KnowledgeStructuredStore:
         seconds = int(row[1] or 0) if row and row[1] is not None else 0
         return self._response(
             case_id,
-            f"MTTR / tempo médio de solução: {self._seconds_to_hhmmss(seconds)}\n\n- Registros analisados: {total}",
+            f"MTTR / tempo médio de solução: {_seconds_to_hhmmss(seconds)}\n\n- Registros analisados: {total}",
             "mttr",
             plan,
             {"sql": sql, "params": params, "total": total, "avg_seconds": seconds},
@@ -2385,7 +2393,7 @@ class KnowledgeStructuredStore:
         if not row:
             return self._response(case_id, "Nenhum registro encontrado.", "major_impact", plan, {"sql": sql, "params": params})
         codigo, prioridade, tempo, seconds, descricao = row
-        answer = f"{codigo} ({prioridade or '-'}) — {descricao or '-'} — impacto {tempo or self._seconds_to_hhmmss(seconds or 0)}"
+        answer = f"{codigo} ({prioridade or '-'}) — {descricao or '-'} — impacto {tempo or _seconds_to_hhmmss(seconds or 0)}"
         return self._response(case_id, answer, "major_impact", plan, {"sql": sql, "params": params, "record": row})
 
     def _answer_executive_summary(self, case_id: str, where_sql: str, params: list[Any], plan: dict[str, Any]) -> dict[str, Any]:
@@ -2444,12 +2452,12 @@ class KnowledgeStructuredStore:
         scope_text = " | ".join(scope) if scope else "Base analisada"
         lines = [
             f"{scope_text}: {total} incidentes/registros críticos analisados (P1={p1}, P2={p2}, P3={p3}).",
-            f"Impacto total somado: {self._seconds_to_hhmmss(impacto)}. Parada sistêmica: {self._seconds_to_hhmmss(sys_impact)} ({sys_total} registro(s)). MTTR: {self._seconds_to_hhmmss(mttr)}.",
+            f"Impacto total somado: {_seconds_to_hhmmss(impacto)}. Parada sistêmica: {_seconds_to_hhmmss(sys_impact)} ({sys_total} registro(s)). MTTR: {_seconds_to_hhmmss(mttr)}.",
             f"Mudança/CHG: {mudanca} incidente(s) com indício de mudança.",
         ]
         if top:
             codigo, prioridade, tempo, seconds, descricao = top
-            lines.append(f"Maior impacto: {codigo} ({prioridade or '-'}) — {descricao or '-'} — impacto {tempo or self._seconds_to_hhmmss(seconds or 0)}.")
+            lines.append(f"Maior impacto: {codigo} ({prioridade or '-'}) — {descricao or '-'} — impacto {tempo or _seconds_to_hhmmss(seconds or 0)}.")
         return self._response(case_id, "\n".join(lines), "executive_summary", plan, {"sql_totals": sql_totals, "sql_systemic": sql_systemic, "sql_top": sql_top, "params": params})
 
     def _answer_aura_whatsapp(self, case_id: str, context: dict[str, Any]) -> dict[str, Any]:
@@ -2956,9 +2964,9 @@ class KnowledgeStructuredStore:
         if tempo and re.match(r"^\d{1,4}:\d{2}:\d{2}$", str(tempo).strip()):
             answer = str(tempo).strip()
         elif segundos:
-            answer = self._seconds_to_hhmmss(segundos)
+            answer = _seconds_to_hhmmss(segundos)
         elif tempo and str(tempo).strip().isdigit():
-            answer = self._seconds_to_hhmmss(int(str(tempo).strip()))
+            answer = _seconds_to_hhmmss(int(str(tempo).strip()))
         else:
             answer = "Não encontrei tempo de impacto/parada preenchido para esse incidente."
         return self._response(case_id, answer, "single_incident_time", {"code": code}, {"sql": sql, "desc": desc})
