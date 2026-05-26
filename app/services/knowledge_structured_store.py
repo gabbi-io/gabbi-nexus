@@ -1079,8 +1079,7 @@ class KnowledgeStructuredStore:
     def _answer_grouped(self, case_id: str, where_sql: str, params: list[Any], plan: dict[str, Any], column: str, title: str, query_type: str) -> dict[str, Any]:
         distinct_expr = "COALESCE(NULLIF(numero, ''), NULLIF(codigo_principal, ''), article_id)"
         if column in {"estado", "status"}:
-            item_expr = "regexp_replace(COALESCE(NULLIF(estado, ''), NULLIF(status, ''), '-'), '\s+Data de.*$', '')"
-        else:
+            item_expr = r"regexp_replace(COALESCE(NULLIF(estado, ''), NULLIF(status, ''), '-'), '\s+Data de.*$', '')"        else:
             item_expr = f"COALESCE(NULLIF({column}, ''), '-')"
         sql = f"""
             SELECT
