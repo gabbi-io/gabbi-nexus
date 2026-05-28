@@ -1738,42 +1738,78 @@ class KnowledgeStructuredStore:
         return rows
 
     def _v17_functionality_rows(self, kpi_text: str) -> list[dict[str, Any]]:
+        """Extrai ranking de funcionalidades do documento mensal com alta precisão.
+
+        Correção importante:
+        O texto do FAQ menciona a expressão "Incidentes por funcionalidade" antes
+        da tabela real, por exemplo: "Use a tabela Incidentes por funcionalidade".
+        Versões anteriores capturavam esse primeiro trecho e acabavam interpretando
+        MTTR/impacto como funcionalidade. Esta versão só aceita o cabeçalho real
+        no início de uma linha: "Incidentes por funcionalidade (Top 10)".
+        """
         rows: list[dict[str, Any]] = []
         if not kpi_text:
             return rows
 
-        # Captura a seção de funcionalidades até a próxima seção conhecida.
+        text = str(kpi_text)
         section = ""
-        m = re.search(
-            r"Incidentes\s+por\s+funcionalidade.*?(?:\n|\r\n)(.+?)(?=\n\s*(?:Principais|Incidente|Top|APP\s*\||Mudança/CHG|MTTR|Parada|Tempo|Total|$))",
-            kpi_text,
-            flags=re.I | re.S,
-        )
-        if m:
-            section = m.group(1)
-        else:
-            # Fallback: usa parser antigo.
+
+        # 1) Caminho preferencial: cabeçalho real no início da linha.
+        header = re.search(r"(?im)^\s*Incidentes\s+por\s+funcionalidade\b[^\n\r]*\s*$", text)
+        if header:
+            tail = text[header.end():]
+            # Captura as linhas seguintes iniciadas por '-' até uma linha que não pareça item.
+            lines = []
+            for raw in tail.splitlines():
+                line = raw.strip()
+                if not line:
+                    if lines:
+                        break
+                    continue
+                if re.match(r"^[-•]\s*", line):
+                    lines.append(line)
+                    continue
+                # Quando já começou a tabela, qualquer outro cabeçalho encerra a seção.
+                if lines:
+                    break
+            section = "\n".join(lines)
+
+        # 2) Fallback: busca uma seção mais permissiva, mas ainda ancorada em linha.
+        if not section:
+            m = re.search(
+                r"(?ims)^\s*Incidentes\s+por\s+funcionalidade\b[^\n\r]*\s*(.+?)(?=^\s*(?:Principais|Perguntas|Incidentes\s+da\s+opera|KPIs|M[eê]s:|Categoria:|Tipo:|$))",
+                text,
+            )
+            if m:
+                section = m.group(1)
+
+        if section:
+            for line in section.splitlines():
+                line = line.strip()
+                if not line:
+                    continue
+                # Formatos aceitos:
+                # - Recarga: 2
+                # - APP Vivo - Instabilidade: 5 incidente(s)
+                lm = re.search(r"^[-•]?\s*(.+?)\s*[:=]\s*(\d+)\s*(?:incidente\(s\)|incidentes?)?\s*$", line, flags=re.I)
+                if not lm:
+                    continue
+                name, total = lm.group(1).strip(), int(lm.group(2))
+                if not name or name == "-" or "MARKER" in name.upper() or "Total classificado" in name:
+                    continue
+                rows.append({"name": self._v20_canonical_functionality_name(name), "total": total})
+
+        # 3) Último fallback: parser antigo, porém validado depois.
+        if not rows:
             try:
-                for name, total in self._v9_extract_functionality_ranking(kpi_text):
+                for name, total in self._v9_extract_functionality_ranking(text):
                     n = str(name).strip()
                     if n and n != "-" and "MARKER" not in n.upper() and "Total classificado" not in n:
-                        rows.append({"name": n, "total": int(total)})
+                        rows.append({"name": self._v20_canonical_functionality_name(n), "total": int(total)})
             except Exception:
                 pass
-            return rows
 
-        for line in section.splitlines():
-            line = line.strip()
-            if not line:
-                continue
-            lm = re.search(r"^[-•]?\s*(.+?)\s*[:=]\s*(\d+)\s*(?:incidente\(s\)|incidentes?)?\s*$", line, flags=re.I)
-            if not lm:
-                continue
-            name, total = lm.group(1).strip(), int(lm.group(2))
-            if not name or name == "-" or "MARKER" in name.upper() or "Total classificado" in name:
-                continue
-            rows.append({"name": name, "total": total})
-
+        rows = self._v18_valid_functionality_rows(rows)
         # Ordenação determinística: maior quantidade primeiro, nome como desempate.
         rows = sorted(rows, key=lambda r: (-int(r.get("total") or 0), _norm(r.get("name"))))
         dedup: list[dict[str, Any]] = []
@@ -1794,19 +1830,116 @@ class KnowledgeStructuredStore:
         return self._v17_clean_codes(codes, "INC")
 
 
+    def _v20_canonical_functionality_name(self, value: Any) -> str:
+        """Normaliza nomes de funcionalidades para evitar variações semânticas."""
+        text = _safe(value)
+        if not text:
+            return "Não informado"
+        n = _norm(text)
+        mapping = [
+            ("eSIM", ["esim", "e sim", "e-sim", "chip virtual", "simcard"]),
+            ("Recarga", ["recarga", "recarregar"]),
+            ("Banners", ["banner", "banners", "carrossel"]),
+            ("Login", ["login", "logar", "autenticacao", "autenticação", "senha", "entrar"]),
+            ("Jornada de Eletrônicos", ["jornada eletronicos", "jornada eletrônicos", "eletronicos", "eletrônicos", "carrinho", "buscar", "produto eletronico"]),
+            ("Suporte Técnico", ["suporte tecnico", "suporte técnico", "preciso de ajuda", "ajuda"]),
+            ("Trocar Assinatura", ["trocar assinatura", "detalhe da assinatura", "assinatura", "mais opcoes", "mais opções"]),
+            ("Troca de Plano", ["troca de plano", "conhecer planos", "planos"]),
+            ("Faturas", ["fatura", "faturas", "detalhes da fatura", "2 via", "segunda via"]),
+            ("Portabilidade", ["portabilidade"]),
+            ("Seguros", ["seguro", "seguros", "seguro residencial"]),
+            ("Modo Seguro", ["modo seguro"]),
+            ("Vivo UP", ["vivo up"]),
+            ("Para Você", ["para voce", "para você", "pra voce", "pra você", "aba para"]),
+            ("Ativação Móvel", ["ativacao movel", "ativação móvel", "ativacao móvel", "ordem de servico", "ordem de serviço", "ativacao de linha"]),
+            ("Meu Vivo Empresas", ["meu vivo empresas", "mve", "vivo empresas"]),
+            ("Aura", ["aura"]),
+            ("Gestão de Ticket", ["gestao de ticket", "gestão de ticket", "tiquete", "ticket"]),
+            ("Loja Online", ["loja online", "hybris"]),
+            ("APP Vivo - Instabilidade", ["instabilidade app", "instabilidade no app", "app vivo instabilidade", "aplicativo vivo instabilidade", "aplicativo vivo - app"]),
+        ]
+        for canonical, patterns in mapping:
+            if any(p in n for p in patterns):
+                return canonical
+        # ICs técnicos conhecidos podem virar rótulo, mas devem ser menos preferidos.
+        if "tlv_si_app vivo" in n:
+            return "APP Vivo - Instabilidade"
+        if "tlv_fer_framework mobile" in n:
+            return "Framework Mobile"
+        cleaned = _clean_extracted_value(text)
+        return cleaned if cleaned else "Não informado"
+
+    def _v20_extract_explicit_functionality(self, *values: Any) -> str:
+        """Extrai 'Funcionalidade: X' de textos livres/documentos."""
+        for value in values:
+            text = _safe(value)
+            if not text:
+                continue
+            patterns = [
+                r"(?:^|[\n\r»\-•])\s*Funcionalidade\s*:\s*([^\n\r]+)",
+                r"(?:^|[\n\r»\-•])\s*Funcionalidade\s*-\s*([^\n\r]+)",
+            ]
+            for pat in patterns:
+                m = re.search(pat, text, flags=re.I)
+                if m:
+                    candidate = _clean_extracted_value(m.group(1))
+                    candidate = re.split(r"\s{2,}|\s*[»•]\s*", candidate)[0].strip()
+                    if candidate and candidate not in {"-", "Não informado"}:
+                        return self._v20_canonical_functionality_name(candidate)
+        return ""
+
+    def _v20_semantic_functionality_from_row(self, row: dict[str, Any]) -> str:
+        """Classifica semanticamente a funcionalidade de um incidente.
+
+        Essa função é a camada que deixa o comportamento parecido com uma análise humana:
+        ela não depende apenas da coluna funcionalidade; usa descrição, resumo, canal,
+        IC e texto bruto para deduzir uma funcionalidade canônica.
+        """
+        explicit = self._v20_extract_explicit_functionality(
+            row.get("funcionalidade"), row.get("descricao"), row.get("descricao_resumida"), row.get("article_text"), row.get("raw_json")
+        )
+        if explicit:
+            return explicit
+
+        parts = [
+            row.get("funcionalidade"), row.get("ic_impactado"), row.get("descricao_resumida"),
+            row.get("descricao"), row.get("canal"), row.get("article_text"), row.get("raw_json"),
+        ]
+        blob = " ".join(_safe(p) for p in parts if _safe(p))
+        canonical = self._v20_canonical_functionality_name(blob)
+        if canonical and canonical != "Não informado":
+            return canonical
+
+        # Último recurso: se houver descrição resumida, pega um rótulo limpo e curto.
+        summary = _clean_extracted_value(row.get("descricao_resumida"))
+        if summary:
+            summary = re.sub(r"\b(?:APLICATIVO VIVO|APP VIVO|ORDEM DE SERVIÇO|ORDEM DE SERVICO)\b", "", summary, flags=re.I)
+            summary = re.sub(r"\b(?:INDISPONIBILIDADE|INTERMITÊNCIA|INTERMITENCIA|LENTIDÃO|LENTIDAO|TOTAL|PARCIAL|APP)\b", "", summary, flags=re.I)
+            summary = " - ".join([p.strip() for p in summary.split("-") if p.strip()])
+            if summary:
+                return summary[:80]
+        return "Não informado"
+
     def _v18_sql_app_functionality_rows(self, case_id: str, month: str) -> list[dict[str, Any]]:
         """Agrupa funcionalidades por incidentes APP diretamente no DuckDB.
 
-        Essa rota é usada quando o texto mensal não contém uma seção de funcionalidades
-        bem parseável ou quando o parser antigo captura linhas de incidentes por engano.
+        Diferente da versão anterior, esta não usa apenas a coluna `funcionalidade`,
+        porque em bases reais ela pode vir vazia. A consulta busca os incidentes e
+        a classificação semântica é feita em Python com _v20_semantic_functionality_from_row.
         """
         if not self.enabled or not month:
             return []
         try:
             sql = f"""
-                SELECT
-                    COALESCE(NULLIF(TRIM(funcionalidade), ''), NULLIF(TRIM(ic_impactado), ''), 'Não informado') AS funcionalidade_nome,
-                    COUNT(DISTINCT numero) AS total
+                SELECT DISTINCT
+                    numero,
+                    funcionalidade,
+                    ic_impactado,
+                    descricao_resumida,
+                    descricao,
+                    canal,
+                    article_text,
+                    raw_json
                 FROM {self.TABLE}
                 WHERE case_id = ?
                   AND codigo_tipo = 'INC'
@@ -1817,21 +1950,29 @@ class KnowledgeStructuredStore:
                         is_app = TRUE
                      OR article_text ILIKE '%APP_MARKER%'
                      OR article_text ILIKE '%APP Vivo%'
+                     OR article_text ILIKE '%Aplicativo Vivo%'
                      OR canal ILIKE '%APP%'
                   )
-                GROUP BY 1
-                HAVING COUNT(DISTINCT numero) > 0
-                ORDER BY total DESC, funcionalidade_nome ASC
             """
             with self._connect() as con:
-                rows = con.execute(sql, [case_id, month]).fetchall()
-            out = []
-            for name, total in rows:
-                n = _clean_extracted_value(name)
-                if not n or n == '-' or n.lower() in {'none', 'null', 'nan'}:
-                    n = 'Não informado'
-                out.append({'name': n, 'total': int(total or 0)})
-            return out
+                fetched = con.execute(sql, [case_id, month]).fetchall()
+            counts: dict[str, set[str]] = {}
+            for row in fetched:
+                item = {
+                    "numero": row[0], "funcionalidade": row[1], "ic_impactado": row[2],
+                    "descricao_resumida": row[3], "descricao": row[4], "canal": row[5],
+                    "article_text": row[6], "raw_json": row[7],
+                }
+                code = _upper(item.get("numero"))
+                if not code:
+                    continue
+                name = self._v20_semantic_functionality_from_row(item)
+                if not name:
+                    name = "Não informado"
+                counts.setdefault(name, set()).add(code)
+            out = [{"name": name, "total": len(codes), "codes": sorted(codes)} for name, codes in counts.items() if codes]
+            out = self._v18_valid_functionality_rows(out)
+            return sorted(out, key=lambda r: (-int(r.get("total") or 0), _norm(r.get("name"))))
         except Exception:
             return []
 
@@ -2006,10 +2147,13 @@ class KnowledgeStructuredStore:
         }
 
     def _v17_is_functionality_question(self, q: str) -> bool:
+        q = self._v17_q(q)
         return any(x in q for x in [
-            "funcionalidade", "funcionalidades", "esim", "e-sim", "e sim", "recarga", "fatura", "faturas",
-            "portabilidade", "seguros", "modo seguro", "vivo up", "top funcionalidades",
-            "mais impactadas", "mais impactada", "menos impactada", "menos incidentes",
+            "funcionalidade", "funcionalidades", "feature", "features", "jornada", "jornadas",
+            "area mais sofreu", "área mais sofreu", "qual area", "qual área", "parte mais", "modulo", "módulo",
+            "o que mais deu problema", "deu mais problema", "maior problema", "mais deu problema",
+            "esim", "e-sim", "e sim", "recarga", "fatura", "faturas", "portabilidade", "seguros", "modo seguro",
+            "vivo up", "top funcionalidades", "mais impactadas", "mais impactada", "menos impactada", "menos incidentes",
             "checkout", "login", "banners", "app vivo", "jornada", "suporte tecnico", "suporte técnico",
         ])
 
@@ -2043,18 +2187,19 @@ class KnowledgeStructuredStore:
             except Exception:
                 limit = None
 
-        has_functionality = any(x in q for x in [
+        has_functionality = self._v17_is_functionality_question(q) or any(x in q for x in [
             "funcionalidade", "funcionalidades", "jornada", "login", "recarga", "banners",
             "fatura", "faturas", "esim", "e sim", "e-sim", "checkout", "suporte tecnico", "suporte técnico",
-            "app vivo", "mais impactada", "menos impactada"
+            "app vivo", "mais impactada", "menos impactada", "o que mais", "deu problema", "area", "área"
         ])
         has_cause = any(x in q for x in [
             "causa", "causas", "origem", "principais causas", "causas mais", "causa mais"
         ])
         has_compare = self._v17_is_compare_question(q) or (
             (" ou " in q) and any(m in q for m in ["janeiro", "fevereiro", "marco", "março", "abril", "maio", "junho", "julho", "agosto", "setembro", "outubro", "novembro", "dezembro"])
-        )
+        ) or any(x in q for x in ["qual mes foi pior", "qual mês foi pior", "mes foi pior", "mês foi pior", "pior operacionalmente", "melhorou", "piorou"])
 
+        # Importante: funcionalidade ganha prioridade sobre tempo/impacto.
         if has_functionality:
             if any(x in q for x in ["menos", "menor", "menor volume", "menos incidentes"]):
                 intent = "functionality_bottom"
@@ -2062,7 +2207,7 @@ class KnowledgeStructuredStore:
             elif any(x in q for x in ["top", "ranking", "rank", "compare", "comparativo", "por quantidade", "por volume", "mais impactadas"]):
                 intent = "functionality_ranking"
                 metric = "incident_count"
-            elif any(x in q for x in ["mais", "maior", "liderou", "teve mais", "maior volume"]):
+            elif any(x in q for x in ["mais", "maior", "liderou", "teve mais", "maior volume", "mais deu problema", "deu mais problema", "mais sofreu", "pior area", "pior área"]):
                 intent = "functionality_top"
                 metric = "incident_count"
             elif any(x in q for x in ["quantos", "quantas", "total", "qtd", "qtde"]):
@@ -2078,7 +2223,7 @@ class KnowledgeStructuredStore:
                 intent = "cause_ranking"
             metric = "cause_count"
         elif has_compare:
-            if "impacto" in q:
+            if "impacto" in q or "pior operacional" in q or "pior operacionalmente" in q or "maior dor" in q:
                 intent = "month_impact_comparison"
                 metric = "impact_total"
             elif any(x in q for x in ["incidente", "incidentes", "teve mais", "mais incidentes"]):
@@ -2288,8 +2433,13 @@ Campos do JSON:
     def _v17_handle_compare(self, case_id: str, question: str) -> dict[str, Any] | None:
         q = self._v17_q(question)
 
-        # "qual mês teve maior impacto?" sem meses explícitos: compara meses APP existentes no FAQ mensal.
-        if any(x in q for x in ["qual mes teve maior impacto", "qual mês teve maior impacto", "mes teve maior impacto", "mês teve maior impacto"]):
+        # "qual mês teve maior impacto?" / "qual mês foi pior operacionalmente?" sem meses explícitos:
+        # compara meses APP existentes no FAQ mensal por impacto total.
+        if any(x in q for x in [
+            "qual mes teve maior impacto", "qual mês teve maior impacto", "mes teve maior impacto", "mês teve maior impacto",
+            "qual mes foi pior", "qual mês foi pior", "mes foi pior", "mês foi pior",
+            "pior operacionalmente", "pior operacional", "maior dor operacional", "mais critico", "mais crítico"
+        ]):
             months = self._v17_months(case_id, question)
             if len(months) < 2:
                 months = self._v17_available_app_months(case_id)
