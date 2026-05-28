@@ -6744,3 +6744,296 @@ try:
     KnowledgeStructuredStore.answer_question = _v28_answer_question
 except Exception:
     pass
+
+# -----------------------------------------------------------------------------
+# V29 - Generic Capability Engine
+# Objetivo: usar o PDF como suíte de capacidades, não como perguntas fixas.
+# Camadas adicionadas:
+# - ResolvedQuestion: completa perguntas curtas usando memória estruturada.
+# - CapabilityRouter: mapeia tipos semânticos para planos genéricos.
+# - ContextLock: evita base inteira quando há mês/escopo ativo.
+# - MultiHopComposer: monta filtros compostos simples (ex.: grupo + mudança).
+# -----------------------------------------------------------------------------
+
+
+def _v29_norm(value):
+    try:
+        return _v28_norm(value)
+    except Exception:
+        return _norm(value)
+
+
+def _v29_has_explicit_month(self, question):
+    try:
+        return bool(self._stable_month_from_question(question))
+    except Exception:
+        try:
+            return bool(self._extract_month_from_question(_v29_norm(question)))
+        except Exception:
+            return False
+
+
+def _v29_memory_month(self, case_id):
+    mem = dict(getattr(self, 'memory', {}).get(case_id) or {})
+    for candidate in [
+        mem.get('mes'),
+        (mem.get('last_result') or {}).get('month'),
+        (mem.get('last_result') or {}).get('mes'),
+        (mem.get('last_plan') or {}).get('mes'),
+        ((mem.get('last_v21_plan') or {}).get('months') or [None])[0],
+    ]:
+        if candidate:
+            return str(candidate)
+    return ''
+
+
+def _v29_resolve_month(self, case_id, question, chat_history=None):
+    try:
+        m = _v28_month_from_question_or_memory(self, case_id, question, chat_history)
+        if m:
+            return m
+    except Exception:
+        pass
+    return _v29_memory_month(self, case_id)
+
+
+def _v29_is_short_period_followup(q):
+    # Ex.: "e em setembro?", "e outubro?", "em 2025-09?"
+    return bool(
+        q.startswith('e em ')
+        or q.startswith('e no ')
+        or q.startswith('e na ')
+        or re.match(r'^(e\s+)?(janeiro|fevereiro|marco|março|abril|maio|junho|julho|agosto|setembro|outubro|novembro|dezembro|20\d{2}[-/]\d{2}|\d{2}[-/]20\d{2})\??$', q)
+    )
+
+
+def _v29_context_kind(self, case_id):
+    mem = dict(getattr(self, 'memory', {}).get(case_id) or {})
+    return str(mem.get('last_query_type') or (mem.get('last_result') or {}).get('type') or '').lower()
+
+
+def _v29_resolve_question(self, case_id, question, chat_history=None):
+    """Completa pergunta curta/ambígua sem hardcode de frase exata.
+
+    Retorna (question_resolved, reason) ou (question, '').
+    """
+    q = _v29_norm(question)
+    month = _v29_resolve_month(self, case_id, question, chat_history)
+    kind = _v29_context_kind(self, case_id)
+    mem = dict(getattr(self, 'memory', {}).get(case_id) or {})
+    scope = mem.get('scope') or 'APP'
+
+    # Continuação temporal: herda a intenção anterior.
+    if _v29_is_short_period_followup(q) and month:
+        if any(x in kind for x in ['kpi', 'summary', 'operational', 'monthly_context']) or not kind:
+            return f"Como foi operacionalmente o {scope} no mês {month}?", 'temporal_followup_operational_summary'
+        if any(x in kind for x in ['functionality', 'top_operational_problem']):
+            return f"Qual funcionalidade teve mais incidentes no mês {month}?", 'temporal_followup_functionality'
+        if any(x in kind for x in ['causes', 'cause']):
+            return f"Quais foram as principais causas dos incidentes no mês {month}?", 'temporal_followup_causes'
+
+    # Perguntas sem mês mas com contexto ativo: herdam período/escopo.
+    if month and not _v29_has_explicit_month(self, question):
+        semantic_contextual = any(x in q for x in [
+            'onde tivemos mais dor', 'maior dor operacional', 'dor operacional',
+            'o que mais deu problema', 'qual area mais sofreu', 'qual área mais sofreu',
+            'qual modulo foi pior', 'qual módulo foi pior', 'funcionalidade mais impactou',
+            'top funcionalidades', 'compare funcionalidades', 'funcionalidades mais impactadas',
+            'principais causas', 'causa apareceu', 'causas mais apareceram',
+            'quantos incidentes p1', 'quantos incidentes p2', 'quantos incidentes p3',
+            'incidentes foram causados por mudanca', 'incidentes foram causados por mudança',
+            'relacionados a chg', 'relacionados a change', 'relacionados a mudança', 'relacionados a mudanca',
+            'liste os incidentes da operacao app', 'liste os incidentes da operação app',
+            'incidentes da operacao app', 'incidentes da operação app'
+        ])
+        if semantic_contextual:
+            return f"{question} no mês {month}", 'context_lock_month'
+
+    return question, ''
+
+
+def _v29_app_incident_list(self, case_id, question, month):
+    q = _v29_norm(question)
+    if not month:
+        return None
+    if not (('incidentes' in q) and ('app' in q or 'operacao' in q or 'operação' in q) and any(x in q for x in ['liste', 'listar', 'lista', 'traga', 'quais'])):
+        return None
+    try:
+        kpi_text = self._v14_kpi_text(case_id, month) if hasattr(self, '_v14_kpi_text') else ''
+        codes = self._v14_extract_app_incident_list(kpi_text) if kpi_text and hasattr(self, '_v14_extract_app_incident_list') else []
+        if not codes and hasattr(self, '_v15_parse_kpi'):
+            kpi = self._v15_parse_kpi(kpi_text)
+            codes = (kpi or {}).get('app_incidents') or []
+    except Exception:
+        codes = []
+    if not codes:
+        return None
+    _v25_set_context(self, case_id, mes=month, scope='APP', last_codes=codes, last_result={'type': 'app_incident_list', 'codes': codes, 'month': month, 'record_type': 'INC'}, last_query_type='app_incident_list')
+    return self._response(case_id, '\n'.join(codes), 'v29_app_incident_list_context_locked', {'mes': month, 'scope': 'APP'}, {'source': 'monthly_kpi', 'count': len(codes), 'confidence': 0.97})
+
+
+def _v29_systemic_followup_from_last_codes(self, case_id, question, chat_history=None):
+    q = _v29_norm(question)
+    if not any(x in q for x in ['quais deles tiveram indisponibilidade', 'deles tiveram indisponibilidade', 'quais tiveram indisponibilidade', 'quais deles foram sistemicos', 'quais deles foram sistêmicos']):
+        return None
+    codes = _v28_context_codes(self, case_id, prefix='INC', chat_history=chat_history)
+    if not codes:
+        return None
+    placeholders = ','.join(['?'] * len(codes))
+    sql = f"SELECT DISTINCT numero FROM {self.TABLE} WHERE case_id = ? AND numero IN ({placeholders}) AND is_parada_sistemica = TRUE ORDER BY numero"
+    with self._connect() as con:
+        found = [str(r[0]).upper() for r in con.execute(sql, [case_id] + codes).fetchall() if r and r[0]]
+    _v25_set_context(self, case_id, last_codes=found, last_result={'type': 'systemic_followup', 'codes': found, 'source_codes': codes, 'record_type': 'INC'}, last_query_type='systemic_followup')
+    return self._response(case_id, '\n'.join(found) if found else 'Nenhum incidente do último conjunto foi classificado como sistêmico.', 'v29_systemic_followup_from_last_codes', {'codes_considered': len(codes)}, {'confidence': 0.96, 'count': len(found)})
+
+
+def _v29_change_related_group_ranking(self, case_id, question, month):
+    q = _v29_norm(question)
+    if not ('grupo' in q or 'grupos' in q):
+        return None
+    if not ('incidente' in q or 'incidentes' in q):
+        return None
+    if not any(x in q for x in ['mudanca', 'mudança', 'change', 'chg']):
+        return None
+    where = ["case_id = ?", "codigo_tipo = 'INC'"]
+    params = [case_id]
+    # Critério mais seguro: campo explícito OU origem de causa de mudança.
+    where.append("(is_change_related = TRUE OR UPPER(COALESCE(causado_pela_mudanca,'')) NOT IN ('', '-', 'N/A', 'NA') OR UPPER(COALESCE(causa_origem,'')) LIKE '%MUDAN%')")
+    if month:
+        where.append('mes = ?')
+        params.append(month)
+    group_expr = "COALESCE(NULLIF(grupo_atribuicao,''), NULLIF(canal,''), 'Não informado')"
+    sql = f"""
+        SELECT {group_expr} AS grupo, COUNT(DISTINCT numero) AS total
+        FROM {self.TABLE}
+        WHERE {' AND '.join(where)}
+        GROUP BY 1
+        HAVING COUNT(DISTINCT numero) > 0
+        ORDER BY total DESC, grupo ASC
+        LIMIT 10
+    """
+    with self._connect() as con:
+        rows = con.execute(sql, params).fetchall()
+    if not rows:
+        return self._response(case_id, 'Nenhum grupo encontrado para incidentes relacionados a mudança nesse recorte.', 'v29_change_related_group_ranking_empty', {'mes': month}, {'confidence': 0.86})
+    lines = ['Ranking de grupos com incidentes relacionados a mudança:']
+    for g, total in rows:
+        lines.append(f"- {g}: {int(total)}")
+    _v25_set_context(self, case_id, mes=month, last_result={'type': 'group_ranking_change_related', 'month': month, 'items': [{'grupo': r[0], 'total': int(r[1])} for r in rows]}, last_query_type='group_ranking_change_related')
+    return self._response(case_id, '\n'.join(lines), 'v29_change_related_group_ranking', {'mes': month}, {'sql': sql, 'confidence': 0.92})
+
+
+def _v29_change_incident_codes_strict(self, case_id, month):
+    """Busca códigos de incidentes relacionados a mudança com critério estrito.
+
+    Preferimos campos explícitos. Se não houver, usamos causa origem de mudança.
+    """
+    where = ["case_id = ?", "codigo_tipo = 'INC'", "numero <> ''"]
+    params = [case_id]
+    if month:
+        where.append('mes = ?')
+        params.append(month)
+    where.append("(UPPER(COALESCE(causado_pela_mudanca,'')) NOT IN ('', '-', 'N/A', 'NA') OR UPPER(COALESCE(causa_origem,'')) LIKE '%MUDAN%')")
+    sql = f"SELECT DISTINCT numero FROM {self.TABLE} WHERE {' AND '.join(where)} ORDER BY numero"
+    with self._connect() as con:
+        return [str(r[0]).upper() for r in con.execute(sql, params).fetchall() if r and r[0]]
+
+
+def _v29_change_related_count_or_codes(self, case_id, question, month, chat_history=None):
+    q = _v29_norm(question)
+    # Follow-up de códigos de incidentes relacionados a mudança.
+    if any(x in q for x in ['codigo deles', 'código deles', 'codigos deles', 'códigos deles', 'liste os codigos deles', 'liste os códigos deles']):
+        mem = dict(getattr(self, 'memory', {}).get(case_id) or {})
+        lr = mem.get('last_result') or {}
+        if lr.get('type') in {'change_related_count', 'change_related_codes'}:
+            codes = lr.get('codes') or mem.get('last_codes') or []
+            codes = [c for c in codes if str(c).upper().startswith('INC')]
+            return self._response(case_id, '\n'.join(codes) if codes else 'Não encontrei códigos de incidentes relacionados a mudança no recorte atual.', 'v29_change_related_followup_codes', {'mes': lr.get('month') or month}, {'confidence': 0.93, 'count': len(codes)})
+        return None
+
+    if not ('incidente' in q or 'incidentes' in q):
+        return None
+    if not any(x in q for x in ['causados por mudanca', 'causados por mudança', 'causado por mudanca', 'causado por mudança', 'relacionados a chg', 'relacionados a change', 'relacionados a mudança', 'relacionados a mudanca']):
+        return None
+
+    # Se houver KPI oficial para APP/mês, usa a contagem oficial, mas guarda códigos estruturados quando possível.
+    kpi_value = None
+    if month:
+        try:
+            kpi_text = self._v14_kpi_text(case_id, month) if hasattr(self, '_v14_kpi_text') else ''
+            if kpi_text and hasattr(self, '_v9_extract_kpi_value'):
+                raw = self._v9_extract_kpi_value(kpi_text, 'change_related')
+                if raw not in (None, ''):
+                    kpi_value = int(raw)
+        except Exception:
+            kpi_value = None
+    codes = _v29_change_incident_codes_strict(self, case_id, month)
+    # Evita expor centenas de códigos quando o KPI oficial diz outro valor: usa contagem oficial e guarda apenas os encontrados se coerentes.
+    total = kpi_value if kpi_value is not None else len(codes)
+    store_codes = codes if (kpi_value is None or len(codes) == kpi_value) else codes[:kpi_value]
+    _v25_set_context(self, case_id, mes=month, last_codes=store_codes, last_result={'type': 'change_related_count', 'codes': store_codes, 'count': total, 'month': month, 'record_type': 'INC'}, last_query_type='change_related_count')
+    return self._response(case_id, f"{total} incidente(s) relacionados a mudança", 'v29_change_related_count', {'mes': month}, {'confidence': 0.94, 'count': total, 'stored_codes': len(store_codes), 'kpi_official': kpi_value is not None})
+
+
+def _v29_pre_answer(self, case_id, question, chat_history=None):
+    q = _v29_norm(question)
+    month = _v29_resolve_month(self, case_id, question, chat_history)
+
+    # A) follow-up temporal curto antes de qualquer planner.
+    resolved, reason = _v29_resolve_question(self, case_id, question, chat_history)
+    if reason == 'temporal_followup_operational_summary':
+        try:
+            ans = self._v27_kpi_summary_answer(case_id, month, 'APP')
+            if ans:
+                return ans
+        except Exception:
+            pass
+
+    # B) lista APP com contexto travado.
+    ans = _v29_app_incident_list(self, case_id, question, month)
+    if ans is not None:
+        return ans
+
+    # C) sistêmicos entre o último conjunto listado.
+    ans = _v29_systemic_followup_from_last_codes(self, case_id, question, chat_history)
+    if ans is not None:
+        return ans
+
+    # D) ranking multi-hop por grupo + mudança.
+    ans = _v29_change_related_group_ranking(self, case_id, question, month)
+    if ans is not None:
+        return ans
+
+    # E) mudança relacionada: contagem + códigos para follow-up.
+    ans = _v29_change_related_count_or_codes(self, case_id, question, month, chat_history)
+    if ans is not None:
+        return ans
+
+    # F) Resolved Question genérico: só reescreve quando adiciona contexto, evitando quebrar pergunta já completa.
+    if reason and resolved and resolved != question:
+        try:
+            return _V29_PREVIOUS_ANSWER_QUESTION(self, case_id, resolved, chat_history)
+        except NameError:
+            pass
+
+    return None
+
+
+try:
+    _V29_PREVIOUS_ANSWER_QUESTION = KnowledgeStructuredStore.answer_question
+
+    def _v29_answer_question(self, case_id: str, question: str, chat_history: list[dict[str, Any]] | None = None):
+        try:
+            pre = _v29_pre_answer(self, case_id, question, chat_history)
+            if pre is not None:
+                return pre
+        except Exception as exc:
+            try:
+                print(f"[V29][WARN] pre_answer failed: {type(exc).__name__}: {exc}")
+            except Exception:
+                pass
+        return _V29_PREVIOUS_ANSWER_QUESTION(self, case_id, question, chat_history)
+
+    KnowledgeStructuredStore.answer_question = _v29_answer_question
+except Exception:
+    pass
