@@ -5824,3 +5824,359 @@ try:
     KnowledgeStructuredStore.answer_question = _v25_answer_question
 except Exception:
     pass
+
+# -----------------------------------------------------------------------------
+# V26 - Contextual Reasoning Hardening Layer
+# Objetivo: corrigir falhas observadas na V25 sem remover os ganhos anteriores.
+# - Escopo contextual herdado de histórico/memória/respostas
+# - Operacionalmente <mês> -> resumo KPI APP quando existir
+# - Listagem de changes por grupo antes de ranking
+# - Maior impacto em follow-up usa último conjunto listado
+# - P1/P2/P3 herdam mês/escopo quando a conversa já está em contexto mensal
+# - Indisponibilidade sistêmica estrita
+# - Risco de mudanças com heurística transparente quando não há campo de risco explícito
+# -----------------------------------------------------------------------------
+
+def _v26_codes_from_text(text, prefix=None):
+    pref = prefix or r"(?:INC|CHG)"
+    found = re.findall(rf"\b({pref}\d{{5,}})\b", str(text or ""), flags=re.I)
+    out = []
+    for c in found:
+        c = c.upper()
+        if c not in out:
+            out.append(c)
+    return out
+
+
+def _v26_context_month(self, case_id, question, chat_history=None):
+    # 1) pergunta atual
+    try:
+        months = _v25_months_from_question(self, question)
+        if months:
+            return months[-1]
+    except Exception:
+        pass
+
+    # 2) memória interna
+    mem = dict(getattr(self, "memory", {}).get(case_id) or {})
+    for key in ["mes", "month", "last_month"]:
+        val = mem.get(key)
+        if val and re.match(r"20\d{2}-\d{2}", str(val)):
+            return str(val)
+    for parent in [mem.get("last_plan"), mem.get("last_result"), mem.get("last_v21_plan")]:
+        if isinstance(parent, dict):
+            for key in ["mes", "month"]:
+                val = parent.get(key)
+                if val and re.match(r"20\d{2}-\d{2}", str(val)):
+                    return str(val)
+            vals = parent.get("months")
+            if isinstance(vals, list) and vals:
+                val = str(vals[-1])
+                if re.match(r"20\d{2}-\d{2}", val):
+                    return val
+
+    # 3) histórico textual recente
+    for item in reversed(chat_history or []):
+        for k in ["question", "answer_text", "answer", "content"]:
+            txt = item.get(k) if isinstance(item, dict) else None
+            if not txt:
+                continue
+            m = re.search(r"\b(20\d{2})[-/](\d{1,2})\b", str(txt))
+            if m:
+                return f"{m.group(1)}-{m.group(2).zfill(2)}"
+            qn = _v25_norm_text(txt)
+            names = {"janeiro":"01","fevereiro":"02","marco":"03","março":"03","abril":"04","maio":"05","junho":"06","julho":"07","agosto":"08","setembro":"09","outubro":"10","novembro":"11","dezembro":"12"}
+            for name, num in names.items():
+                if re.search(rf"\b{_v25_norm_text(name)}\b", qn):
+                    return f"2025-{num}"
+    return ""
+
+
+def _v26_seconds_to_hhmmss(seconds):
+    try:
+        seconds = int(seconds or 0)
+    except Exception:
+        seconds = 0
+    return f"{seconds//3600:02d}:{(seconds%3600)//60:02d}:{seconds%60:02d}"
+
+
+def _v26_monthly_app_summary(self, case_id, month):
+    if not month:
+        return None
+    try:
+        kpi_text = self._v14_kpi_text(case_id, month) if hasattr(self, "_v14_kpi_text") else ""
+        if kpi_text:
+            total = self._v9_extract_kpi_value(kpi_text, "total_incidentes") if hasattr(self, "_v9_extract_kpi_value") else None
+            p1 = self._v9_extract_kpi_value(kpi_text, "p1") if hasattr(self, "_v9_extract_kpi_value") else None
+            p2 = self._v9_extract_kpi_value(kpi_text, "p2") if hasattr(self, "_v9_extract_kpi_value") else None
+            p3 = self._v9_extract_kpi_value(kpi_text, "p3") if hasattr(self, "_v9_extract_kpi_value") else None
+            impacto = self._v9_extract_kpi_value(kpi_text, "impacto_total") if hasattr(self, "_v9_extract_kpi_value") else None
+            parada = self._v9_extract_kpi_value(kpi_text, "parada_sistemica") if hasattr(self, "_v9_extract_kpi_value") else None
+            mttr = self._v9_extract_kpi_value(kpi_text, "mttr") if hasattr(self, "_v9_extract_kpi_value") else None
+            change = self._v9_extract_kpi_value(kpi_text, "change_related") if hasattr(self, "_v9_extract_kpi_value") else None
+            maior = self._v9_extract_largest_impact(kpi_text) if hasattr(self, "_v9_extract_largest_impact") else None
+            if total:
+                lines = [f"APP | {month}: {total} incidentes críticos (P1={p1 or '0'}, P2={p2 or '0'}, P3={p3 or '0'})."]
+                if impacto: lines.append(f"- Impacto total somado: {impacto}.")
+                if parada: lines.append(f"- Parada sistêmica: {parada}.")
+                if mttr: lines.append(f"- MTTR: {mttr}.")
+                if maior: lines.append(f"- Maior impacto: {maior}.")
+                if change: lines.append(f"- Mudança/CHG: {change} incidente(s) com indício de mudança.")
+                return "\n".join(lines)
+    except Exception:
+        pass
+
+    # Fallback por dados estruturados.
+    try:
+        with self._connect() as con:
+            row = con.execute(f"""
+                SELECT COUNT(DISTINCT numero),
+                       SUM(CASE WHEN UPPER(prioridade) LIKE '%P1%' THEN 1 ELSE 0 END),
+                       SUM(CASE WHEN UPPER(prioridade) LIKE '%P2%' THEN 1 ELSE 0 END),
+                       SUM(CASE WHEN UPPER(prioridade) LIKE '%P3%' THEN 1 ELSE 0 END),
+                       COALESCE(SUM(tempo_impacto_segundos),0)
+                FROM {self.TABLE}
+                WHERE case_id = ? AND codigo_tipo = 'INC' AND mes = ? AND is_app = TRUE
+            """, [case_id, month]).fetchone()
+        if row and row[0]:
+            return f"APP | {month}: {int(row[0])} incidentes críticos (P1={int(row[1] or 0)}, P2={int(row[2] or 0)}, P3={int(row[3] or 0)}).\n- Impacto total somado: {_v26_seconds_to_hhmmss(row[4])}."
+    except Exception:
+        pass
+    return None
+
+
+def _v26_changes_by_group(self, case_id, question, month=None):
+    q = _v25_norm_text(question)
+    group = ""
+    # aceita: grupo X, grupo = X, grupo de atribuição = X
+    mg = re.search(r"grupo(?:\s+de\s+atribuicao|\s+de\s+atribuição)?\s*(?:=|:|do|da)?\s*([a-z0-9_\-]+(?:[_\-][a-z0-9]+)*)", q)
+    if mg and len(mg.group(1)) >= 3 and mg.group(1) not in {"de", "do", "da"}:
+        group = mg.group(1).upper()
+    if not group:
+        mg = re.search(r"\b([a-z0-9]+(?:[_\-][a-z0-9]+){2,})\b", q)
+        if mg:
+            group = mg.group(1).upper()
+    if not group:
+        return None
+    params = [case_id, f"%{group}%"]
+    where = ["codigo_tipo = 'CHG'", "UPPER(grupo_atribuicao) LIKE ?"]
+    if month:
+        where.append("mes = ?"); params.append(month)
+    sql = f"SELECT DISTINCT numero FROM {self.TABLE} WHERE case_id = ? AND {' AND '.join(where)} ORDER BY numero"
+    with self._connect() as con:
+        codes = [r[0] for r in con.execute(sql, params).fetchall() if r and r[0]]
+    _v25_set_context(self, case_id, mes=month, last_codes=codes, last_query_type="changes_by_group", focus_group=group)
+    return self._response(case_id, "\n".join(codes) if codes else "Nenhum registro encontrado.", "v26_changes_by_group", {"grupo_atribuicao": group, "mes": month}, {"confidence": 0.94, "count": len(codes)})
+
+
+def _v26_group_ranking(self, case_id, question, month=None):
+    q = _v25_norm_text(question)
+    if not ("grupo" in q and any(x in q for x in ["mais", "ranking", "top", "sofreram", "sofreu", "incidentes"])):
+        return None
+    params = [case_id]
+    where = ["codigo_tipo = 'INC'"]
+    if month:
+        where.append("mes = ?"); params.append(month)
+    # 1) grupo_atribuicao real
+    sql = f"""
+        SELECT grupo_atribuicao, COUNT(DISTINCT numero) total
+        FROM {self.TABLE}
+        WHERE case_id = ? AND {' AND '.join(where)}
+          AND grupo_atribuicao IS NOT NULL AND TRIM(grupo_atribuicao) <> '' AND TRIM(grupo_atribuicao) <> '-'
+        GROUP BY grupo_atribuicao
+        ORDER BY total DESC, grupo_atribuicao ASC
+        LIMIT 10
+    """
+    with self._connect() as con:
+        rows = con.execute(sql, params).fetchall()
+    source = "grupo_atribuicao"
+    # 2) fallback: canal operacional se grupo estiver ausente
+    if not rows:
+        sql = f"""
+            SELECT canal, COUNT(DISTINCT numero) total
+            FROM {self.TABLE}
+            WHERE case_id = ? AND {' AND '.join(where)}
+              AND canal IS NOT NULL AND TRIM(canal) <> '' AND TRIM(canal) <> '-'
+            GROUP BY canal
+            ORDER BY total DESC, canal ASC
+            LIMIT 10
+        """
+        with self._connect() as con:
+            rows = con.execute(sql, params).fetchall()
+        source = "canal_fallback"
+    if not rows:
+        return self._response(case_id, "Nenhum registro encontrado.", "v26_group_ranking", {"mes": month}, {"confidence": 0.65})
+    ans = "Ranking de grupos:\n" + "\n".join(f"- {r[0]}: {int(r[1])}" for r in rows)
+    if source != "grupo_atribuicao":
+        ans += "\n\nObs.: não havia grupo de atribuição explícito para esse recorte; usei a melhor dimensão operacional disponível como fallback."
+    _v25_set_context(self, case_id, mes=month, last_query_type="group_ranking")
+    return self._response(case_id, ans, "v26_group_ranking", {"mes": month, "source": source}, {"confidence": 0.9})
+
+
+def _v26_change_risk(self, case_id, question, month=None):
+    q = _v25_norm_text(question)
+    if not (("mudanca" in q or "change" in q or "changes" in q) and any(x in q for x in ["risco", "arrisc", "maior risco", "critica", "crítica", "impactante"])):
+        return None
+    params = [case_id]
+    where = ["codigo_tipo = 'CHG'"]
+    if month:
+        where.append("mes = ?"); params.append(month)
+    sql = f"""
+        SELECT numero, tipo, estado, grupo_atribuicao, ic_impactado, descricao_resumida, article_text
+        FROM {self.TABLE}
+        WHERE case_id = ? AND {' AND '.join(where)}
+    """
+    with self._connect() as con:
+        cur = con.execute(sql, params)
+        names = [d[0] for d in cur.description]
+        rows = [dict(zip(names, r)) for r in cur.fetchall()]
+    scored = []
+    for r in rows:
+        blob = _v25_norm_text(" ".join(str(r.get(k) or "") for k in r))
+        score = 0
+        reasons = []
+        if any(x in blob for x in ["emergencial", "emergencia", "emergência"]): score += 5; reasons.append("emergencial")
+        if any(x in blob for x in ["rollback", "falha", "cancelad", "insucesso", "rejeitad"]): score += 4; reasons.append("falha/rollback/cancelamento")
+        if any(x in blob for x in ["indisponibilidade", "parada", "manutencao", "manutenção"]): score += 3; reasons.append("indisponibilidade/parada")
+        if any(x in blob for x in ["app", "ecomm", "loja online", "recarga", "aura"]): score += 1; reasons.append("canal crítico")
+        if score > 0:
+            scored.append((score, r.get("numero"), reasons[:3]))
+    scored.sort(key=lambda x: (-x[0], str(x[1])))
+    if not scored:
+        return self._response(case_id, "Não encontrei campo explícito de risco nas mudanças nem sinais suficientes para ranqueá-las por heurística.", "v26_change_risk", {"mes": month}, {"confidence": 0.55})
+    lines = ["Mudanças com maior risco estimado:"]
+    for score, code, reasons in scored[:10]:
+        lines.append(f"- {code}: score {score} ({', '.join(reasons)})")
+    lines.append("\nCritério: heurística baseada em tipo emergencial, falha/rollback/cancelamento, indisponibilidade/parada e canais críticos. Não é causalidade real nem campo oficial de risco.")
+    _v25_set_context(self, case_id, mes=month, last_codes=[x[1] for x in scored[:10] if x[1]], last_query_type="change_risk")
+    return self._response(case_id, "\n".join(lines), "v26_change_risk", {"mes": month}, {"confidence": 0.78})
+
+
+def _v26_pre_answer(self, case_id, question, chat_history=None):
+    q = _v25_norm_text(question)
+    month = _v26_context_month(self, case_id, question, chat_history)
+    mem = dict(self.memory.get(case_id) or {})
+
+    # Operacional mensal sem precisar citar APP explicitamente.
+    if any(x in q for x in ["operacionalmente", "cenario operacional", "cenário operacional", "como ficou operacional", "como foi operacional"]):
+        summary = _v26_monthly_app_summary(self, case_id, month)
+        if summary:
+            _v25_set_context(self, case_id, mes=month, scope="APP", last_query_type="monthly_operational_summary")
+            return self._response(case_id, summary, "v26_monthly_operational_summary", {"mes": month, "scope": "APP"}, {"confidence": 0.93})
+
+    # Listagem de mudanças por grupo deve vir antes de ranking de grupo.
+    if any(x in q for x in ["mudancas do grupo", "mudanças do grupo", "changes do grupo", "change do grupo"]):
+        ans = _v26_changes_by_group(self, case_id, question, month=month if month else None)
+        if ans is not None:
+            return ans
+
+    # Risco de mudanças.
+    ans = _v26_change_risk(self, case_id, question, month=month if month else None)
+    if ans is not None:
+        return ans
+
+    # Ranking de grupo.
+    ans = _v26_group_ranking(self, case_id, question, month=month if month else None)
+    if ans is not None:
+        return ans
+
+    # Follow-up de maior impacto dentro do último conjunto listado.
+    if any(x in q for x in ["qual deles teve maior impacto", "qual deles demorou mais", "qual teve maior impacto", "deles teve maior impacto", "maior impacto deles"]):
+        codes = mem.get("last_codes") or ((mem.get("last_result") or {}).get("codes")) or []
+        if not codes:
+            # tenta recuperar códigos do histórico recente
+            for item in reversed(chat_history or []):
+                txt = " ".join(str(item.get(k) or "") for k in ["answer_text", "answer", "content"] if isinstance(item, dict))
+                codes = _v26_codes_from_text(txt, "INC")
+                if codes:
+                    break
+        if codes:
+            row = _v25_top_incident_by_impact(self, case_id, codes=codes)
+            if row:
+                _v25_set_context(self, case_id, focus_code=row["code"], last_codes=[row["code"]], last_query_type="major_impact_followup")
+                return self._response(case_id, f"{row['code']} ({row['priority']}) — {row['description']} — impacto {row['duration']}", "v26_followup_major_impact", {"codes": codes[:50]}, {"confidence": 0.94})
+
+    # Incidente de maior impacto em período.
+    if "incidente" in q and "maior impacto" in q:
+        row = _v25_top_incident_by_impact(self, case_id, month=month or None)
+        if row:
+            _v25_set_context(self, case_id, mes=month, focus_code=row["code"], last_codes=[row["code"]], last_query_type="largest_incident")
+            return self._response(case_id, f"{row['code']} ({row['priority']}) — {row['description']} — impacto {row['duration']}", "v26_largest_incident_by_impact", {"mes": month}, {"confidence": 0.94})
+
+    # Incidentes sistêmicos/indisponibilidade sistêmica: lista estrita.
+    if "incidente" in q and any(x in q for x in ["indisponibilidade sistemica", "indisponibilidade sistêmica", "sistemicos", "sistêmicos", "parada sistemica", "parada sistêmica"]):
+        codes = _v25_strict_systemic_codes(self, case_id, month=month or None, app_scope=("app" in q or "operacao" in q or "operação" in q))
+        if codes:
+            _v25_set_context(self, case_id, mes=month, last_codes=codes, last_query_type="systemic_incident_list")
+            return self._response(case_id, "\n".join(codes), "v26_strict_systemic_incidents", {"mes": month}, {"confidence": 0.91, "count": len(codes)})
+        return self._response(case_id, "Nenhum incidente sistêmico encontrado com critério estrito para esse recorte.", "v26_strict_systemic_none", {"mes": month}, {"confidence": 0.82})
+
+    # Contagem por prioridade com herança de mês.
+    m = re.search(r"\bp([1-5])\b", q)
+    if m and "incidente" in q and any(x in q for x in ["quantos", "quantas", "total", "qtd", "qtde"]):
+        prio = "P" + m.group(1)
+        params = [case_id, prio]
+        where = ["codigo_tipo = 'INC'", "UPPER(prioridade) LIKE '%' || ? || '%'"]
+        if month:
+            where.append("mes = ?"); params.append(month)
+        sql = f"SELECT COUNT(DISTINCT numero) FROM {self.TABLE} WHERE case_id = ? AND {' AND '.join(where)}"
+        with self._connect() as con:
+            total = con.execute(sql, params).fetchone()[0]
+        _v25_set_context(self, case_id, mes=month, last_query_type="priority_count")
+        return self._response(case_id, str(int(total or 0)), "v26_priority_count", {"mes": month, "prioridade": prio}, {"confidence": 0.94})
+
+    # Incidentes causados/relacionados a mudança. Deve contar, não listar ranking de causas.
+    if "incidente" in q and any(x in q for x in ["causados por mudanca", "causados por mudança", "relacionados a chg", "relacionados a change", "relacionados a mudanca", "relacionados a mudança", "causado por mudanca", "causado por mudança"]):
+        params = [case_id]
+        where = ["codigo_tipo = 'INC'", "is_change_related = TRUE"]
+        if month:
+            where.append("mes = ?"); params.append(month)
+        sql = f"SELECT COUNT(DISTINCT numero) FROM {self.TABLE} WHERE case_id = ? AND {' AND '.join(where)}"
+        with self._connect() as con:
+            total = con.execute(sql, params).fetchone()[0]
+        _v25_set_context(self, case_id, mes=month, last_query_type="change_related_count")
+        return self._response(case_id, f"{int(total or 0)} incidente(s) relacionados a mudança", "v26_change_related_count", {"mes": month}, {"confidence": 0.92})
+
+    # Compare funcionalidades deve retornar ranking, não apenas top 1.
+    if any(x in q for x in ["compare funcionalidades", "comparativo de funcionalidades", "comparar funcionalidades"]):
+        ranked, rows_considered = _v25_functionality_ranking(self, case_id, month=month or None, limit=10, top_only=False, bottom=False)
+        if ranked:
+            _v25_set_context(self, case_id, mes=month, last_query_type="functionality_ranking", last_group_items=ranked)
+            ans = "Top funcionalidades:\n" + "\n".join(f"- {r['name']}: {r['total']}" for r in ranked)
+            return self._response(case_id, ans, "v26_functionality_compare", {"mes": month}, {"confidence": 0.91, "rows_considered": rows_considered})
+
+    return None
+
+
+try:
+    _V26_PREVIOUS_ANSWER_QUESTION = KnowledgeStructuredStore.answer_question
+
+    def _v26_answer_question(self, case_id: str, question: str, chat_history: list[dict[str, Any]] | None = None):
+        try:
+            pre = _v26_pre_answer(self, case_id, question, chat_history)
+            if pre is not None:
+                return pre
+        except Exception as exc:
+            try:
+                print(f"[V26][WARN] pre_answer failed: {type(exc).__name__}: {exc}")
+            except Exception:
+                pass
+        result = _V26_PREVIOUS_ANSWER_QUESTION(self, case_id, question, chat_history)
+        # Captura contexto de respostas geradas pelo legado/v25.
+        try:
+            answer_text = ""
+            if isinstance(result, dict):
+                answer_text = str(result.get("answer_text") or result.get("summary") or "")
+            codes = _v26_codes_from_text(answer_text)
+            month = _v26_context_month(self, case_id, question, chat_history)
+            if codes:
+                _v25_set_context(self, case_id, mes=month, last_codes=codes, last_result={"codes": codes, "month": month})
+            elif month:
+                _v25_set_context(self, case_id, mes=month)
+        except Exception:
+            pass
+        return result
+
+    KnowledgeStructuredStore.answer_question = _v26_answer_question
+except Exception:
+    pass
