@@ -56,9 +56,11 @@ class TabularQueryService:
             inherited_count = sum(1 for f in plan.filters if f.source == "inherited")
             explicit_count = sum(1 for f in plan.filters if f.source == "explicit")
             if inherited_count > 0 or explicit_count == 0:
-                return {"route": "tabular", "query_type": plan.intent, "fallback_to_rag": True, "answer_text": "", "summary": "", "technical": {"plan": plan_dict, "execution": execution}, "evidences": execution.get("evidences", []), "evidence_files": execution.get("evidence_files", [])}
+                message = "Consulta tabular executada, mas nenhum registro foi encontrado com os filtros aplicados."
+                return {"route": "tabular_no_match", "query_type": plan.intent, "fallback_to_rag": False, "answer_text": message, "summary": message, "technical": {"plan": plan_dict, "execution": execution}, "evidences": execution.get("evidences", []), "evidence_files": execution.get("evidence_files", []), "sources": {"deterministic": True, "rag_blocked": True}}
         if not execution.get("success"):
-            return {"route": "tabular", "query_type": plan.intent, "fallback_to_rag": True, "answer_text": execution.get("message", ""), "summary": execution.get("message", ""), "technical": {"plan": plan_dict, "execution": execution}, "evidences": [], "evidence_files": []}
+            message = execution.get("message", "Não foi possível executar a consulta tabular.")
+            return {"route": "tabular_error", "query_type": plan.intent, "fallback_to_rag": False, "answer_text": message, "summary": message, "technical": {"plan": plan_dict, "execution": execution}, "evidences": [], "evidence_files": [], "sources": {"deterministic": True, "rag_blocked": True}}
         self._query_context[case_id] = {**plan_dict, "last_execution_summary": {"rows_considered": execution.get("rows_considered"), "rows_filtered": execution.get("rows_filtered"), "type": execution.get("type")}}
         answer = self._format_answer(question, plan_dict, execution, mode)
         return {"route": "tabular", "query_type": plan.intent, "answer_text": answer, "summary": answer, "technical": {"plan": plan_dict, "execution": execution}, "evidences": execution.get("evidences", []), "evidence_files": execution.get("evidence_files", [])}
@@ -121,10 +123,8 @@ class TabularQueryService:
         return {"success": True, "type": "list", "rows_considered": int(len(df)), "rows_filtered": int(len(filtered)), "table": {"filename": table.filename, "sheet_name": table.sheet_name}, "filters": applied_filters, "results": self._safe_records(filtered.head(limit)), "columns": list(filtered.columns), "evidences": evidences, "evidence_files": [table.filename]}
 
     def _format_answer(self, question: str, plan: dict[str, Any], execution: dict[str, Any], mode: str) -> str:
-        if self.llm_service and self.llm_service.status().get("enabled"):
-            answer = self._format_with_llm(question, plan, execution, mode)
-            if answer:
-                return answer
+        # Importante: resposta tabular é determinística. Não usar LLM aqui para evitar
+        # reinterpretação/síntese de números, especialmente em counts, rankings e agrupamentos.
         table = execution["table"]
         filters_md = self._filters_to_markdown(execution.get("filters", []))
         header = f"## Resposta\n\nConsulta executada na base **{table['filename']} / {table['sheet_name']}**."
