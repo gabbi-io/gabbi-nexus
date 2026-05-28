@@ -1899,26 +1899,67 @@ class KnowledgeStructuredStore:
             return None
 
     def _v18_valid_functionality_rows(self, rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
-        """Remove falso positivo onde parser captura linha de incidente como funcionalidade."""
+        """Remove falsos positivos do parser de funcionalidades.
+
+        O principal bug observado era o parser capturar linhas de KPI como se fossem
+        funcionalidades, por exemplo:
+        - "01:45: 24 incidente(s)" vindo de MTTR 01:45:24
+        - linhas de maior impacto contendo INC + duração
+
+        Esta limpeza deixa a rota de funcionalidades segura e, caso tudo seja filtrado,
+        o código cai no fallback SQL por incidentes APP.
+        """
         clean: list[dict[str, Any]] = []
         for r in rows or []:
             name = str(r.get('name') or '').strip()
             total = r.get('total')
             if not name:
                 continue
+
             n = _norm(name)
-            if re.search(r"\bINC\d{5,}\b", name, flags=re.I):
+
+            # Códigos/linhas de incidentes nunca são funcionalidade.
+            if re.search(r"\b(?:INC|CHG)\d{5,}\b", name, flags=re.I):
                 continue
-            if 'impacto' in n and re.search(r"\d{1,4}:\d{2}:\d{2}", name):
+
+            # Duração/MTTR/tempo capturado como nome: "01:45", "08:35:59", "01:45: 24".
+            if re.fullmatch(r"[0-9\s:]+", name):
                 continue
+            if re.search(r"\d{1,4}\s*:\s*\d{2}(?:\s*:\s*\d{2})?", name):
+                continue
+
+            # Cabeçalhos e métricas agregadas não são funcionalidades.
+            forbidden_tokens = {
+                'mttr', 'tempo', 'impacto', 'parada', 'sistemica', 'sistemico',
+                'indisponibilidade', 'total', 'p1', 'p2', 'p3', 'mudanca', 'mudança',
+                'maior', 'incidente de maior impacto', 'impacto total', 'tempo total'
+            }
+            if any(tok in n for tok in forbidden_tokens):
+                continue
+
+            # Nomes muito curtos/númericos tendem a ser lixo do parser.
+            if len(re.sub(r"[^a-zA-ZÀ-ÿ]", "", name)) < 3:
+                continue
+
             try:
                 total_i = int(total or 0)
             except Exception:
                 continue
             if total_i <= 0:
                 continue
+
             clean.append({'name': name, 'total': total_i})
-        return clean
+
+        # Dedup + ordenação determinística.
+        out: list[dict[str, Any]] = []
+        seen: set[str] = set()
+        for item in sorted(clean, key=lambda r: (-int(r.get('total') or 0), _norm(r.get('name')))):
+            key = _norm(item['name'])
+            if key in seen:
+                continue
+            seen.add(key)
+            out.append(item)
+        return out
 
     def _v17_kpi(self, case_id: str, month: str) -> dict[str, Any] | None:
         text = self._v17_kpi_text(case_id, month)
@@ -1980,16 +2021,199 @@ class KnowledgeStructuredStore:
             ("setembro" in q and "outubro" in q and any(x in q for x in ["mais", "melhorou", "piorou", "teve", "maior", "menor"]))
         )
 
+    # ---------------------------------------------------------------------
+    # V19 - Dynamic Intent Layer
+    # ---------------------------------------------------------------------
+
+    def _v19_rule_intent(self, question: str) -> dict[str, Any]:
+        """Classificador leve e determinístico de intenção.
+
+        Ele não responde nada. Só traduz a pergunta em uma intenção operacional.
+        A resposta continua vindo de DuckDB/KPI parseado, de forma determinística.
+        """
+        q = self._v17_q(question)
+        intent = "unknown"
+        metric = ""
+        limit = None
+
+        lm = re.search(r"\btop\s*(\d{1,2})\b", q)
+        if lm:
+            try:
+                limit = max(1, min(int(lm.group(1)), 50))
+            except Exception:
+                limit = None
+
+        has_functionality = any(x in q for x in [
+            "funcionalidade", "funcionalidades", "jornada", "login", "recarga", "banners",
+            "fatura", "faturas", "esim", "e sim", "e-sim", "checkout", "suporte tecnico", "suporte técnico",
+            "app vivo", "mais impactada", "menos impactada"
+        ])
+        has_cause = any(x in q for x in [
+            "causa", "causas", "origem", "principais causas", "causas mais", "causa mais"
+        ])
+        has_compare = self._v17_is_compare_question(q) or (
+            (" ou " in q) and any(m in q for m in ["janeiro", "fevereiro", "marco", "março", "abril", "maio", "junho", "julho", "agosto", "setembro", "outubro", "novembro", "dezembro"])
+        )
+
+        if has_functionality:
+            if any(x in q for x in ["menos", "menor", "menor volume", "menos incidentes"]):
+                intent = "functionality_bottom"
+                metric = "incident_count"
+            elif any(x in q for x in ["top", "ranking", "rank", "compare", "comparativo", "por quantidade", "por volume", "mais impactadas"]):
+                intent = "functionality_ranking"
+                metric = "incident_count"
+            elif any(x in q for x in ["mais", "maior", "liderou", "teve mais", "maior volume"]):
+                intent = "functionality_top"
+                metric = "incident_count"
+            elif any(x in q for x in ["quantos", "quantas", "total", "qtd", "qtde"]):
+                intent = "functionality_count"
+                metric = "incident_count"
+            else:
+                intent = "functionality_ranking"
+                metric = "incident_count"
+        elif has_cause:
+            if any(x in q for x in ["principal", "mais apareceu", "mais vezes", "mais recorrente"]):
+                intent = "cause_top"
+            else:
+                intent = "cause_ranking"
+            metric = "cause_count"
+        elif has_compare:
+            if "impacto" in q:
+                intent = "month_impact_comparison"
+                metric = "impact_total"
+            elif any(x in q for x in ["incidente", "incidentes", "teve mais", "mais incidentes"]):
+                intent = "month_incident_comparison"
+                metric = "incident_count"
+            else:
+                intent = "month_comparison"
+                metric = "operational_kpis"
+        elif any(x in q for x in ["mttr", "tempo medio", "tempo médio"]):
+            intent = "mttr"
+            metric = "mttr"
+        elif "impacto" in q:
+            intent = "impact"
+            metric = "impact_total"
+
+        return {"intent": intent, "metric": metric, "limit": limit, "source": "rules"}
+
+    def _v19_llm_intent(self, case_id: str, question: str) -> dict[str, Any] | None:
+        """Usa LLM apenas para interpretar a intenção, nunca para calcular números.
+
+        Se a LLM falhar, retornar JSON inválido ou estiver desabilitada, o fallback
+        determinístico assume. Isso dá flexibilidade sem sacrificar confiabilidade.
+        """
+        if os.getenv("GABBI_NEXUS_LLM_INTENT_ENABLED", "true").strip().lower() not in {"1", "true", "yes", "y", "sim", "on"}:
+            return None
+        try:
+            from app.services.llm import LLMService
+            llm = LLMService()
+            if not llm.status().get("enabled"):
+                return None
+            memory = self._v17_memory(case_id)
+            system_prompt = """
+Você é um classificador de intenção para consultas operacionais de ITSM.
+Responda SOMENTE JSON válido.
+Não calcule valores. Não invente dados. Apenas classifique a pergunta.
+
+Intenções permitidas:
+- functionality_top: pergunta pela funcionalidade com mais incidentes
+- functionality_bottom: pergunta pela funcionalidade com menos incidentes
+- functionality_ranking: top/ranking/comparação de funcionalidades por quantidade
+- functionality_count: quantidade de uma funcionalidade específica
+- cause_top: principal causa
+- cause_ranking: ranking/lista de causas mais frequentes
+- month_incident_comparison: comparação entre meses por quantidade de incidentes
+- month_impact_comparison: comparação entre meses por impacto total
+- month_comparison: comparação geral entre meses
+- mttr: pergunta de MTTR/tempo médio
+- impact: pergunta de impacto ou maior impacto
+- followup_codes: pedido contextual de códigos do último resultado
+- detail: pedido de detalhe de um item/código
+- unknown: não estruturada ou sem intenção analítica clara
+
+Campos do JSON:
+{"intent":"...", "metric":"...", "limit":null ou número, "confidence":0.0-1.0}
+""".strip()
+            user_prompt = json.dumps({
+                "question": question,
+                "recent_context": {
+                    "last_query_type": memory.get("last_query_type"),
+                    "last_result_type": (memory.get("last_result") or {}).get("type"),
+                    "last_month": memory.get("mes"),
+                }
+            }, ensure_ascii=False)
+            data = llm.generate_json(system_prompt, user_prompt, history=None)
+            if not isinstance(data, dict):
+                return None
+            intent = str(data.get("intent") or "").strip()
+            allowed = {
+                "functionality_top", "functionality_bottom", "functionality_ranking", "functionality_count",
+                "cause_top", "cause_ranking", "month_incident_comparison", "month_impact_comparison",
+                "month_comparison", "mttr", "impact", "followup_codes", "detail", "unknown"
+            }
+            if intent not in allowed:
+                return None
+            try:
+                conf = float(data.get("confidence", 0) or 0)
+            except Exception:
+                conf = 0
+            if conf < float(os.getenv("GABBI_NEXUS_LLM_INTENT_MIN_CONFIDENCE", "0.55")):
+                return None
+            limit = data.get("limit")
+            try:
+                limit = int(limit) if limit is not None else None
+            except Exception:
+                limit = None
+            return {
+                "intent": intent,
+                "metric": str(data.get("metric") or ""),
+                "limit": limit,
+                "confidence": conf,
+                "source": "llm_intent",
+            }
+        except Exception:
+            return None
+
+    def _v19_intent(self, case_id: str, question: str) -> dict[str, Any]:
+        # As regras ganham quando há palavras fortes, para evitar uma LLM confundir
+        # "funcionalidade" com "maior impacto".
+        rules = self._v19_rule_intent(question)
+        if rules.get("intent") != "unknown":
+            return rules
+        llm = self._v19_llm_intent(case_id, question)
+        if llm and llm.get("intent") != "unknown":
+            return llm
+        return rules
+
+    def _v19_is_functionality_intent(self, intent: dict[str, Any]) -> bool:
+        return str(intent.get("intent") or "").startswith("functionality_")
+
+    def _v19_is_compare_intent(self, intent: dict[str, Any]) -> bool:
+        return str(intent.get("intent") or "") in {"month_incident_comparison", "month_impact_comparison", "month_comparison"}
+
     def _v17_handle_functionality(self, case_id: str, question: str, plan: dict[str, Any] | None = None) -> dict[str, Any] | None:
         q = self._v17_q(question)
+        intent_info = self._v19_intent(case_id, question) if hasattr(self, "_v19_intent") else self._v19_rule_intent(question)
+        intent = str(intent_info.get("intent") or "")
+
         month = self._v17_month(case_id, question, plan)
         if not month:
             return None
+
         kpi = self._v17_kpi(case_id, month)
-        if not kpi or not kpi.get("functionalities"):
+        if not kpi:
+            kpi = self._v18_sql_month_kpi(case_id, month, app_only=True)
+        if not kpi:
             return None
 
-        funcs = list(kpi["functionalities"])
+        # Sempre revalida e, se o parser textual produziu lixo, usa fallback SQL.
+        funcs = self._v18_valid_functionality_rows(kpi.get("functionalities") or [])
+        if not funcs:
+            funcs = self._v18_sql_app_functionality_rows(case_id, month)
+        funcs = self._v18_valid_functionality_rows(funcs)
+        if not funcs:
+            return None
+
         funcs_desc = sorted(funcs, key=lambda r: (-int(r.get("total") or 0), _norm(r.get("name"))))
         funcs_asc = sorted(funcs, key=lambda r: (int(r.get("total") or 0), _norm(r.get("name"))))
 
@@ -2003,8 +2227,12 @@ class KnowledgeStructuredStore:
             "vivo up": ["vivo up"],
             "banners": ["banner", "banners"],
             "login": ["login"],
+            "jornada": ["jornada"],
+            "suporte tecnico": ["suporte tecnico", "suporte técnico"],
+            "checkout": ["checkout"],
         }
 
+        # Quantidade de funcionalidade específica.
         for f in funcs_desc:
             fn = _norm(f["name"])
             candidates = [fn]
@@ -2012,36 +2240,48 @@ class KnowledgeStructuredStore:
                 if canonical in fn:
                     candidates.extend(vals)
             if any(c and c in q for c in candidates):
-                if any(x in q for x in ["quantos", "quantas", "total", "qtd", "qtde"]):
+                if intent == "functionality_count" or any(x in q for x in ["quantos", "quantas", "total", "qtd", "qtde"]):
                     self._v17_save_context(case_id, context_type="functionality_count", month=month, items=[f])
-                    return self._response(case_id, f"{f['name']}: {f['total']} incidente(s)", "v17_functionality_count", {"mes": month, "funcionalidade": f["name"]}, {"source": "monthly_kpi"})
+                    return self._response(case_id, f"{f['name']}: {f['total']} incidente(s)", "v19_functionality_count", {"mes": month, "funcionalidade": f["name"], "intent": intent_info}, {"source": "monthly_kpi_or_sql"})
 
-        # Maior volume.
-        if any(x in q for x in ["teve mais", "mais incidentes", "mais impactada", "maior volume", "liderou"]):
-            f = funcs_desc[0]
-            self._v17_save_context(case_id, context_type="top_functionality", month=month, items=[f])
-            return self._response(case_id, f"{f['name']}: {f['total']} incidente(s)", "v17_top_functionality", {"mes": month}, {"source": "monthly_kpi"})
-
-        # Menor volume.
-        if any(x in q for x in ["teve menos", "menos incidentes", "menos impactada", "menor volume"]):
+        # Menor volume tem prioridade explícita antes de "mais"/ranking.
+        if intent == "functionality_bottom" or any(x in q for x in ["teve menos", "menos incidentes", "menos impactada", "menor volume", "menor quantidade"]):
             f = funcs_asc[0]
             self._v17_save_context(case_id, context_type="bottom_functionality", month=month, items=[f])
-            return self._response(case_id, f"{f['name']}: {f['total']} incidente(s)", "v17_bottom_functionality", {"mes": month}, {"source": "monthly_kpi"})
+            return self._response(case_id, f"{f['name']}: {f['total']} incidente(s)", "v19_bottom_functionality", {"mes": month, "intent": intent_info}, {"source": "monthly_kpi_or_sql"})
 
-        # Top N/ranking/lista. Default: top 10.
-        if any(x in q for x in ["top", "ranking", "compare funcionalidades", "comparativo", "impactadas", "por quantidade", "por volume"]):
-            limit = 10
+        # Top N/ranking/lista.
+        if intent == "functionality_ranking" or any(x in q for x in ["top", "ranking", "rank", "compare funcionalidades", "comparativo", "impactadas", "por quantidade", "por volume"]):
+            limit = intent_info.get("limit") or 10
             lm = re.search(r"top\s*(\d+)", q)
             if lm:
                 try:
                     limit = max(1, min(int(lm.group(1)), 50))
                 except Exception:
                     limit = 10
+            try:
+                limit = max(1, min(int(limit), 50))
+            except Exception:
+                limit = 10
             selected = funcs_desc[:limit]
             lines = ["Top funcionalidades:"]
             lines.extend(f"- {f['name']}: {f['total']}" for f in selected)
             self._v17_save_context(case_id, context_type="functionality_ranking", month=month, items=selected)
-            return self._response(case_id, "\n".join(lines), "v17_functionality_ranking", {"mes": month, "limit": limit}, {"source": "monthly_kpi", "count": len(funcs_desc)})
+            return self._response(case_id, "\n".join(lines), "v19_functionality_ranking", {"mes": month, "limit": limit, "intent": intent_info}, {"source": "monthly_kpi_or_sql", "count": len(funcs_desc)})
+
+        # Maior volume.
+        if intent == "functionality_top" or any(x in q for x in ["teve mais", "mais incidentes", "mais impactada", "maior volume", "maior quantidade", "liderou"]):
+            f = funcs_desc[0]
+            self._v17_save_context(case_id, context_type="top_functionality", month=month, items=[f])
+            return self._response(case_id, f"{f['name']}: {f['total']} incidente(s)", "v19_top_functionality", {"mes": month, "intent": intent_info}, {"source": "monthly_kpi_or_sql"})
+
+        # Pergunta genérica sobre funcionalidades: devolve ranking curto.
+        if self._v17_is_functionality_question(q):
+            selected = funcs_desc[:10]
+            lines = ["Top funcionalidades:"]
+            lines.extend(f"- {f['name']}: {f['total']}" for f in selected)
+            self._v17_save_context(case_id, context_type="functionality_ranking", month=month, items=selected)
+            return self._response(case_id, "\n".join(lines), "v19_functionality_ranking_default", {"mes": month, "intent": intent_info}, {"source": "monthly_kpi_or_sql", "count": len(funcs_desc)})
 
         return None
 
@@ -2185,46 +2425,49 @@ class KnowledgeStructuredStore:
 
     def _v17_pre_router(self, case_id: str, question: str, plan: dict[str, Any] | None = None) -> dict[str, Any] | None:
         q = self._v17_q(question)
+        intent_info = self._v19_intent(case_id, question) if hasattr(self, "_v19_intent") else {"intent": "unknown"}
+        intent = str(intent_info.get("intent") or "")
 
         follow = self._v17_handle_followup(case_id, question)
         if follow:
             return follow
 
-        comp = self._v17_handle_compare(case_id, question)
-        if comp:
-            return comp
-
-        if self._v17_is_functionality_question(q):
+        # Funcionalidade deve vir ANTES de impacto/MTTR/comparação genérica.
+        # Isso corrige casos como "qual funcionalidade teve mais incidentes em outubro?"
+        # que antes caíam em maior impacto ou MTTR.
+        if self._v19_is_functionality_intent(intent_info) or self._v17_is_functionality_question(q):
             func = self._v17_handle_functionality(case_id, question, plan)
             if func:
                 return func
 
         # Ranking de causas deve ganhar de listagem genérica de códigos.
-        if any(x in q for x in ["causas mais apareceram", "causas mais frequentes", "principais causas", "ranking de causas", "top causas"]):
+        if intent in {"cause_ranking", "cause_top"} or any(x in q for x in ["causas mais apareceram", "causas mais frequentes", "principais causas", "ranking de causas", "top causas", "qual foi a principal causa", "principal causa"]):
             month = self._v17_month(case_id, question, plan)
             kpi = self._v17_kpi(case_id, month) if month else None
             if kpi and kpi.get("causes"):
                 causes = [c for c in kpi["causes"] if c.get("name")]
-                lines = ["Principais causas:"]
-                lines.extend(f"- {c['name']}: {c.get('total')}" if c.get("total") is not None else f"- {c['name']}" for c in causes[:10])
-                self._v17_save_context(case_id, context_type="causes_ranking", month=month, items=causes[:10])
-                return self._response(case_id, "\n".join(lines), "v17_causes_ranking", {"mes": month}, {"source": "monthly_kpi"})
+                if causes:
+                    if intent == "cause_top" or "principal" in q or "mais apareceu" in q:
+                        c = causes[0]
+                        self._v17_save_context(case_id, context_type="top_cause", month=month, items=[c])
+                        return self._response(case_id, f"{c['name']} ({c.get('total')})", "v19_top_cause", {"mes": month, "intent": intent_info}, {"source": "monthly_kpi"})
+                    lines = ["Principais causas:"]
+                    lines.extend(f"- {c['name']}: {c.get('total')}" if c.get("total") is not None else f"- {c['name']}" for c in causes[:10])
+                    self._v17_save_context(case_id, context_type="causes_ranking", month=month, items=causes[:10])
+                    return self._response(case_id, "\n".join(lines), "v19_causes_ranking", {"mes": month, "intent": intent_info}, {"source": "monthly_kpi"})
 
-        if "causa apareceu" in q or ("causa" in q and "mais vezes" in q) or ("principal causa" in q):
-            month = self._v17_month(case_id, question, plan)
-            kpi = self._v17_kpi(case_id, month) if month else None
-            if kpi and kpi.get("causes"):
-                c = kpi["causes"][0]
-                self._v17_save_context(case_id, context_type="top_cause", month=month, items=[c])
-                return self._response(case_id, f"{c['name']} ({c['total']})", "v17_top_cause", {"mes": month}, {"source": "monthly_kpi"})
+        comp = self._v17_handle_compare(case_id, question)
+        if comp:
+            return comp
 
-        if "demorou mais" in q or "mais para resolver" in q:
+        # Maior impacto/duração só entra depois de funcionalidade/causa/comparação.
+        if "demorou mais" in q or "mais para resolver" in q or ("maior impacto" in q and "funcionalidade" not in q and "funcionalidades" not in q):
             month = self._v17_month(case_id, question, plan)
             kpi = self._v17_kpi(case_id, month) if month else None
             if kpi and kpi.get("largest_impact"):
                 codes = self._v17_clean_codes(re.findall(r"\bINC\d{5,}\b", kpi["largest_impact"]), "INC")
                 self._v17_save_context(case_id, context_type="largest_impact", month=month, codes=codes, code_type="INC", focus_code=(codes[0] if codes else None))
-                return self._response(case_id, kpi["largest_impact"], "v17_largest_impact", {"mes": month}, {"source": "monthly_kpi"})
+                return self._response(case_id, kpi["largest_impact"], "v19_largest_impact", {"mes": month, "intent": intent_info}, {"source": "monthly_kpi"})
         return None
 
     def _answer_structured(self, case_id: str, question: str) -> dict[str, Any]:
