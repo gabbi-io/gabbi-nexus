@@ -2744,7 +2744,7 @@ Regras:
 - Use kpi_summary para “como foi operacionalmente”, “resumo executivo”, “cenário operacional”.
 - Use semantic_summary para “explique o teor do documento”, “resuma o documento”, “sobre o que se trata”.
 - Se a pergunta for follow-up curto como “e em setembro?”, use a memória recente para manter a intenção anterior e trocar o mês.
-- Nunca invente coluna inexistente; prefira as colunas fornecidas ou campos virtuais aceitos.
+- Nunca invente coluna inexistente; prefira as colunas fornecidas ou campos virtuais aceitos. Para "grupo", "time", "equipe" ou "squad", use grupo_atribuicao; o executor resolverá aliases, schema e extração textual.
 """.strip()
             user_prompt = json.dumps({
                 "question": question,
@@ -3092,6 +3092,135 @@ Regras:
         self.memory[case_id] = mem
         return self._response(case_id, answer, "v21_compare", {"plan": plan}, {"rows": rows, "planner": plan.get("source")})
 
+
+    # ---------------------------------------------------------------------
+    # V23 - Dynamic Schema / Alias / Semantic Grouping helpers
+    # ---------------------------------------------------------------------
+
+    def _v23_schema_aliases(self) -> dict[str, list[str]]:
+        return {
+            "grupo_atribuicao": ["grupo_atribuicao", "grupo_de_atribuicao", "assignment_group", "support_group", "grupo", "grupo_responsavel", "equipe", "time", "squad", "owner_group"],
+            "ic_impactado": ["ic_impactado", "ci_impactado", "configuration_item", "item_configuracao", "cmdb_ci", "ic"],
+            "canal": ["canal", "canal_impactado", "channel", "plataforma"],
+            "causa_origem": ["causa_origem", "causa", "causa_provavel", "causa provável", "origem", "motivo"],
+            "funcionalidade": ["funcionalidade", "feature", "jornada", "modulo", "módulo", "area", "área"],
+        }
+
+    def _v23_resolve_column(self, canonical: str) -> str | None:
+        cols = set(self._v21_schema_columns()) if hasattr(self, "_v21_schema_columns") else set()
+        if canonical in cols:
+            return canonical
+        compact_cols = {re.sub(r"[^a-z0-9]+", "", _norm(c)): c for c in cols}
+        for alias in self._v23_schema_aliases().get(canonical, [canonical]):
+            if alias in cols:
+                return alias
+            key = re.sub(r"[^a-z0-9]+", "", _norm(alias))
+            if key in compact_cols:
+                return compact_cols[key]
+        return None
+
+    def _v23_extract_labeled_value(self, row: dict[str, Any], labels: list[str]) -> str:
+        blob = "\n".join(_safe(row.get(k)) for k in ["article_text", "raw_json", "descricao", "descricao_resumida"] if _safe(row.get(k)))
+        if not blob:
+            return ""
+        for label in labels:
+            try:
+                value = _clean_extracted_value(_extract_field(blob, label))
+                if value and _norm(value) not in {"-", "na", "n/a", "null", "none", "nat", "nao informado", "não informado"}:
+                    return value
+            except Exception:
+                pass
+        for label in labels:
+            m = re.search(rf"(?:^|[\n\r,;])\s*»?\s*{re.escape(label)}\s*[:=]\s*([^\n\r,;]{{1,160}})", blob, flags=re.I)
+            if m:
+                value = _clean_extracted_value(m.group(1))
+                if value and _norm(value) not in {"-", "na", "n/a", "null", "none", "nat", "nao informado", "não informado"}:
+                    return value
+        return ""
+
+    def _v23_value_for_canonical(self, row: dict[str, Any], canonical: str, allow_group_fallback: bool = True) -> str:
+        col = self._v23_resolve_column(canonical)
+        if col:
+            value = _clean_extracted_value(row.get(col))
+            if value and _norm(value) not in {"-", "na", "n/a", "null", "none", "nat", "nao informado", "não informado"}:
+                return value
+        label_map = {
+            "grupo_atribuicao": ["Grupo de atribuição", "Grupo de atribuicao", "Assignment group", "Assignment Group", "Grupo", "Equipe", "Time", "Squad"],
+            "ic_impactado": ["IC Impactado", "CI Impactado", "Configuration item", "Item de Configuração", "Item de Configuracao", "CMDB CI", "IC"],
+            "canal": ["Canal impactado", "Canal Impactado", "Canal", "Plataforma"],
+            "causa_origem": ["Causa Origem", "Causa origem", "Causa provável", "Causa Provavel", "Causa", "Motivo"],
+            "funcionalidade": ["Funcionalidade", "Feature", "Jornada", "Módulo", "Modulo", "Área", "Area"],
+        }
+        value = self._v23_extract_labeled_value(row, label_map.get(canonical, [canonical]))
+        if value:
+            return value
+        if canonical == "funcionalidade" and hasattr(self, "_v20_semantic_functionality_from_row"):
+            value = _clean_extracted_value(self._v20_semantic_functionality_from_row(row))
+            if value:
+                return value
+        if canonical == "grupo_atribuicao" and allow_group_fallback:
+            for alt in ["canal", "causa_origem", "ic_impactado"]:
+                alt_value = self._v23_value_for_canonical(row, alt, allow_group_fallback=False)
+                if alt_value:
+                    return alt_value
+        return ""
+
+    def _v23_rows_for_group(self, case_id: str, plan: dict[str, Any], canonical: str) -> list[dict[str, Any]]:
+        base_cols = ["numero", "codigo_tipo", "mes", "prioridade", "grupo_atribuicao", "ic_impactado", "canal", "descricao_resumida", "descricao", "causa_origem", "funcionalidade", "tempo_impacto", "tempo_impacto_segundos", "is_app", "is_ecomm", "is_parada_sistemica", "is_change_related", "raw_json", "article_text"]
+        schema = set(self._v21_schema_columns()) if hasattr(self, "_v21_schema_columns") else set()
+        cols = []
+        for c in base_cols + self._v23_schema_aliases().get(canonical, []):
+            if c in schema and c not in cols:
+                cols.append(c)
+        if not cols:
+            cols = [c for c in ["numero", "article_text", "raw_json"] if c in schema]
+        return self._v21_rows_for_plan(case_id, plan, columns=cols)
+
+    def _v23_execute_group_alias(self, case_id: str, plan: dict[str, Any], canonical: str) -> dict[str, Any] | None:
+        rows = self._v23_rows_for_group(case_id, plan, canonical)
+        counts: dict[str, int] = {}
+        examples: dict[str, list[str]] = {}
+        used_fallback = False
+        for row in rows:
+            direct = self._v23_value_for_canonical(row, canonical, allow_group_fallback=False)
+            name = direct
+            if not name and canonical == "grupo_atribuicao":
+                name = self._v23_value_for_canonical(row, canonical, allow_group_fallback=True)
+                used_fallback = bool(name)
+            name = _clean_extracted_value(name)
+            if not name or _norm(name) in {"-", "na", "n/a", "null", "none", "nat", "nao informado", "não informado"}:
+                continue
+            if re.fullmatch(r"\d{1,4}:\d{2}:\d{2}", name):
+                continue
+            counts[name] = counts.get(name, 0) + 1
+            code = _safe(row.get("numero"))
+            if code:
+                examples.setdefault(name, [])
+                if len(examples[name]) < 5:
+                    examples[name].append(code)
+        if not counts:
+            label = {"grupo_atribuicao": "grupo de atribuição", "ic_impactado": "IC impactado", "canal": "canal", "causa_origem": "causa", "funcionalidade": "funcionalidade"}.get(canonical, canonical)
+            return self._response(case_id, f"Não encontrei {label} preenchido para os filtros informados.", "v23_group_no_data", {"plan": plan, "canonical": canonical}, {"rows_considered": len(rows)})
+        items = [{"name": k, "total": v, "examples": examples.get(k, [])} for k, v in counts.items()]
+        reverse = plan.get("sort", "desc") != "asc"
+        items.sort(key=lambda x: (int(x.get("total") or 0), str(x.get("name") or "")), reverse=reverse)
+        limit = max(1, min(int(plan.get("limit") or 10), 100))
+        selected = items[:limit]
+        unit = "incidente(s)" if plan.get("record_type") == "INC" else "registro(s)"
+        if limit == 1:
+            answer = f"{selected[0]['name']}: {selected[0]['total']} {unit}"
+        else:
+            title_map = {"grupo_atribuicao": "Ranking de grupos:", "ic_impactado": "Ranking de ICs impactados:", "canal": "Ranking de canais:", "causa_origem": "Principais causas:", "funcionalidade": "Top funcionalidades:"}
+            answer = title_map.get(canonical, "Ranking:") + "\n" + "\n".join(f"- {it['name']}: {it['total']}" for it in selected)
+            if canonical == "grupo_atribuicao" and used_fallback:
+                answer += "\n\nObs.: não havia grupo de atribuição explícito em todos os registros; usei a melhor dimensão operacional disponível como fallback."
+        mem = dict(self.memory.get(case_id) or {})
+        mem["last_v21_plan"] = plan
+        mem["last_query_type"] = "group"
+        mem["last_group_items"] = selected
+        self.memory[case_id] = mem
+        return self._response(case_id, answer, "v23_group_alias", {"plan": plan, "canonical": canonical}, {"items": selected, "rows_considered": len(rows), "used_fallback": used_fallback})
+
     def _v21_execute_generic(self, case_id: str, question: str, plan: dict[str, Any]) -> dict[str, Any] | None:
         intent = plan.get("intent")
         if intent == "semantic_summary":
@@ -3105,19 +3234,27 @@ Regras:
             return self._v21_execute_virtual_group(case_id, plan)
         if intent in {"rank", "group"} and plan.get("group_by"):
             group_by = plan["group_by"]
+            if group_by in {"grupo_atribuicao", "ic_impactado", "canal", "causa_origem", "funcionalidade"}:
+                alias_result = self._v23_execute_group_alias(case_id, plan, group_by)
+                if alias_result:
+                    return alias_result
+            resolved_group_by = self._v23_resolve_column(group_by) if hasattr(self, "_v23_resolve_column") else group_by
+            if not resolved_group_by:
+                return None
             where, params = self._v21_where_sql(plan)
             order = "ASC" if plan.get("sort") == "asc" else "DESC"
             limit = int(plan.get("limit") or 20)
             with self._connect() as con:
                 rows = con.execute(
-                    f"SELECT COALESCE(NULLIF(TRIM(CAST({_sql_ident(group_by)} AS VARCHAR)), ''), 'Não informado') AS name, COUNT(DISTINCT numero) AS total FROM {self.TABLE} WHERE {where} GROUP BY 1 ORDER BY total {order}, name ASC LIMIT ?",
+                    f"SELECT COALESCE(NULLIF(TRIM(CAST({_sql_ident(resolved_group_by)} AS VARCHAR)), ''), 'Não informado') AS name, COUNT(DISTINCT numero) AS total FROM {self.TABLE} WHERE {where} GROUP BY 1 ORDER BY total {order}, name ASC LIMIT ?",
                     [case_id] + params + [limit],
                 ).fetchall()
             rows = [r for r in rows if str(r[0] or "").strip() and _norm(r[0]) not in {"nao informado", "não informado", "-"}]
             if not rows:
                 return None
+            unit = "incidente(s)" if plan.get("record_type") == "INC" else "registro(s)"
             if limit == 1:
-                answer = f"{rows[0][0]}: {int(rows[0][1])} registro(s)"
+                answer = f"{rows[0][0]}: {int(rows[0][1])} {unit}"
             else:
                 label = "Ranking de grupos:" if group_by == "grupo_atribuicao" else "Ranking:"
                 answer = label + "\n" + "\n".join(f"- {r[0]}: {int(r[1])}" for r in rows)
@@ -3125,7 +3262,7 @@ Regras:
             mem["last_v21_plan"] = plan
             mem["last_query_type"] = "group"
             self.memory[case_id] = mem
-            return self._response(case_id, answer, "v22_group", {"plan": plan}, {"rows": rows, "planner": plan.get("source")})
+            return self._response(case_id, answer, "v23_group", {"plan": plan, "resolved_group_by": resolved_group_by}, {"rows": rows, "planner": plan.get("source")})
         if intent == "count":
             where, params = self._v21_where_sql(plan)
             with self._connect() as con:
