@@ -1793,6 +1793,133 @@ class KnowledgeStructuredStore:
             codes = []
         return self._v17_clean_codes(codes, "INC")
 
+
+    def _v18_sql_app_functionality_rows(self, case_id: str, month: str) -> list[dict[str, Any]]:
+        """Agrupa funcionalidades por incidentes APP diretamente no DuckDB.
+
+        Essa rota é usada quando o texto mensal não contém uma seção de funcionalidades
+        bem parseável ou quando o parser antigo captura linhas de incidentes por engano.
+        """
+        if not self.enabled or not month:
+            return []
+        try:
+            sql = f"""
+                SELECT
+                    COALESCE(NULLIF(TRIM(funcionalidade), ''), NULLIF(TRIM(ic_impactado), ''), 'Não informado') AS funcionalidade_nome,
+                    COUNT(DISTINCT numero) AS total
+                FROM {self.TABLE}
+                WHERE case_id = ?
+                  AND codigo_tipo = 'INC'
+                  AND mes = ?
+                  AND numero IS NOT NULL
+                  AND numero <> ''
+                  AND (
+                        is_app = TRUE
+                     OR article_text ILIKE '%APP_MARKER%'
+                     OR article_text ILIKE '%APP Vivo%'
+                     OR canal ILIKE '%APP%'
+                  )
+                GROUP BY 1
+                HAVING COUNT(DISTINCT numero) > 0
+                ORDER BY total DESC, funcionalidade_nome ASC
+            """
+            with self._connect() as con:
+                rows = con.execute(sql, [case_id, month]).fetchall()
+            out = []
+            for name, total in rows:
+                n = _clean_extracted_value(name)
+                if not n or n == '-' or n.lower() in {'none', 'null', 'nan'}:
+                    n = 'Não informado'
+                out.append({'name': n, 'total': int(total or 0)})
+            return out
+        except Exception:
+            return []
+
+    def _v18_sql_month_kpi(self, case_id: str, month: str, app_only: bool = True) -> dict[str, Any] | None:
+        """Calcula KPI mensal mínimo via DuckDB quando não há documento KPI mensal parseável."""
+        if not self.enabled or not month:
+            return None
+        try:
+            app_clause = """
+                  AND (
+                        is_app = TRUE
+                     OR article_text ILIKE '%APP_MARKER%'
+                     OR article_text ILIKE '%APP Vivo%'
+                     OR canal ILIKE '%APP%'
+                  )
+            """ if app_only else ""
+            sql = f"""
+                SELECT
+                    COUNT(DISTINCT numero) AS total_incidentes,
+                    SUM(CASE WHEN UPPER(prioridade) LIKE '%P1%' THEN 1 ELSE 0 END) AS p1,
+                    SUM(CASE WHEN UPPER(prioridade) LIKE '%P2%' THEN 1 ELSE 0 END) AS p2,
+                    SUM(CASE WHEN UPPER(prioridade) LIKE '%P3%' THEN 1 ELSE 0 END) AS p3,
+                    COALESCE(SUM(tempo_impacto_segundos), 0) AS impact_seconds,
+                    COALESCE(SUM(CASE WHEN is_parada_sistemica THEN tempo_impacto_segundos ELSE 0 END), 0) AS systemic_seconds,
+                    COALESCE(SUM(CASE WHEN is_change_related THEN 1 ELSE 0 END), 0) AS change_related
+                FROM {self.TABLE}
+                WHERE case_id = ?
+                  AND codigo_tipo = 'INC'
+                  AND mes = ?
+                  AND numero IS NOT NULL
+                  AND numero <> ''
+                  {app_clause}
+            """
+            with self._connect() as con:
+                row = con.execute(sql, [case_id, month]).fetchone()
+            if not row:
+                return None
+            total, p1, p2, p3, impact_seconds, systemic_seconds, change_related = row
+            total = int(total or 0)
+            if total <= 0:
+                return None
+            impact_total = _seconds_to_hhmmss(int(impact_seconds or 0))
+            systemic_time = _seconds_to_hhmmss(int(systemic_seconds or 0))
+            mttr = _seconds_to_hhmmss(int((impact_seconds or 0) / total)) if total else "00:00:00"
+            return {
+                'month': month,
+                'text': '',
+                'total_incidents': str(total),
+                'p1': str(int(p1 or 0)),
+                'p2': str(int(p2 or 0)),
+                'p3': str(int(p3 or 0)),
+                'impact_total': impact_total,
+                'systemic_time': systemic_time,
+                'systemic_count': '',
+                'mttr': mttr,
+                'change_related': str(int(change_related or 0)),
+                'largest_impact': '',
+                'top_rows': [],
+                'functionalities': self._v18_sql_app_functionality_rows(case_id, month) if app_only else [],
+                'app_incident_codes': [],
+                'systemic_codes': [],
+                'causes': [],
+            }
+        except Exception:
+            return None
+
+    def _v18_valid_functionality_rows(self, rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        """Remove falso positivo onde parser captura linha de incidente como funcionalidade."""
+        clean: list[dict[str, Any]] = []
+        for r in rows or []:
+            name = str(r.get('name') or '').strip()
+            total = r.get('total')
+            if not name:
+                continue
+            n = _norm(name)
+            if re.search(r"\bINC\d{5,}\b", name, flags=re.I):
+                continue
+            if 'impacto' in n and re.search(r"\d{1,4}:\d{2}:\d{2}", name):
+                continue
+            try:
+                total_i = int(total or 0)
+            except Exception:
+                continue
+            if total_i <= 0:
+                continue
+            clean.append({'name': name, 'total': total_i})
+        return clean
+
     def _v17_kpi(self, case_id: str, month: str) -> dict[str, Any] | None:
         text = self._v17_kpi_text(case_id, month)
         if not text:
@@ -1802,7 +1929,9 @@ class KnowledgeStructuredStore:
         except Exception:
             largest = ""
         top_rows = self._v17_top_rows(text)
-        functionalities = self._v17_functionality_rows(text)
+        functionalities = self._v18_valid_functionality_rows(self._v17_functionality_rows(text))
+        if not functionalities:
+            functionalities = self._v18_sql_app_functionality_rows(case_id, month)
         systemic_codes = self._v17_clean_codes([r["code"] for r in top_rows if r["systemic"]], "INC")
         try:
             causes_raw = self._v9_extract_causes(text) or ""
@@ -1924,9 +2053,20 @@ class KnowledgeStructuredStore:
             months = self._v17_months(case_id, question)
             if len(months) < 2:
                 months = self._v17_available_app_months(case_id)
+            if len(months) < 2:
+                try:
+                    with self._connect() as con:
+                        months = [str(r[0]) for r in con.execute(f"""
+                            SELECT DISTINCT mes
+                            FROM {self.TABLE}
+                            WHERE case_id = ? AND codigo_tipo = 'INC' AND mes <> ''
+                            ORDER BY mes
+                        """, [case_id]).fetchall() if r and r[0]]
+                except Exception:
+                    months = []
             rows = []
             for m in months:
-                k = self._v17_kpi(case_id, m)
+                k = self._v17_kpi(case_id, m) or self._v18_sql_month_kpi(case_id, m, app_only=True)
                 if k and k.get("impact_total"):
                     rows.append((m, k, _duration_to_seconds(k.get("impact_total"))))
             if rows:
@@ -1945,6 +2085,10 @@ class KnowledgeStructuredStore:
             return None
 
         k1, k2 = self._v17_kpi(case_id, months[0]), self._v17_kpi(case_id, months[1])
+        if not k1:
+            k1 = self._v18_sql_month_kpi(case_id, months[0], app_only=True)
+        if not k2:
+            k2 = self._v18_sql_month_kpi(case_id, months[1], app_only=True)
         if not k1 or not k2:
             return None
 
