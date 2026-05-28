@@ -555,6 +555,7 @@ class KnowledgeStructuredStore:
             "quantos", "quantas", "quantidade", "qtd", "qtde", "total", "ranking", "top",
             "compare", "comparativo", "maior", "menor", "mais", "menos", "p1", "p2", "p3",
             "chg", "change", "changes", "inc", "incidente", "incidentes", "app", "operacao", "operação",
+            "operacional", "operacionalmente", "cenario operacional", "cenário operacional", "resumo executivo",
             "ic impactado", "grupo de atribuicao", "grupo de atribuição", "funcionalidade", "funcionalidades",
             "causa", "causas", "mttr", "impacto", "parada", "indisponibilidade",
         ])
@@ -3475,9 +3476,279 @@ Regras:
             return self._response(case_id, "\n".join(codes) if codes else "Nenhum registro encontrado.", "v21_list", {"plan": plan}, {"codes": codes, "planner": plan.get("source"), "confidence": self._v24_plan_confidence(plan, rows_considered=rows_considered, rows_returned=len(codes)), "explainability": self._v24_make_explainability(plan, rows_considered=rows_considered, rows_returned=len(codes), sql=sql, params=[case_id] + params + [limit])})
         return None
 
+
+    # ---------------------------------------------------------------------
+    # V27 - Context Guard / Scope Guard
+    # ---------------------------------------------------------------------
+
+    def _v27_explicit_or_memory_month(self, case_id: str, question: str) -> str:
+        """Resolve mês com prioridade: pergunta explícita -> memória conversacional."""
+        try:
+            month = self._stable_month_from_question(question)
+            if month:
+                return month
+        except Exception:
+            pass
+        try:
+            month = self._v9_extract_month_from_question_or_context(case_id, question)
+            if month:
+                return month
+        except Exception:
+            pass
+        mem = dict(self.memory.get(case_id) or {})
+        return (
+            mem.get("mes")
+            or (mem.get("last_result") or {}).get("month")
+            or (mem.get("last_plan") or {}).get("mes")
+            or ((mem.get("last_v21_plan") or {}).get("months") or [""])[0]
+            or ""
+        )
+
+    def _v27_has_explicit_month(self, question: str) -> bool:
+        try:
+            return bool(self._stable_month_from_question(question))
+        except Exception:
+            return False
+
+    def _v27_is_placeholder_value(self, value: Any) -> bool:
+        token = _norm(value)
+        return token in {"x", "xx", "xxx", "grupo x", "nome do grupo", "grupo", "placeholder", "valor"}
+
+    def _v27_kpi_summary_answer(self, case_id: str, month: str, scope: str = "APP") -> dict[str, Any] | None:
+        """Resumo mensal operacional a partir do documento KPI mensal, quando existir."""
+        if not month:
+            return None
+        kpi_text = ""
+        try:
+            kpi_text = self._v14_kpi_text(case_id, month) if hasattr(self, "_v14_kpi_text") else ""
+        except Exception:
+            kpi_text = ""
+        if not kpi_text:
+            try:
+                kpi_text = self._v9_fetch_monthly_kpi_text(case_id, month, scope or "APP") or ""
+            except Exception:
+                kpi_text = ""
+        if not kpi_text:
+            return None
+
+        def val(name: str, default: str = "-") -> str:
+            try:
+                return str(self._v9_extract_kpi_value(kpi_text, name) or default)
+            except Exception:
+                return default
+
+        total = val("total_incidentes", "-")
+        p1 = val("p1", "0")
+        p2 = val("p2", "0")
+        p3 = val("p3", "0")
+        impacto = val("impacto_total", "-")
+        parada = val("parada_sistemica", "-")
+        mttr = val("mttr", "-")
+        change = val("change_related", "-")
+        try:
+            maior = self._v9_extract_largest_impact(kpi_text) or "-"
+        except Exception:
+            maior = "-"
+        answer = (
+            f"{scope or 'APP'} | {month}: {total} incidentes críticos (P1={p1}, P2={p2}, P3={p3}).\n"
+            f"- Impacto total somado: {impacto}.\n"
+            f"- Parada sistêmica: {parada}.\n"
+            f"- MTTR: {mttr}.\n"
+            f"- Maior impacto: {maior}.\n"
+            f"- Mudança/CHG: {change} incidente(s) com indício de mudança."
+        )
+        mem = dict(self.memory.get(case_id) or {})
+        mem["mes"] = month
+        mem["scope"] = scope or mem.get("scope") or "APP"
+        mem["last_query_type"] = "kpi_summary"
+        mem["last_result"] = {"type": "kpi_summary", "month": month, "scope": scope or "APP"}
+        self.memory[case_id] = mem
+        return self._response(case_id, answer, "v27_kpi_summary", {"mes": month, "scope": scope}, {"source": "monthly_kpi", "confidence": 0.95})
+
+    def _v27_priority_answer(self, case_id: str, question: str, priority: str, month: str | None = None) -> dict[str, Any] | None:
+        priority = priority.upper()
+        if priority not in {"P1", "P2", "P3", "P4", "P5"}:
+            return None
+        q = _norm(question)
+        month = month or self._v27_explicit_or_memory_month(case_id, question)
+        # Se há mês/escopo APP em memória ou pergunta operacional, tenta KPI mensal primeiro para P1/P2/P3.
+        if month and priority in {"P1", "P2", "P3"}:
+            try:
+                kpi_text = self._v14_kpi_text(case_id, month) if hasattr(self, "_v14_kpi_text") else ""
+                value = self._v9_extract_kpi_value(kpi_text, priority.lower()) if kpi_text else None
+                if value is not None and str(value) != "":
+                    mem = dict(self.memory.get(case_id) or {})
+                    mem["mes"] = month
+                    mem["last_query_type"] = "priority_count"
+                    mem["last_result"] = {"type": "priority_count", "month": month, "priority": priority}
+                    self.memory[case_id] = mem
+                    return self._response(case_id, str(value), "v27_priority_kpi", {"mes": month, "prioridade": priority}, {"source": "monthly_kpi", "confidence": 0.95})
+            except Exception:
+                pass
+        clauses = ["case_id = ?", "codigo_tipo = 'INC'", "UPPER(prioridade) = ?"]
+        params: list[Any] = [case_id, priority]
+        if month:
+            clauses.append("mes = ?")
+            params.append(month)
+        sql = f"SELECT COUNT(DISTINCT numero) FROM {self.TABLE} WHERE " + " AND ".join(clauses) + " AND numero <> ''"
+        with self._connect() as con:
+            total = int(con.execute(sql, params).fetchone()[0] or 0)
+        return self._response(case_id, str(total), "v27_priority_count", {"mes": month, "prioridade": priority}, {"sql": sql, "params": params, "confidence": 0.88})
+
+    def _v27_largest_impact_among_last_codes(self, case_id: str, question: str) -> dict[str, Any] | None:
+        q = _norm(question)
+        if not any(x in q for x in ["qual deles", "deles", "entre eles", "dos incidentes", "da lista"]):
+            return None
+        if not any(x in q for x in ["maior impacto", "mais impacto", "maior tempo", "demorou mais", "mais demor"]):
+            return None
+        mem = dict(self.memory.get(case_id) or {})
+        codes = (mem.get("last_result") or {}).get("codes") or mem.get("last_codes") or []
+        codes = [str(c).upper() for c in codes if re.match(r"^INC\d{5,}$", str(c), flags=re.I)]
+        codes = list(dict.fromkeys(codes))
+        if not codes:
+            return None
+        placeholders = ",".join(["?"] * len(codes))
+        sql = f"""
+            SELECT numero, prioridade, descricao_resumida, tempo_impacto, tempo_impacto_segundos
+            FROM {self.TABLE}
+            WHERE case_id = ? AND numero IN ({placeholders})
+            ORDER BY COALESCE(tempo_impacto_segundos, 0) DESC
+            LIMIT 1
+        """
+        with self._connect() as con:
+            row = con.execute(sql, [case_id] + codes).fetchone()
+        if not row:
+            return None
+        numero, prio, desc, tempo, seg = row
+        impact = tempo if tempo else _seconds_to_hhmmss(seg or 0)
+        answer = f"{numero} ({prio or '-'}) — {desc or '-'} — impacto {impact}"
+        mem["last_focus_code"] = numero
+        mem["last_detail_code"] = numero
+        mem["last_query_type"] = "largest_impact_from_memory"
+        self.memory[case_id] = mem
+        return self._response(case_id, answer, "v27_largest_impact_from_memory", {"codes": codes[:20]}, {"sql": sql, "confidence": 0.96})
+
+    def _v27_change_related_count(self, case_id: str, question: str) -> dict[str, Any] | None:
+        q = _norm(question)
+        if not ("incidente" in q or "incidentes" in q):
+            return None
+        if not any(x in q for x in ["causado por mudanca", "causados por mudanca", "causado por mudança", "causados por mudança", "relacionados a chg", "relacionados a change", "relacionados a mudança", "relacionados a mudanca"]):
+            return None
+        month = self._v27_explicit_or_memory_month(case_id, question)
+        if month:
+            try:
+                kpi_text = self._v14_kpi_text(case_id, month) if hasattr(self, "_v14_kpi_text") else ""
+                value = self._v9_extract_kpi_value(kpi_text, "change_related") if kpi_text else None
+                if value is not None and str(value) != "":
+                    return self._response(case_id, f"{value} incidente(s) relacionados a mudança", "v27_change_related_kpi", {"mes": month}, {"source": "monthly_kpi", "confidence": 0.95})
+            except Exception:
+                pass
+        clauses = ["case_id = ?", "codigo_tipo = 'INC'", "is_change_related = TRUE"]
+        params: list[Any] = [case_id]
+        if month:
+            clauses.append("mes = ?")
+            params.append(month)
+        sql = f"SELECT COUNT(DISTINCT numero) FROM {self.TABLE} WHERE " + " AND ".join(clauses) + " AND numero <> ''"
+        with self._connect() as con:
+            total = int(con.execute(sql, params).fetchone()[0] or 0)
+        return self._response(case_id, f"{total} incidente(s) relacionados a mudança", "v27_change_related_count", {"mes": month}, {"sql": sql, "confidence": 0.90})
+
+    def _v27_systemic_incidents(self, case_id: str, question: str) -> dict[str, Any] | None:
+        q = _norm(question)
+        if not any(x in q for x in ["indisponibilidade sistemica", "indisponibilidade sistêmica", "incidentes sistemicos", "incidentes sistêmicos", "parada sistemica", "parada sistêmica"]):
+            return None
+        if not any(x in q for x in ["quais", "liste", "listar", "lista", "incidentes"]):
+            return None
+        month = self._v27_explicit_or_memory_month(case_id, question)
+        clauses = ["case_id = ?", "codigo_tipo = 'INC'", "is_parada_sistemica = TRUE"]
+        params: list[Any] = [case_id]
+        if month:
+            clauses.append("mes = ?")
+            params.append(month)
+        sql = f"SELECT DISTINCT numero FROM {self.TABLE} WHERE " + " AND ".join(clauses) + " AND numero <> '' ORDER BY numero LIMIT 500"
+        with self._connect() as con:
+            codes = [str(r[0]).upper() for r in con.execute(sql, params).fetchall() if r[0]]
+        self._v17_save_context(case_id, context_type="systemic_incidents", month=month, codes=codes, code_type="INC") if hasattr(self, "_v17_save_context") else None
+        return self._response(case_id, "\n".join(codes) if codes else "Nenhum incidente sistêmico encontrado.", "v27_systemic_incidents", {"mes": month}, {"sql": sql, "count": len(codes), "confidence": 0.94})
+
+    def _v27_change_list_by_group(self, case_id: str, question: str) -> dict[str, Any] | None:
+        q = _norm(question)
+        if not any(x in q for x in ["mudancas do grupo", "mudanças do grupo", "changes do grupo", "change do grupo", "quais mudancas", "quais mudanças", "quais changes"]):
+            return None
+        group = self._stable_extract_group(question) if hasattr(self, "_stable_extract_group") else ""
+        if not group:
+            m = re.search(r"grupo\s+([^?]+)$", question or "", flags=re.I)
+            group = m.group(1).strip() if m else ""
+        if self._v27_is_placeholder_value(group):
+            return self._response(case_id, "Informe o nome real do grupo de atribuição para eu listar as mudanças.", "v27_placeholder_group", {"group": group}, {"needs_user_value": True, "confidence": 0.99})
+        if not group:
+            return None
+        month = self._v27_explicit_or_memory_month(case_id, question) if self._v27_has_explicit_month(question) else ""
+        clauses = ["case_id = ?", "codigo_tipo = 'CHG'", "grupo_atribuicao ILIKE ?"]
+        params: list[Any] = [case_id, f"%{group}%"]
+        if month:
+            clauses.append("mes = ?")
+            params.append(month)
+        sql = f"SELECT DISTINCT numero FROM {self.TABLE} WHERE " + " AND ".join(clauses) + " AND numero <> '' ORDER BY numero LIMIT 500"
+        with self._connect() as con:
+            codes = [str(r[0]).upper() for r in con.execute(sql, params).fetchall() if r[0]]
+        self._v17_save_context(case_id, context_type="change_list_by_group", month=month, codes=codes, code_type="CHG") if hasattr(self, "_v17_save_context") else None
+        return self._response(case_id, "\n".join(codes) if codes else "Nenhuma mudança encontrada para esse grupo.", "v27_change_list_by_group", {"grupo_atribuicao": group, "mes": month}, {"sql": sql, "count": len(codes), "confidence": 0.94})
+
+    def _v27_context_guard(self, case_id: str, question: str) -> dict[str, Any] | None:
+        """Guarda de contexto antes do planner genérico para evitar base inteira sem intenção."""
+        q = _norm(question)
+
+        # Placeholder explícito: não trata X como grupo real.
+        if re.search(r"\bgrupo\s+x\b", q):
+            return self._response(case_id, "Informe o nome real do grupo de atribuição para eu consultar.", "v27_placeholder_group", {}, {"needs_user_value": True, "confidence": 0.99})
+
+        # Perguntas operacionais por mês: roteia diretamente ao KPI mensal.
+        month = self._v27_explicit_or_memory_month(case_id, question)
+        if month and any(x in q for x in ["operacionalmente", "operacional", "como ficou", "como foi", "cenario operacional", "cenário operacional", "resumo executivo"]):
+            if not any(x in q for x in ["funcionalidade", "grupo", "causa", "mudanca", "mudança", "change", "p1", "p2", "p3", "maior impacto", "mttr", "parada"]):
+                ans = self._v27_kpi_summary_answer(case_id, month, "APP")
+                if ans:
+                    return ans
+
+        # Follow-up de maior impacto entre itens previamente listados.
+        ans = self._v27_largest_impact_among_last_codes(case_id, question)
+        if ans:
+            return ans
+
+        # Listagem de mudanças por grupo deve listar CHG, não ranquear grupos.
+        ans = self._v27_change_list_by_group(case_id, question)
+        if ans:
+            return ans
+
+        # Indisponibilidade sistêmica deve usar flag booleana/critério restrito.
+        ans = self._v27_systemic_incidents(case_id, question)
+        if ans:
+            return ans
+
+        # Contagem P1/P2/P3 deve herdar mês/contexto quando existir.
+        pr = re.search(r"\b(P[1-5])\b", question or "", flags=re.I)
+        if pr and any(x in q for x in ["quantos", "quantas", "total", "qtd", "qtde", "tivemos"]):
+            ans = self._v27_priority_answer(case_id, question, pr.group(1).upper(), month=month)
+            if ans:
+                return ans
+
+        # Incidentes relacionados/causados por mudança.
+        ans = self._v27_change_related_count(case_id, question)
+        if ans:
+            return ans
+
+        return None
+
     def _answer_structured(self, case_id: str, question: str) -> dict[str, Any]:
         q = _norm(question)
         context = dict(self.memory.get(case_id) or {})
+
+        # V27: Context Guard conservador antes do planner genérico.
+        # Resolve escopo/mês/follow-up e evita respostas globais acidentais.
+        v27_answer = self._v27_context_guard(case_id, question) if hasattr(self, "_v27_context_guard") else None
+        if v27_answer:
+            return v27_answer
 
         # V21: planner genérico LLM + execução determinística.
         # Não substitui as rotas validadas; atua como camada flexível para perguntas novas.
