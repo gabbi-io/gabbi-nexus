@@ -6451,3 +6451,296 @@ try:
     KnowledgeStructuredStore.answer_question = _v26_answer_question
 except Exception:
     pass
+
+# -----------------------------------------------------------------------------
+# V28 - Context State Guard + Safe Drilldown/List Filters
+# Objetivo:
+# - Priorizar código explícito (INC/CHG) antes de rotas sistêmicas/causas.
+# - Follow-up com "deles/ele/acima" nunca deve cair em base inteira.
+# - Códigos de uma causa/ranking anterior devem respeitar causa + mês + tipo INC.
+# - Contagem de incidentes relacionados a mudança salva os códigos no contexto.
+# - P1/P2/P3 usa contexto mensal e valida consistência.
+# -----------------------------------------------------------------------------
+
+def _v28_norm(value):
+    try:
+        return _v25_norm_text(value)
+    except Exception:
+        return _norm(value)
+
+
+def _v28_extract_codes(text, prefix=None):
+    pat = r"\b(?:INC|CHG)\d{5,}\b" if not prefix else rf"\b{re.escape(prefix.upper())}\d{{5,}}\b"
+    out = []
+    for m in re.finditer(pat, str(text or ""), flags=re.I):
+        code = m.group(0).upper()
+        if code not in out:
+            out.append(code)
+    return out
+
+
+def _v28_month_from_question_or_memory(self, case_id, question, chat_history=None):
+    try:
+        month = _v26_context_month(self, case_id, question, chat_history)
+        if month:
+            return month
+    except Exception:
+        pass
+    mem = dict(self.memory.get(case_id) or {})
+    return mem.get("mes") or (mem.get("last_result") or {}).get("month") or (mem.get("last_plan") or {}).get("mes") or ""
+
+
+def _v28_context_codes(self, case_id, prefix=None, chat_history=None):
+    mem = dict(self.memory.get(case_id) or {})
+    candidates = []
+    candidates.extend(mem.get("last_codes") or [])
+    candidates.extend((mem.get("last_result") or {}).get("codes") or [])
+    candidates.extend(mem.get("last_focus_codes") or [])
+    if not candidates and chat_history:
+        for item in reversed(chat_history or []):
+            if not isinstance(item, dict):
+                continue
+            txt = " ".join(str(item.get(k) or "") for k in ["answer_text", "answer", "content", "summary"])
+            found = _v28_extract_codes(txt, prefix=prefix)
+            if found:
+                candidates.extend(found)
+                break
+    out = []
+    for c in candidates:
+        c = str(c).upper().strip()
+        if prefix and not c.startswith(prefix.upper()):
+            continue
+        if re.match(r"^(INC|CHG)\d{5,}$", c) and c not in out:
+            out.append(c)
+    return out
+
+
+def _v28_detail_code(self, case_id, code):
+    code = str(code or "").upper().strip()
+    if not re.match(r"^(INC|CHG)\d{5,}$", code):
+        return None
+    with self._connect() as con:
+        cur = con.execute(f"""
+            SELECT numero, codigo_tipo, mes, tipo, estado, ic_impactado, grupo_atribuicao,
+                   canal, prioridade, data_inicio_planejada, data_termino_planejada,
+                   causado_pela_mudanca, descricao_resumida, descricao, tempo_impacto,
+                   causa_origem, is_parada_sistemica, is_change_related
+            FROM {self.TABLE}
+            WHERE case_id = ? AND UPPER(numero) = ?
+            LIMIT 1
+        """, [case_id, code])
+        row = cur.fetchone()
+        names = [d[0] for d in cur.description]
+    if not row:
+        return self._response(case_id, f"Não encontrei o registro {code} na base estruturada.", "v28_code_not_found", {"code": code}, {"confidence": 0.8})
+    r = dict(zip(names, row))
+    tipo_reg = r.get("codigo_tipo") or ("INC" if code.startswith("INC") else "CHG")
+    title = "incidente" if tipo_reg == "INC" else "mudança"
+    lines = [f"Detalhamento de {code}", ""]
+    lines.append(f"- Tipo de registro: {tipo_reg}")
+    lines.append(f"- Mês: {r.get('mes') or '-'}")
+    lines.append(f"- Tipo: {r.get('tipo') or '-'}")
+    lines.append(f"- Estado/Status: {r.get('estado') or '-'}")
+    lines.append(f"- IC Impactado: {r.get('ic_impactado') or '-'}")
+    lines.append(f"- Grupo de atribuição: {r.get('grupo_atribuicao') or '-'}")
+    lines.append(f"- Canal: {r.get('canal') or '-'}")
+    lines.append(f"- Prioridade: {r.get('prioridade') or '-'}")
+    if r.get("tempo_impacto"):
+        lines.append(f"- Tempo de impacto: {r.get('tempo_impacto')}")
+    if r.get("causa_origem"):
+        lines.append(f"- Causa origem: {r.get('causa_origem')}")
+    lines.append(f"- Causado pela mudança: {r.get('causado_pela_mudanca') or '-'}")
+    lines.append(f"- Indisponibilidade sistêmica: {'Sim' if r.get('is_parada_sistemica') else 'Não'}")
+    lines.append("")
+    if r.get("descricao_resumida"):
+        lines.append("Descrição resumida:")
+        lines.append(str(r.get("descricao_resumida")))
+        lines.append("")
+    if r.get("descricao"):
+        lines.append("Descrição:")
+        desc = str(r.get("descricao"))
+        lines.append(desc[:1200] + ("\n..." if len(desc) > 1200 else ""))
+    _v25_set_context(self, case_id, mes=r.get("mes"), focus_code=code, last_codes=[code], last_result={"type": "detail", "code": code, "codes": [code], "month": r.get("mes"), "record_type": tipo_reg})
+    return self._response(case_id, "\n".join(lines), "v28_explicit_code_detail", {"code": code, "record_type": tipo_reg}, {"confidence": 0.96})
+
+
+def _v28_priority_count(self, case_id, question, month):
+    q = _v28_norm(question)
+    m = re.search(r"\bp([1-5])\b", q)
+    if not m or not ("incidente" in q or "incidentes" in q):
+        return None
+    if not any(x in q for x in ["quantos", "quantas", "qtd", "qtde", "total", "tivemos"]):
+        return None
+    prio = "P" + m.group(1)
+    # Preferência: documento KPI mensal oficial APP, se houver.
+    if month and prio in {"P1", "P2", "P3"}:
+        try:
+            kpi_text = self._v14_kpi_text(case_id, month) if hasattr(self, "_v14_kpi_text") else ""
+            if kpi_text and hasattr(self, "_v9_extract_kpi_value"):
+                val = self._v9_extract_kpi_value(kpi_text, prio.lower())
+                if val not in (None, ""):
+                    _v25_set_context(self, case_id, mes=month, scope="APP", last_query_type="priority_count")
+                    return self._response(case_id, str(int(val)), "v28_priority_count_kpi", {"mes": month, "prioridade": prio, "source": "monthly_kpi"}, {"confidence": 0.95})
+        except Exception:
+            pass
+    params = [case_id, prio]
+    where = ["codigo_tipo = 'INC'", "UPPER(prioridade) LIKE '%' || ? || '%'"]
+    if month:
+        where.append("mes = ?")
+        params.append(month)
+    sql = f"SELECT COUNT(DISTINCT numero) FROM {self.TABLE} WHERE case_id = ? AND {' AND '.join(where)}"
+    with self._connect() as con:
+        total = con.execute(sql, params).fetchone()[0]
+    _v25_set_context(self, case_id, mes=month, last_query_type="priority_count")
+    return self._response(case_id, str(int(total or 0)), "v28_priority_count_structured", {"mes": month, "prioridade": prio}, {"confidence": 0.9})
+
+
+def _v28_change_related_count_or_codes(self, case_id, question, month, chat_history=None):
+    q = _v28_norm(question)
+    asks_change_related = "incidente" in q and any(x in q for x in [
+        "causados por mudanca", "causados por mudança", "causado por mudanca", "causado por mudança",
+        "relacionados a chg", "relacionados a change", "relacionados a mudanca", "relacionados a mudança",
+        "por mudanca", "por mudança"
+    ])
+    asks_codes = any(x in q for x in ["codigo", "código", "codigos", "códigos", "liste", "listar", "me liste", "traga"])
+    mem = dict(self.memory.get(case_id) or {})
+    # Follow-up: "código dos 46 incidentes acima" depois da contagem.
+    if asks_codes and any(x in q for x in ["acima", "deles", "desses", "destes", "dos "]):
+        lr = mem.get("last_result") or {}
+        if lr.get("type") == "change_related_count" and lr.get("codes"):
+            codes = [c for c in lr.get("codes") if str(c).upper().startswith("INC")]
+            _v25_set_context(self, case_id, last_codes=codes, last_result={**lr, "codes": codes})
+            return self._response(case_id, "\n".join(codes), "v28_change_related_codes_followup", {"mes": lr.get("month") or month}, {"confidence": 0.94, "count": len(codes)})
+    if not asks_change_related:
+        return None
+    params = [case_id]
+    where = ["codigo_tipo = 'INC'", "is_change_related = TRUE"]
+    if month:
+        where.append("mes = ?")
+        params.append(month)
+    sql = f"SELECT DISTINCT numero FROM {self.TABLE} WHERE case_id = ? AND {' AND '.join(where)} ORDER BY numero"
+    with self._connect() as con:
+        codes = [r[0] for r in con.execute(sql, params).fetchall() if r and r[0]]
+    _v25_set_context(self, case_id, mes=month, last_codes=codes, last_result={"type": "change_related_count", "codes": codes, "count": len(codes), "month": month, "record_type": "INC"}, last_query_type="change_related_count")
+    if asks_codes:
+        return self._response(case_id, "\n".join(codes) if codes else "Nenhum registro encontrado.", "v28_change_related_codes", {"mes": month}, {"confidence": 0.94, "count": len(codes)})
+    return self._response(case_id, f"{len(codes)} incidente(s) relacionados a mudança", "v28_change_related_count", {"mes": month}, {"confidence": 0.94, "count": len(codes)})
+
+
+def _v28_codes_by_cause(self, case_id, question, month, chat_history=None):
+    q_raw = str(question or "")
+    q = _v28_norm(q_raw)
+    asks_codes = any(x in q for x in ["codigo", "código", "codigos", "códigos", "liste", "listar", "me mande", "traga"])
+    if not asks_codes:
+        return None
+    # Detecta causa explícita em perguntas como: "código dos 18 da lista - SHADOW IT - SUPORTE NEGÓCIO"
+    cause = ""
+    m = re.search(r"-\s*([A-ZÁÀÂÃÉÊÍÓÔÕÚÇ0-9 _/]+(?:NEG[ÓO]CIO|APLICA[ÇC][ÃA]O|MUDANCA|MUDANÇA|ENGENHARIA|PARCEIROS|BANCO DE DADOS|PARAMETRIZACAO|PARAMETRIZAÇÃO)[A-ZÁÀÂÃÉÊÍÓÔÕÚÇ0-9 _/]*)", q_raw, flags=re.I)
+    if m:
+        cause = " ".join(m.group(1).replace(":", " ").split()).upper()
+    if not cause:
+        known = [
+            "SHADOW IT - SUPORTE NEGÓCIO", "SHADOW IT - SUPORTE NEGOCIO", "SISTEMAS - APLICAÇÃO", "SISTEMAS - APLICACAO",
+            "TI - MUDANCA", "TI - MUDANÇA", "MUDANCA", "MUDANÇA", "PARCEIROS", "ENGENHARIA",
+            "SISTEMAS - PARAMETRIZACAO", "SISTEMAS - PARAMETRIZAÇÃO", "INFRAESTRUTURA - BANCO DE DADOS"
+        ]
+        nq = _v28_norm(q_raw)
+        for k in known:
+            if _v28_norm(k) in nq:
+                cause = k.upper()
+                break
+    if not cause:
+        return None
+    params = [case_id, f"%{cause}%"]
+    where = ["codigo_tipo = 'INC'", "UPPER(causa_origem) LIKE ?"]
+    if month:
+        where.append("mes = ?")
+        params.append(month)
+    sql = f"SELECT DISTINCT numero FROM {self.TABLE} WHERE case_id = ? AND {' AND '.join(where)} ORDER BY numero"
+    with self._connect() as con:
+        codes = [r[0] for r in con.execute(sql, params).fetchall() if r and r[0]]
+    _v25_set_context(self, case_id, mes=month, last_codes=codes, last_result={"type": "cause_code_list", "cause": cause, "codes": codes, "month": month, "record_type": "INC"})
+    return self._response(case_id, "\n".join(codes) if codes else "Nenhum registro encontrado.", "v28_codes_by_cause", {"mes": month, "causa": cause}, {"confidence": 0.93, "count": len(codes)})
+
+
+def _v28_largest_impact_followup(self, case_id, question, chat_history=None):
+    q = _v28_norm(question)
+    if not any(x in q for x in ["qual deles teve maior impacto", "qual deles demorou mais", "qual teve maior impacto", "deles teve maior impacto", "maior impacto deles"]):
+        return None
+    codes = _v28_context_codes(self, case_id, prefix="INC", chat_history=chat_history)
+    if not codes:
+        return self._response(case_id, "Não há uma lista anterior de incidentes em memória para comparar. Liste os incidentes primeiro ou informe os códigos.", "v28_no_context_codes_for_impact", {}, {"confidence": 0.88})
+    row = _v25_top_incident_by_impact(self, case_id, codes=codes)
+    if not row:
+        return self._response(case_id, "Não encontrei tempo de impacto para os incidentes do contexto atual.", "v28_no_impact_for_context_codes", {"codes": codes[:50]}, {"confidence": 0.86})
+    _v25_set_context(self, case_id, focus_code=row["code"], last_codes=[row["code"]], last_result={"type": "major_impact_followup", "codes": [row["code"]], "source_codes": codes})
+    return self._response(case_id, f"{row['code']} ({row['priority']}) — {row['description']} — impacto {row['duration']}", "v28_largest_impact_followup", {"codes_considered": len(codes)}, {"confidence": 0.96})
+
+
+def _v28_pre_answer(self, case_id, question, chat_history=None):
+    q = _v28_norm(question)
+    month = _v28_month_from_question_or_memory(self, case_id, question, chat_history)
+
+    # 1) Código explícito ganha de qualquer rota sistêmica/causa/follow-up.
+    explicit_codes = _v28_extract_codes(question)
+    if explicit_codes:
+        # Se for pedido detalhe/descrição ou só o código isolado, detalha o primeiro.
+        if any(x in q for x in ["detalhe", "detalhar", "descreva", "descrever", "resuma", "explique", "fale sobre"]) or q.strip().upper() == explicit_codes[0]:
+            return _v28_detail_code(self, case_id, explicit_codes[0])
+
+    # 2) Follow-up de maior impacto deve usar último conjunto, antes de comparações mensais.
+    ans = _v28_largest_impact_followup(self, case_id, question, chat_history)
+    if ans is not None:
+        return ans
+
+    # 3) Códigos de causa/ranking anterior precisam filtrar por causa + mês + INC.
+    ans = _v28_codes_by_cause(self, case_id, question, month, chat_history)
+    if ans is not None:
+        return ans
+
+    # 4) Incidentes relacionados a mudança: conta e salva códigos para follow-up.
+    ans = _v28_change_related_count_or_codes(self, case_id, question, month, chat_history)
+    if ans is not None:
+        return ans
+
+    # 5) Prioridade com contexto/KPI.
+    ans = _v28_priority_count(self, case_id, question, month)
+    if ans is not None:
+        return ans
+
+    return None
+
+
+try:
+    _V28_PREVIOUS_ANSWER_QUESTION = KnowledgeStructuredStore.answer_question
+
+    def _v28_answer_question(self, case_id: str, question: str, chat_history: list[dict[str, Any]] | None = None):
+        try:
+            pre = _v28_pre_answer(self, case_id, question, chat_history)
+            if pre is not None:
+                return pre
+        except Exception as exc:
+            try:
+                print(f"[V28][WARN] pre_answer failed: {type(exc).__name__}: {exc}")
+            except Exception:
+                pass
+        result = _V28_PREVIOUS_ANSWER_QUESTION(self, case_id, question, chat_history)
+        # Pós-processamento: guarda códigos e mês quando a rota anterior respondeu corretamente.
+        try:
+            answer_text = ""
+            if isinstance(result, dict):
+                answer_text = str(result.get("answer_text") or result.get("summary") or "")
+            codes = _v28_extract_codes(answer_text)
+            month = _v28_month_from_question_or_memory(self, case_id, question, chat_history)
+            if codes:
+                record_type = "INC" if all(c.startswith("INC") for c in codes) else ("CHG" if all(c.startswith("CHG") for c in codes) else "MIXED")
+                _v25_set_context(self, case_id, mes=month, last_codes=codes, last_result={"type": "code_list", "codes": codes, "month": month, "record_type": record_type})
+            elif month:
+                _v25_set_context(self, case_id, mes=month)
+        except Exception:
+            pass
+        return result
+
+    KnowledgeStructuredStore.answer_question = _v28_answer_question
+except Exception:
+    pass
