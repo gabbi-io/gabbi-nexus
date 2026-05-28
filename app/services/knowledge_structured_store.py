@@ -3740,455 +3740,9 @@ Regras:
 
         return None
 
-
-
-    # ---------------------------------------------------------------------
-    # V30 - Enterprise Intent Refinement / Context Persistence / Classifier
-    # ---------------------------------------------------------------------
-
-    def _v30_month_from_question_or_memory(self, case_id: str, question: str) -> str:
-        """Mês efetivo: pergunta explícita > resolvedores anteriores > memória."""
-        try:
-            m = self._stable_month_from_question(question)
-            if m:
-                return m
-        except Exception:
-            pass
-        try:
-            m = self._v27_explicit_or_memory_month(case_id, question)
-            if m:
-                return m
-        except Exception:
-            pass
-        mem = dict(self.memory.get(case_id) or {})
-        return str(mem.get("mes") or (mem.get("last_result") or {}).get("month") or "")
-
-    def _v30_remember_scope(self, case_id: str, *, month: str | None = None, scope: str | None = None, intent: str | None = None, codes: list[Any] | None = None, code_type: str | None = "INC", focus_code: str | None = None, extra: dict[str, Any] | None = None) -> None:
-        mem = dict(self.memory.get(case_id) or {})
-        if month:
-            mem["mes"] = month
-            mem["last_period"] = month
-        if scope:
-            mem["scope"] = scope
-            mem["last_scope"] = scope
-        if intent:
-            mem["last_intent"] = intent
-            mem["last_query_type"] = intent
-        if codes:
-            clean = self._v17_clean_codes(codes, code_type) if hasattr(self, "_v17_clean_codes") else [str(c).upper() for c in codes]
-            if clean:
-                mem["last_codes"] = clean[:500]
-                mem["last_result_count"] = len(clean)
-                mem["last_result"] = {"type": intent or "list", "month": month or mem.get("mes"), "scope": scope or mem.get("scope"), "codes": clean[:500], "code_type": code_type}
-        elif intent:
-            lr = dict(mem.get("last_result") or {})
-            lr.update({"type": intent, "month": month or mem.get("mes"), "scope": scope or mem.get("scope")})
-            mem["last_result"] = lr
-        if focus_code:
-            mem["last_focus_code"] = str(focus_code).upper()
-            mem["last_detail_code"] = str(focus_code).upper()
-        if extra:
-            mem.update(extra)
-        self.memory[case_id] = mem
-
-    def _v30_is_short_period_followup(self, question: str) -> bool:
-        q = _norm(question)
-        return bool(re.fullmatch(r"(e\s+)?(em\s+)?(janeiro|fevereiro|marco|março|abril|maio|junho|julho|agosto|setembro|outubro|novembro|dezembro|20\d{2}[-/]\d{1,2}|\d{1,2}[-/]20\d{2})\??", q))
-
-    def _v30_short_period_followup(self, case_id: str, question: str) -> dict[str, Any] | None:
-        if not self._v30_is_short_period_followup(question):
-            return None
-        month = self._stable_month_from_question(question) or self._extract_month_from_question(_norm(question))
-        if not month:
-            return None
-        mem = dict(self.memory.get(case_id) or {})
-        intent = mem.get("last_intent") or mem.get("last_query_type") or (mem.get("last_result") or {}).get("type") or "kpi_summary"
-        # Continuação de resumo operacional: "e em setembro?".
-        if any(x in str(intent) for x in ["kpi", "summary", "operational", "operacional"]):
-            ans = self._v27_kpi_summary_answer(case_id, month, mem.get("scope") or "APP") if hasattr(self, "_v27_kpi_summary_answer") else None
-            if ans:
-                self._v30_remember_scope(case_id, month=month, scope=mem.get("scope") or "APP", intent="kpi_summary")
-                return ans
-        # Continuação de ranking de funcionalidade.
-        if any(x in str(intent) for x in ["functionality", "funcionalidade", "area", "pain"]):
-            return self._v30_top_functionality(case_id, f"qual área mais sofreu em {month}", month=month, limit=1)
-        return self._v27_kpi_summary_answer(case_id, month, mem.get("scope") or "APP") if hasattr(self, "_v27_kpi_summary_answer") else None
-
-    def _v30_monthly_kpi(self, case_id: str, month: str) -> dict[str, Any]:
-        try:
-            if hasattr(self, "_v17_monthly_kpi"):
-                k = self._v17_monthly_kpi(case_id, month)
-                if k:
-                    return dict(k)
-        except Exception:
-            pass
-        try:
-            if hasattr(self, "_v15_monthly_kpi"):
-                k = self._v15_monthly_kpi(case_id, month)
-                if k:
-                    return dict(k)
-        except Exception:
-            pass
-        return {}
-
-    def _v30_kpi_systemic_codes(self, case_id: str, month: str) -> list[str]:
-        # Fonte preferencial: KPI mensal parseado, pois já representa o critério executivo validado.
-        try:
-            k = self._v30_monthly_kpi(case_id, month)
-            codes = k.get("systemic_codes") or []
-            codes = self._v17_clean_codes(codes, "INC") if hasattr(self, "_v17_clean_codes") else [str(c).upper() for c in codes]
-            if codes:
-                return codes
-        except Exception:
-            pass
-        try:
-            text = self._v14_kpi_text(case_id, month) if hasattr(self, "_v14_kpi_text") else ""
-            codes = self._v14_extract_systemic_codes(text) if text and hasattr(self, "_v14_extract_systemic_codes") else []
-            codes = self._v17_clean_codes(codes, "INC") if hasattr(self, "_v17_clean_codes") else [str(c).upper() for c in codes]
-            if codes:
-                return codes
-        except Exception:
-            pass
-        # Fallback estrito: usa score mais restritivo, não qualquer "indisponibilidade".
-        clauses = ["case_id = ?", "codigo_tipo = 'INC'", "numero <> ''"]
-        params: list[Any] = [case_id]
-        if month:
-            clauses.append("mes = ?")
-            params.append(month)
-        strict = """
-        (
-          is_parada_sistemica = TRUE AND
-          (
-            UPPER(COALESCE(descricao_resumida,'')) LIKE '%INDISPONIBILIDADE TOTAL%'
-            OR UPPER(COALESCE(descricao_resumida,'')) LIKE '%TELA DE MANUTENCAO%'
-            OR UPPER(COALESCE(descricao_resumida,'')) LIKE '%TELA DE MANUTENÇÃO%'
-            OR UPPER(COALESCE(descricao_resumida,'')) LIKE '%PARADA TOTAL%'
-            OR UPPER(COALESCE(descricao,'')) LIKE '%MASSIVO%'
-          )
-        )
-        """
-        sql = f"SELECT DISTINCT numero FROM {self.TABLE} WHERE " + " AND ".join(clauses) + f" AND {strict} ORDER BY numero"
-        with self._connect() as con:
-            return [str(r[0]).upper() for r in con.execute(sql, params).fetchall() if r[0]]
-
-    def _v30_systemic_followup(self, case_id: str, question: str) -> dict[str, Any] | None:
-        q = _norm(question)
-        if not any(x in q for x in ["quais deles", "deles", "esses", "lista", "listados"]):
-            return None
-        if not any(x in q for x in ["indisponibilidade", "sistemica", "sistêmica", "parada"]):
-            return None
-        mem = dict(self.memory.get(case_id) or {})
-        month = self._v30_month_from_question_or_memory(case_id, question)
-        codes = mem.get("last_codes") or (mem.get("last_result") or {}).get("codes") or []
-        codes = self._v17_clean_codes(codes, "INC") if hasattr(self, "_v17_clean_codes") else [str(c).upper() for c in codes]
-        systemic = self._v30_kpi_systemic_codes(case_id, month) if month else []
-        if systemic and codes:
-            out = [c for c in systemic if c in set(codes)]
-        elif systemic:
-            out = systemic
-        else:
-            out = []
-        self._v30_remember_scope(case_id, month=month, scope=mem.get("scope") or "APP", intent="systemic_followup", codes=out, code_type="INC")
-        return self._response(case_id, "\n".join(out) if out else "Nenhum incidente do último conjunto foi classificado como sistêmico.", "v30_systemic_followup", {"mes": month}, {"source": "monthly_kpi_or_strict_classifier", "count": len(out), "confidence": 0.97})
-
-    def _v30_systemic_list(self, case_id: str, question: str) -> dict[str, Any] | None:
-        q = _norm(question)
-        if not any(x in q for x in ["indisponibilidade sistemica", "indisponibilidade sistêmica", "incidentes sistemicos", "incidentes sistêmicos", "parada sistemica", "parada sistêmica", "liste os incidentes sistemicos", "liste os incidentes sistêmicos"]):
-            return None
-        if not any(x in q for x in ["quais", "liste", "listar", "lista", "incidentes"]):
-            return None
-        month = self._v30_month_from_question_or_memory(case_id, question)
-        codes = self._v30_kpi_systemic_codes(case_id, month)
-        mem = dict(self.memory.get(case_id) or {})
-        self._v30_remember_scope(case_id, month=month, scope=mem.get("scope") or "APP", intent="systemic_incidents", codes=codes, code_type="INC")
-        return self._response(case_id, "\n".join(codes) if codes else "Nenhum incidente sistêmico encontrado com critério estrito para esse recorte.", "v30_systemic_list", {"mes": month}, {"source": "monthly_kpi_or_strict_classifier", "count": len(codes), "confidence": 0.97})
-
-    def _v30_list_app_incidents(self, case_id: str, question: str) -> dict[str, Any] | None:
-        q = _norm(question)
-        if not (any(x in q for x in ["liste", "listar", "me liste", "me traga", "quais incidentes", "incidentes tivemos"]) and "incidente" in q and "app" in q):
-            return None
-        # Se o usuário citou sistêmico/indisponibilidade, outra rota cuida.
-        if any(x in q for x in ["indisponibilidade", "sistemica", "sistêmica", "parada"]):
-            return None
-        month = self._v30_month_from_question_or_memory(case_id, question)
-        clauses = ["case_id = ?", "codigo_tipo = 'INC'", "is_app = TRUE", "numero <> ''"]
-        params: list[Any] = [case_id]
-        if month:
-            clauses.append("mes = ?")
-            params.append(month)
-        sql = f"""
-            SELECT DISTINCT numero, COALESCE(tempo_impacto_segundos,0) AS impact
-            FROM {self.TABLE}
-            WHERE {' AND '.join(clauses)}
-            ORDER BY impact DESC, numero
-            LIMIT 500
-        """
-        with self._connect() as con:
-            codes = [str(r[0]).upper() for r in con.execute(sql, params).fetchall() if r[0]]
-        self._v30_remember_scope(case_id, month=month, scope="APP", intent="incident_list", codes=codes, code_type="INC")
-        return self._response(case_id, "\n".join(codes) if codes else "Nenhum incidente encontrado para esse recorte.", "v30_app_incident_list", {"mes": month, "scope": "APP"}, {"sql": sql, "count": len(codes), "confidence": 0.95})
-
-    def _v30_largest_impact_from_codes(self, case_id: str, question: str) -> dict[str, Any] | None:
-        q = _norm(question)
-        if not any(x in q for x in ["qual deles", "deles", "entre eles", "da lista", "dos incidentes"]):
-            return None
-        if not any(x in q for x in ["maior impacto", "mais impacto", "maior dor", "mais critico", "mais crítico", "demorou mais", "mais para resolver"]):
-            return None
-        mem = dict(self.memory.get(case_id) or {})
-        codes = mem.get("last_codes") or (mem.get("last_result") or {}).get("codes") or []
-        codes = self._v17_clean_codes(codes, "INC") if hasattr(self, "_v17_clean_codes") else [str(c).upper() for c in codes]
-        if not codes:
-            return None
-        placeholders = ",".join(["?"] * len(codes))
-        sql = f"""
-            SELECT numero, prioridade, descricao_resumida, tempo_impacto, tempo_impacto_segundos
-            FROM {self.TABLE}
-            WHERE case_id = ? AND numero IN ({placeholders})
-            ORDER BY COALESCE(tempo_impacto_segundos, 0) DESC
-            LIMIT 1
-        """
-        with self._connect() as con:
-            row = con.execute(sql, [case_id] + codes).fetchone()
-        if not row:
-            return None
-        numero, prio, desc, tempo, seg = row
-        impact = tempo if tempo else _seconds_to_hhmmss(seg or 0)
-        self._v30_remember_scope(case_id, month=mem.get("mes"), scope=mem.get("scope") or "APP", intent="largest_impact_from_memory", focus_code=numero)
-        return self._response(case_id, f"{numero} ({prio or '-'}) — {desc or '-'} — impacto {impact}", "v30_largest_impact_from_memory", {"codes": codes[:50]}, {"sql": sql, "confidence": 0.98})
-
-    def _v30_top_impact_incident(self, case_id: str, question: str, month: str | None = None) -> dict[str, Any] | None:
-        q = _norm(question)
-        if not any(x in q for x in ["maior dor operacional", "maior dor", "maior impacto operacional", "incidente mais critico", "incidente mais crítico", "qual incidente foi mais critico", "qual incidente foi mais crítico"]):
-            return None
-        # Perguntas de "área/módulo/funcionalidade" não entram aqui.
-        if any(x in q for x in ["area", "área", "modulo", "módulo", "funcionalidade", "jornada"]):
-            return None
-        month = month or self._v30_month_from_question_or_memory(case_id, question)
-        clauses = ["case_id = ?", "codigo_tipo = 'INC'", "numero <> ''"]
-        params: list[Any] = [case_id]
-        if month:
-            clauses.append("mes = ?")
-            params.append(month)
-        if "app" in q or (dict(self.memory.get(case_id) or {}).get("scope") == "APP"):
-            clauses.append("is_app = TRUE")
-        sql = f"""
-            SELECT numero, prioridade, descricao_resumida, tempo_impacto, tempo_impacto_segundos
-            FROM {self.TABLE}
-            WHERE {' AND '.join(clauses)}
-            ORDER BY COALESCE(tempo_impacto_segundos, 0) DESC
-            LIMIT 1
-        """
-        with self._connect() as con:
-            row = con.execute(sql, params).fetchone()
-        if not row:
-            return None
-        numero, prio, desc, tempo, seg = row
-        impact = tempo if tempo else _seconds_to_hhmmss(seg or 0)
-        self._v30_remember_scope(case_id, month=month, scope="APP" if "app" in q else None, intent="top_operational_impact", focus_code=numero)
-        return self._response(case_id, f"{numero} ({prio or '-'}) — {desc or '-'} — impacto {impact}", "v30_top_operational_impact", {"mes": month}, {"sql": sql, "confidence": 0.94})
-
-    def _v30_top_functionality(self, case_id: str, question: str, month: str | None = None, limit: int | None = None) -> dict[str, Any] | None:
-        q = _norm(question)
-        if not any(x in q for x in ["funcionalidade", "area", "área", "modulo", "módulo", "jornada", "o que mais deu problema", "qual modulo foi pior", "qual módulo foi pior", "onde tivemos mais dor", "mais impactou clientes", "mais sofreu"]):
-            return None
-        # "maior dor operacional" sem área/módulo deve ser incidente por impacto, não funcionalidade.
-        if "maior dor operacional" in q and not any(x in q for x in ["area", "área", "modulo", "módulo", "funcionalidade"]):
-            return None
-        month = month or self._v30_month_from_question_or_memory(case_id, question)
-        clauses = ["case_id = ?", "codigo_tipo = 'INC'", "is_app = TRUE"]
-        params: list[Any] = [case_id]
-        if month:
-            clauses.append("mes = ?")
-            params.append(month)
-        # Usa funcionalidade semântica já materializada/virtual, caindo para funcionalidade bruta quando existir.
-        group_expr = "COALESCE(NULLIF(semantic_functionality,''), NULLIF(funcionalidade,''), 'Não informado')"
-        sql = f"""
-            SELECT {group_expr} AS funcionalidade, COUNT(DISTINCT numero) AS total
-            FROM {self.TABLE}
-            WHERE {' AND '.join(clauses)} AND numero <> ''
-            GROUP BY 1
-            HAVING funcionalidade <> 'Não informado'
-            ORDER BY total DESC, funcionalidade
-            LIMIT ?
-        """
-        lim = int(limit or (5 if any(x in q for x in ["top", "ranking", "compare"]) else 1))
-        with self._connect() as con:
-            rows = con.execute(sql, params + [lim]).fetchall()
-        if not rows:
-            return None
-        if lim == 1:
-            answer = f"{rows[0][0]}: {int(rows[0][1])} incidente(s)"
-        else:
-            answer = "Top funcionalidades:\n" + "\n".join([f"- {r[0]}: {int(r[1])}" for r in rows])
-        self._v30_remember_scope(case_id, month=month, scope="APP", intent="top_functionality")
-        return self._response(case_id, answer, "v30_top_functionality", {"mes": month, "scope": "APP"}, {"sql": sql, "rows": len(rows), "confidence": 0.92})
-
-    def _v30_change_related_codes_or_count(self, case_id: str, question: str) -> dict[str, Any] | None:
-        q = _norm(question)
-        is_change_related_q = any(x in q for x in ["causados por mudanca", "causados por mudança", "causado por mudanca", "causado por mudança", "relacionados a mudanca", "relacionados a mudança", "relacionados a chg", "relacionados a change"])
-        asks_codes = any(x in q for x in ["liste", "listar", "codigo", "código", "codigos", "códigos", "quais"])
-        if not (is_change_related_q or (asks_codes and any(x in q for x in ["deles", "acima", "relacionados"]))):
-            return None
-        month = self._v30_month_from_question_or_memory(case_id, question)
-        clauses = ["case_id = ?", "codigo_tipo = 'INC'", "is_change_related = TRUE", "numero <> ''"]
-        params: list[Any] = [case_id]
-        if month:
-            clauses.append("mes = ?")
-            params.append(month)
-        if asks_codes:
-            sql = f"SELECT DISTINCT numero FROM {self.TABLE} WHERE {' AND '.join(clauses)} ORDER BY numero"
-            with self._connect() as con:
-                codes = [str(r[0]).upper() for r in con.execute(sql, params).fetchall() if r[0]]
-            self._v30_remember_scope(case_id, month=month, scope="APP", intent="change_related_incidents", codes=codes, code_type="INC")
-            return self._response(case_id, "\n".join(codes) if codes else "Nenhum incidente relacionado a mudança encontrado.", "v30_change_related_codes", {"mes": month}, {"sql": sql, "count": len(codes), "confidence": 0.92})
-        # KPI oficial quando houver mês.
-        if month:
-            try:
-                kpi = self._v30_monthly_kpi(case_id, month)
-                val = kpi.get("change_related")
-                if val not in (None, ""):
-                    # Também salva códigos reais para follow-up.
-                    sql2 = f"SELECT DISTINCT numero FROM {self.TABLE} WHERE {' AND '.join(clauses)} ORDER BY numero"
-                    with self._connect() as con:
-                        codes = [str(r[0]).upper() for r in con.execute(sql2, params).fetchall() if r[0]]
-                    self._v30_remember_scope(case_id, month=month, scope="APP", intent="change_related_incidents", codes=codes, code_type="INC")
-                    return self._response(case_id, f"{val} incidente(s) relacionados a mudança", "v30_change_related_kpi", {"mes": month}, {"source": "monthly_kpi", "confidence": 0.95})
-            except Exception:
-                pass
-        sql = f"SELECT COUNT(DISTINCT numero) FROM {self.TABLE} WHERE {' AND '.join(clauses)}"
-        with self._connect() as con:
-            total = int(con.execute(sql, params).fetchone()[0] or 0)
-        return self._response(case_id, f"{total} incidente(s) relacionados a mudança", "v30_change_related_count", {"mes": month}, {"sql": sql, "confidence": 0.88})
-
-    def _v30_groups_change_related(self, case_id: str, question: str) -> dict[str, Any] | None:
-        q = _norm(question)
-        if not ("grupo" in q or "grupos" in q):
-            return None
-        if not any(x in q for x in ["relacionados a mudanca", "relacionados a mudança", "causados por mudanca", "causados por mudança", "mudanca", "mudança", "chg", "change"]):
-            return None
-        month = self._v30_month_from_question_or_memory(case_id, question)
-        clauses = ["case_id = ?", "codigo_tipo = 'INC'", "is_change_related = TRUE"]
-        params: list[Any] = [case_id]
-        if month:
-            clauses.append("mes = ?")
-            params.append(month)
-        group_expr = "COALESCE(NULLIF(grupo_atribuicao,''), NULLIF(operational_group,''), NULLIF(canal,''), 'Não informado')"
-        sql = f"""
-            SELECT {group_expr} AS grupo, COUNT(DISTINCT numero) AS total
-            FROM {self.TABLE}
-            WHERE {' AND '.join(clauses)} AND numero <> ''
-            GROUP BY 1
-            HAVING grupo <> 'Não informado'
-            ORDER BY total DESC, grupo
-            LIMIT 10
-        """
-        with self._connect() as con:
-            rows = con.execute(sql, params).fetchall()
-        answer = "Ranking de grupos com incidentes relacionados a mudança:" + ("\n" + "\n".join([f"- {r[0]}: {int(r[1])}" for r in rows]) if rows else "\nNenhum grupo encontrado para esse recorte.")
-        self._v30_remember_scope(case_id, month=month, scope="APP", intent="group_rank_change_related")
-        return self._response(case_id, answer, "v30_groups_change_related", {"mes": month}, {"sql": sql, "rows": len(rows), "confidence": 0.91})
-
-    def _v30_change_incident_correlation(self, case_id: str, question: str) -> dict[str, Any] | None:
-        q = _norm(question)
-        if not (any(x in q for x in ["mudancas", "mudanças", "changes", "chg", "mudanca", "mudança"]) and any(x in q for x in ["aumentar", "aumentam", "parecem", "correlacao", "correlação", "relação", "relacao", "impactam", "geram"]) and "incidente" in q):
-            return None
-        sql = f"""
-            WITH m AS (
-                SELECT mes,
-                       COUNT(DISTINCT CASE WHEN codigo_tipo='CHG' THEN numero END) AS changes,
-                       COUNT(DISTINCT CASE WHEN codigo_tipo='INC' THEN numero END) AS incidentes
-                FROM {self.TABLE}
-                WHERE case_id = ? AND mes IS NOT NULL AND mes <> '' AND numero <> ''
-                GROUP BY mes
-                ORDER BY mes
-            )
-            SELECT mes, changes, incidentes FROM m WHERE changes IS NOT NULL OR incidentes IS NOT NULL
-        """
-        with self._connect() as con:
-            rows = con.execute(sql, [case_id]).fetchall()
-        if len(rows) < 3:
-            return self._response(case_id, "Não há meses suficientes para avaliar correlação com segurança.", "v30_correlation_insufficient", {}, {"sql": sql, "confidence": 0.75})
-        xs = [float(r[1] or 0) for r in rows]
-        ys = [float(r[2] or 0) for r in rows]
-        def pearson(a,b):
-            n=len(a); ma=sum(a)/n; mb=sum(b)/n
-            va=sum((x-ma)**2 for x in a); vb=sum((y-mb)**2 for y in b)
-            if va <= 0 or vb <= 0: return 0.0
-            return sum((x-ma)*(y-mb) for x,y in zip(a,b))/(va**0.5*vb**0.5)
-        corr = pearson(xs, ys)
-        strength = "fraca" if abs(corr) < 0.3 else "moderada" if abs(corr) < 0.7 else "forte"
-        direction = "positiva" if corr > 0 else "negativa" if corr < 0 else "neutra"
-        lines = [
-            f"A relação mensal entre changes e incidentes parece {direction} e {strength} (correlação aproximada: {corr:.2f}).",
-            "Isso não prova causalidade; indica apenas associação estatística simples no histórico disponível.",
-            "Amostra por mês:",
-        ]
-        lines += [f"- {r[0]}: {int(r[1] or 0)} changes, {int(r[2] or 0)} incidentes" for r in rows[-6:]]
-        return self._response(case_id, "\n".join(lines), "v30_change_incident_correlation", {}, {"sql": sql, "correlation": corr, "confidence": 0.82})
-
-    def _v30_context_guard(self, case_id: str, question: str) -> dict[str, Any] | None:
-        """Camada final de refinamento: contexto, intent fino e classificação operacional."""
-        q = _norm(question)
-
-        # Código explícito sempre ganha de qualquer rota semântica.
-        code_match = re.search(r"\b(INC\d{5,}|CHG\d{5,})\b", question or "", flags=re.I)
-        if code_match and any(x in q for x in ["detalhe", "detalhar", "descreva", "descrever", "explique", "resuma", "problema"]):
-            if hasattr(self, "_v15_detail_by_code"):
-                return self._v15_detail_by_code(case_id, code_match.group(1).upper())
-            return self._answer_detail(case_id, code_match.group(1).upper(), question)
-
-        ans = self._v30_short_period_followup(case_id, question)
-        if ans:
-            return ans
-
-        ans = self._v30_systemic_followup(case_id, question)
-        if ans:
-            return ans
-
-        ans = self._v30_largest_impact_from_codes(case_id, question)
-        if ans:
-            return ans
-
-        ans = self._v30_systemic_list(case_id, question)
-        if ans:
-            return ans
-
-        ans = self._v30_list_app_incidents(case_id, question)
-        if ans:
-            return ans
-
-        ans = self._v30_groups_change_related(case_id, question)
-        if ans:
-            return ans
-
-        ans = self._v30_change_related_codes_or_count(case_id, question)
-        if ans:
-            return ans
-
-        ans = self._v30_change_incident_correlation(case_id, question)
-        if ans:
-            return ans
-
-        month = self._v30_month_from_question_or_memory(case_id, question)
-        ans = self._v30_top_impact_incident(case_id, question, month=month)
-        if ans:
-            return ans
-
-        ans = self._v30_top_functionality(case_id, question, month=month)
-        if ans:
-            return ans
-
-        return None
-
     def _answer_structured(self, case_id: str, question: str) -> dict[str, Any]:
         q = _norm(question)
         context = dict(self.memory.get(case_id) or {})
-
-        # V30: Context Guard final antes do planner genérico e antes do V27.
-        # Resolve contexto forte, maior impacto por conjunto, sistêmicos restritos, dor operacional e multi-hop.
-        v30_answer = self._v30_context_guard(case_id, question) if hasattr(self, "_v30_context_guard") else None
-        if v30_answer:
-            return v30_answer
 
         # V27: Context Guard conservador antes do planner genérico.
         # Resolve escopo/mês/follow-up e evita respostas globais acidentais.
@@ -7483,3 +7037,275 @@ try:
     KnowledgeStructuredStore.answer_question = _v29_answer_question
 except Exception:
     pass
+
+
+# -----------------------------------------------------------------------------
+# V31 - Stable Capability Wrapper
+# -----------------------------------------------------------------------------
+# Esta camada NÃO substitui o motor V29. Ela apenas adiciona guardrails antes do
+# planner genérico para evitar regressões:
+# - queries legadas CHG/INC vão primeiro para o motor estável validado;
+# - follow-up curto de período herda a intenção anterior;
+# - detalhe por código explícito tem prioridade absoluta;
+# - perguntas de sistêmicos usam KPI mensal como fonte preferencial;
+# - perguntas sem período herdam mês/escopo do estado quando apropriado.
+# -----------------------------------------------------------------------------
+
+_BaseKnowledgeStructuredStoreV31 = KnowledgeStructuredStore
+
+
+class KnowledgeStructuredStore(_BaseKnowledgeStructuredStoreV31):
+    def _v31_norm(self, value: Any) -> str:
+        try:
+            return _norm(value)
+        except Exception:
+            return str(value or "").lower().strip()
+
+    def _v31_month_from_question_or_memory(self, case_id: str, question: str) -> str:
+        # 1) mês explícito na pergunta
+        for fn in ["_stable_month_from_question", "_extract_month_from_question"]:
+            try:
+                if hasattr(self, fn):
+                    month = getattr(self, fn)(question if fn == "_stable_month_from_question" else self._v31_norm(question))
+                    if month:
+                        return str(month)
+            except Exception:
+                pass
+        # 2) resolvedores anteriores
+        try:
+            if hasattr(self, "_v27_explicit_or_memory_month"):
+                month = self._v27_explicit_or_memory_month(case_id, question)
+                if month:
+                    return str(month)
+        except Exception:
+            pass
+        # 3) memória estruturada
+        mem = dict(self.memory.get(case_id) or {})
+        return str(
+            mem.get("mes")
+            or mem.get("last_period")
+            or (mem.get("last_result") or {}).get("month")
+            or (mem.get("last_plan") or {}).get("mes")
+            or ""
+        )
+
+    def _v31_remember(self, case_id: str, *, month: str | None = None, scope: str | None = None,
+                      intent: str | None = None, codes: list[Any] | None = None,
+                      code_type: str | None = None, focus_code: str | None = None) -> None:
+        mem = dict(self.memory.get(case_id) or {})
+        if month:
+            mem["mes"] = month
+            mem["last_period"] = month
+        if scope:
+            mem["scope"] = scope
+            mem["last_scope"] = scope
+        if intent:
+            mem["last_intent"] = intent
+            mem["last_query_type"] = intent
+        if codes is not None:
+            prefix = (code_type or "").upper()
+            clean = []
+            for c in codes or []:
+                s = str(c or "").upper().strip()
+                if not s:
+                    continue
+                if prefix and not s.startswith(prefix):
+                    continue
+                if re.match(r"^(INC|CHG)\d{5,}$", s):
+                    clean.append(s)
+            clean = list(dict.fromkeys(clean))
+            mem["last_codes"] = clean[:1000]
+            mem["last_result_count"] = len(clean)
+            mem["last_result"] = {
+                "type": intent or "list",
+                "month": month or mem.get("mes"),
+                "scope": scope or mem.get("scope"),
+                "codes": clean[:1000],
+                "code_type": prefix or None,
+            }
+        if focus_code:
+            mem["last_focus_code"] = str(focus_code).upper()
+            mem["last_detail_code"] = str(focus_code).upper()
+        self.memory[case_id] = mem
+
+    def _v31_is_short_period_followup(self, question: str) -> bool:
+        q = self._v31_norm(question)
+        return bool(re.fullmatch(
+            r"(e\s+)?(em\s+)?(janeiro|fevereiro|marco|março|abril|maio|junho|julho|agosto|setembro|outubro|novembro|dezembro|20\d{2}[-/]\d{1,2}|\d{1,2}[-/]20\d{2})\??",
+            q,
+        ))
+
+    def _v31_short_period_followup(self, case_id: str, question: str) -> dict[str, Any] | None:
+        if not self._v31_is_short_period_followup(question):
+            return None
+        month = ""
+        try:
+            month = self._stable_month_from_question(question)
+        except Exception:
+            pass
+        if not month:
+            try:
+                month = self._extract_month_from_question(self._v31_norm(question))
+            except Exception:
+                pass
+        if not month:
+            return None
+        mem = dict(self.memory.get(case_id) or {})
+        last_intent = str(mem.get("last_intent") or mem.get("last_query_type") or (mem.get("last_result") or {}).get("type") or "")
+        # Se estava em resumo operacional, continuar resumo operacional.
+        if any(x in last_intent for x in ["kpi", "summary", "executive", "operational", "operacional"]):
+            if hasattr(self, "_v27_kpi_summary_answer"):
+                ans = self._v27_kpi_summary_answer(case_id, month, mem.get("scope") or "APP")
+                if ans:
+                    self._v31_remember(case_id, month=month, scope=mem.get("scope") or "APP", intent="kpi_summary")
+                    return ans
+            if hasattr(self, "_v15_monthly_router"):
+                return self._v15_monthly_router(case_id, f"como foi operacionalmente o APP em {month}", {"mes": month, "is_app": True, "codigo_tipo": "INC"})
+        # Se estava em ranking/dor/funcionalidade, continuar o mesmo tipo de análise.
+        if any(x in last_intent for x in ["functionality", "funcionalidade", "pain", "dor", "ranking"]):
+            return super()._answer_structured(case_id, f"qual área mais sofreu em {month}")
+        # fallback seguro: resumo operacional
+        if hasattr(self, "_v27_kpi_summary_answer"):
+            ans = self._v27_kpi_summary_answer(case_id, month, mem.get("scope") or "APP")
+            if ans:
+                self._v31_remember(case_id, month=month, scope=mem.get("scope") or "APP", intent="kpi_summary")
+                return ans
+        return None
+
+    def _v31_legacy_first(self, case_id: str, question: str) -> dict[str, Any] | None:
+        q = self._v31_norm(question)
+        # Não interceptar perguntas operacionais APP/funcionalidade; elas devem usar KPI/rotas enterprise.
+        operational = any(x in q for x in [
+            "app", "operacao", "operação", "operacional", "funcionalidade", "funcionalidades",
+            "dor", "módulo", "modulo", "causa", "causas", "mttr", "parada", "indisponibilidade",
+            "impacto operacional", "resumo executivo",
+        ])
+        if operational:
+            return None
+        try:
+            if self._stable_has_legacy_analytics_intent(question):
+                ans = self._stable_legacy_answer(case_id, question)
+                if ans:
+                    return ans
+        except Exception:
+            return None
+        return None
+
+    def _v31_explicit_code(self, case_id: str, question: str) -> dict[str, Any] | None:
+        m = re.search(r"\b(INC\d{5,}|CHG\d{5,})\b", question or "", flags=re.I)
+        if not m:
+            return None
+        code = m.group(1).upper()
+        q = self._v31_norm(question)
+        if any(x in q for x in ["detalhe", "detalhar", "descreva", "descrever", "explique", "explica", "resuma", "problema"]):
+            if hasattr(self, "_v15_detail_by_code"):
+                ans = self._v15_detail_by_code(case_id, code)
+            else:
+                ans = self._answer_detail(case_id, code, question)
+            self._v31_remember(case_id, focus_code=code, codes=[code], code_type=code[:3], intent="detail")
+            return ans
+        # Pergunta só com o código também deve detalhar.
+        if q == code.lower():
+            if hasattr(self, "_v15_detail_by_code"):
+                ans = self._v15_detail_by_code(case_id, code)
+            else:
+                ans = self._answer_detail(case_id, code, question)
+            self._v31_remember(case_id, focus_code=code, codes=[code], code_type=code[:3], intent="detail")
+            return ans
+        return None
+
+    def _v31_monthly_kpi(self, case_id: str, month: str) -> dict[str, Any]:
+        for fn in ["_v17_monthly_kpi", "_v15_monthly_kpi"]:
+            try:
+                if hasattr(self, fn):
+                    k = getattr(self, fn)(case_id, month)
+                    if k:
+                        return dict(k)
+            except Exception:
+                pass
+        return {}
+
+    def _v31_systemic_codes(self, case_id: str, month: str) -> list[str]:
+        k = self._v31_monthly_kpi(case_id, month)
+        codes = k.get("systemic_codes") or []
+        if codes:
+            return list(dict.fromkeys([str(c).upper() for c in codes if str(c).upper().startswith("INC")]))
+        # Fallback estrito, evitando falsos positivos por qualquer indisponibilidade parcial.
+        clauses = ["case_id = ?", "codigo_tipo = 'INC'", "numero <> ''"]
+        params: list[Any] = [case_id]
+        if month:
+            clauses.append("mes = ?")
+            params.append(month)
+        strict = """
+        (
+            UPPER(COALESCE(descricao_resumida,'')) LIKE '%INDISPONIBILIDADE TOTAL%'
+            OR UPPER(COALESCE(descricao_resumida,'')) LIKE '%TELA DE MANUTENCAO%'
+            OR UPPER(COALESCE(descricao_resumida,'')) LIKE '%TELA DE MANUTENÇÃO%'
+            OR UPPER(COALESCE(descricao_resumida,'')) LIKE '%PARADA TOTAL%'
+            OR (is_parada_sistemica = TRUE AND UPPER(COALESCE(descricao,'')) LIKE '%MASSIVO%')
+        )
+        """
+        sql = f"SELECT DISTINCT numero FROM {self.TABLE} WHERE " + " AND ".join(clauses) + f" AND {strict} ORDER BY numero"
+        with self._connect() as con:
+            return [str(r[0]).upper() for r in con.execute(sql, params).fetchall() if r[0]]
+
+    def _v31_systemic_followup_or_list(self, case_id: str, question: str) -> dict[str, Any] | None:
+        q = self._v31_norm(question)
+        if not any(x in q for x in ["indisponibilidade", "sistemica", "sistêmica", "parada"]):
+            return None
+        month = self._v31_month_from_question_or_memory(case_id, question)
+        mem = dict(self.memory.get(case_id) or {})
+        systemic = self._v31_systemic_codes(case_id, month)
+        last_codes = [str(c).upper() for c in (mem.get("last_codes") or (mem.get("last_result") or {}).get("codes") or [])]
+        is_followup = any(x in q for x in ["deles", "delas", "esses", "essas", "listados", "lista anterior"])
+        out = [c for c in systemic if c in set(last_codes)] if is_followup and last_codes else systemic
+        if any(x in q for x in ["quais", "liste", "listar", "lista", "códigos", "codigos", "deles", "delas"]):
+            self._v31_remember(case_id, month=month, scope=mem.get("scope") or "APP", intent="systemic_incidents", codes=out, code_type="INC")
+            return self._response(case_id, "\n".join(out) if out else "Nenhum incidente sistêmico encontrado com critério estrito para esse recorte.", "v31_systemic", {"mes": month}, {"count": len(out), "source": "monthly_kpi_or_strict_classifier"})
+        return None
+
+    def _v31_largest_impact_from_last_codes(self, case_id: str, question: str) -> dict[str, Any] | None:
+        q = self._v31_norm(question)
+        if not any(x in q for x in ["qual deles", "deles", "entre eles", "dessa lista"]):
+            return None
+        if not any(x in q for x in ["maior impacto", "mais impacto", "mais crítico", "mais critico", "demorou mais"]):
+            return None
+        mem = dict(self.memory.get(case_id) or {})
+        codes = [str(c).upper() for c in (mem.get("last_codes") or (mem.get("last_result") or {}).get("codes") or []) if str(c).upper().startswith("INC")]
+        codes = list(dict.fromkeys(codes))
+        if not codes:
+            return None
+        placeholders = ",".join(["?"] * len(codes))
+        sql = f"""
+            SELECT numero, prioridade, descricao_resumida, COALESCE(tempo_impacto_segundos,0) AS impact, tempo_impacto
+            FROM {self.TABLE}
+            WHERE case_id = ? AND numero IN ({placeholders})
+            ORDER BY impact DESC NULLS LAST
+            LIMIT 1
+        """
+        with self._connect() as con:
+            row = con.execute(sql, [case_id] + codes).fetchone()
+        if not row:
+            return None
+        code, prio, desc, impact, tempo = row
+        tempo_txt = tempo or _seconds_to_duration(int(impact or 0))
+        self._v31_remember(case_id, focus_code=code, codes=[code], code_type="INC", intent="largest_impact")
+        return self._response(case_id, f"{code} ({prio or '-'}) — {desc or '-'} — impacto {tempo_txt}", "v31_largest_impact_from_last_codes", {"codes": codes}, {"sql": sql})
+
+    def _answer_structured(self, case_id: str, question: str) -> dict[str, Any]:
+        # V31 guardrails seguros antes do motor V29.
+        for handler in [
+            self._v31_explicit_code,
+            self._v31_legacy_first,
+            self._v31_short_period_followup,
+            self._v31_systemic_followup_or_list,
+            self._v31_largest_impact_from_last_codes,
+        ]:
+            try:
+                ans = handler(case_id, question)
+                if ans:
+                    return ans
+            except Exception:
+                # Não quebra o motor base por falha no guardrail.
+                pass
+        return super()._answer_structured(case_id, question)
