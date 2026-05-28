@@ -3221,8 +3221,182 @@ Regras:
         self.memory[case_id] = mem
         return self._response(case_id, answer, "v23_group_alias", {"plan": plan, "canonical": canonical}, {"items": selected, "rows_considered": len(rows), "used_fallback": used_fallback})
 
+
+    # ---------------------------------------------------------------------
+    # V24 - Explainability / Confidence / Debug SQL / Dynamic Metric helpers
+    # ---------------------------------------------------------------------
+
+    def _v24_debug_sql_enabled(self) -> bool:
+        return os.getenv("GABBI_NEXUS_DEBUG_SQL", "true").strip().lower() in {"1", "true", "yes", "y", "sim", "on"}
+
+    def _v24_plan_confidence(self, plan: dict[str, Any] | None = None, rows_considered: int | None = None, rows_returned: int | None = None, used_fallback: bool = False) -> float:
+        """Calcula confiança operacional da resposta.
+
+        A LLM pode sugerir confidence no plano, mas a confiança final considera também
+        execução determinística, presença de dados e uso de fallback semântico.
+        """
+        plan = plan or {}
+        try:
+            base = float(plan.get("confidence", 0.86) or 0.86)
+        except Exception:
+            base = 0.86
+        if plan.get("source", "").startswith("v22_rule") or plan.get("source", "").startswith("v23"):
+            base = max(base, 0.88)
+        if rows_considered is not None and rows_considered <= 0:
+            base = min(base, 0.45)
+        if rows_returned is not None and rows_returned <= 0:
+            base = min(base, 0.55)
+        if used_fallback:
+            base = min(base, 0.78)
+        if plan.get("group_by") in {"semantic_functionality", "operational_pain"}:
+            # Campo virtual é interpretativo, mas ainda determinístico pela nossa normalização.
+            base = min(base, 0.92)
+        return round(max(0.0, min(0.99, base)), 2)
+
+    def _v24_make_explainability(self, plan: dict[str, Any] | None = None, rows_considered: int | None = None, rows_returned: int | None = None, metric: str | None = None, resolved_group_by: str | None = None, sql: str | None = None, params: list[Any] | None = None, notes: list[str] | None = None) -> dict[str, Any]:
+        plan = plan or {}
+        explanation = {
+            "deterministic": True,
+            "engine": "duckdb",
+            "intent": plan.get("intent"),
+            "metric": metric or plan.get("metric") or "count",
+            "record_type": plan.get("record_type"),
+            "months": plan.get("months") or [],
+            "scope": plan.get("scope"),
+            "group_by": resolved_group_by or plan.get("group_by"),
+            "filters": plan.get("filters") or [],
+            "planner_source": plan.get("source"),
+            "rows_considered": rows_considered,
+            "rows_returned": rows_returned,
+            "notes": notes or [],
+        }
+        if self._v24_debug_sql_enabled():
+            explanation["sql"] = sql
+            explanation["params"] = params or []
+        return explanation
+
+    def _v24_human_metric_label(self, metric: str | None) -> str:
+        return {
+            "count": "quantidade",
+            "impact_total": "impacto total",
+            "impact": "impacto total",
+            "parada": "parada/impacto total",
+            "mttr": "tempo médio/MTTR",
+            "change_related": "registros relacionados a mudança",
+            "success_rate": "taxa de sucesso",
+        }.get(str(metric or "count"), str(metric or "count"))
+
+    def _v24_metric_sql_expr(self, metric: str | None) -> tuple[str, str]:
+        metric = str(metric or "count")
+        if metric in {"impact_total", "impact", "parada"}:
+            return "COALESCE(SUM(tempo_impacto_segundos),0)", "seconds"
+        if metric == "mttr":
+            return "COALESCE(AVG(NULLIF(tempo_impacto_segundos,0)),0)", "seconds"
+        if metric == "change_related":
+            return "COUNT(DISTINCT CASE WHEN is_change_related THEN numero ELSE NULL END)", "number"
+        return "COUNT(DISTINCT numero)", "number"
+
+    def _v24_format_metric_value(self, value: Any, kind: str) -> str:
+        if kind == "seconds":
+            return _seconds_to_hhmmss(int(value or 0))
+        try:
+            return str(int(value or 0))
+        except Exception:
+            return str(value or "0")
+
+    def _v24_execute_metric_count(self, case_id: str, plan: dict[str, Any]) -> dict[str, Any] | None:
+        metric = plan.get("metric") or "count"
+        expr, kind = self._v24_metric_sql_expr(metric)
+        where, params = self._v21_where_sql(plan)
+        sql = f"SELECT {expr} FROM {self.TABLE} WHERE {where}"
+        with self._connect() as con:
+            value = con.execute(sql, [case_id] + params).fetchone()[0]
+            rows_considered = con.execute(f"SELECT COUNT(*) FROM {self.TABLE} WHERE {where}", [case_id] + params).fetchone()[0]
+        formatted = self._v24_format_metric_value(value, kind)
+        if metric in {"impact_total", "impact", "parada"}:
+            answer = f"Impacto total: {formatted}."
+        elif metric == "mttr":
+            answer = f"MTTR médio: {formatted}."
+        elif metric == "change_related":
+            answer = f"{formatted} registro(s) relacionado(s) a mudança."
+        else:
+            answer = formatted
+        technical = {
+            "planner": plan.get("source"),
+            "confidence": self._v24_plan_confidence(plan, rows_considered=rows_considered, rows_returned=1),
+            "explainability": self._v24_make_explainability(plan, rows_considered=rows_considered, rows_returned=1, metric=metric, sql=sql, params=[case_id] + params),
+        }
+        return self._response(case_id, answer, "v24_metric_count", {"plan": plan}, technical)
+
+    def _v24_execute_metric_group(self, case_id: str, plan: dict[str, Any], group_by: str) -> dict[str, Any] | None:
+        resolved_group_by = self._v23_resolve_column(group_by) if hasattr(self, "_v23_resolve_column") else group_by
+        if not resolved_group_by:
+            return None
+        metric = plan.get("metric") or "count"
+        expr, kind = self._v24_metric_sql_expr(metric)
+        where, params = self._v21_where_sql(plan)
+        order = "ASC" if plan.get("sort") == "asc" else "DESC"
+        limit = max(1, min(int(plan.get("limit") or 20), 100))
+        sql = (
+            f"SELECT COALESCE(NULLIF(TRIM(CAST({_sql_ident(resolved_group_by)} AS VARCHAR)), ''), 'Não informado') AS name, "
+            f"{expr} AS total FROM {self.TABLE} WHERE {where} GROUP BY 1 ORDER BY total {order}, name ASC LIMIT ?"
+        )
+        with self._connect() as con:
+            rows = con.execute(sql, [case_id] + params + [limit]).fetchall()
+            rows_considered = con.execute(f"SELECT COUNT(*) FROM {self.TABLE} WHERE {where}", [case_id] + params).fetchone()[0]
+        rows = [r for r in rows if str(r[0] or "").strip() and _norm(r[0]) not in {"nao informado", "não informado", "-"}]
+        if not rows:
+            return None
+        metric_label = self._v24_human_metric_label(metric)
+        if limit == 1:
+            answer = f"{rows[0][0]}: {self._v24_format_metric_value(rows[0][1], kind)} ({metric_label})"
+        else:
+            title = "Ranking:"
+            if group_by == "grupo_atribuicao":
+                title = "Ranking de grupos:"
+            elif group_by == "causa_origem":
+                title = "Principais causas:"
+            elif group_by in {"ic_impactado", "funcionalidade"}:
+                title = "Ranking:"
+            answer = title + "\n" + "\n".join(f"- {r[0]}: {self._v24_format_metric_value(r[1], kind)}" for r in rows)
+        technical = {
+            "rows": rows,
+            "planner": plan.get("source"),
+            "confidence": self._v24_plan_confidence(plan, rows_considered=rows_considered, rows_returned=len(rows)),
+            "explainability": self._v24_make_explainability(plan, rows_considered=rows_considered, rows_returned=len(rows), metric=metric, resolved_group_by=resolved_group_by, sql=sql, params=[case_id] + params + [limit]),
+        }
+        mem = dict(self.memory.get(case_id) or {})
+        mem["last_v21_plan"] = plan
+        mem["last_query_type"] = "group"
+        self.memory[case_id] = mem
+        return self._response(case_id, answer, "v24_metric_group", {"plan": plan, "resolved_group_by": resolved_group_by}, technical)
+
+    def _v24_augment_plan_for_multihop(self, question: str, plan: dict[str, Any]) -> dict[str, Any]:
+        """Pequeno enriquecimento determinístico para perguntas multi-hop.
+
+        Não substitui o planner; só adiciona filtros óbvios quando o usuário pede
+        combinações como “relacionados a mudança”, “com indisponibilidade”, etc.
+        """
+        q = _norm(question)
+        plan = dict(plan or {})
+        filters = list(plan.get("filters") or [])
+        def has_filter(col: str):
+            return any(str(f.get("column")) == col for f in filters if isinstance(f, dict))
+        if any(x in q for x in ["relacionad", "causad"]) and any(x in q for x in ["mudanca", "mudança", "change", "chg"]):
+            if not has_filter("is_change_related"):
+                filters.append({"column": "is_change_related", "operator": "eq", "value": True})
+            if plan.get("record_type") in {None, "ANY", ""}:
+                plan["record_type"] = "INC"
+        if any(x in q for x in ["indisponibilidade", "parada", "sistemica", "sistêmica"]):
+            if not has_filter("is_parada_sistemica"):
+                filters.append({"column": "is_parada_sistemica", "operator": "eq", "value": True})
+        plan["filters"] = filters
+        return plan
+
+
     def _v21_execute_generic(self, case_id: str, question: str, plan: dict[str, Any]) -> dict[str, Any] | None:
         intent = plan.get("intent")
+        plan = self._v24_augment_plan_for_multihop(question, plan) if hasattr(self, "_v24_augment_plan_for_multihop") else plan
         if intent == "semantic_summary":
             return {"fallback_to_rag": True, "route": "knowledge_structured_v21_semantic", "query_type": "open_semantic"}
         if intent == "kpi_summary":
@@ -3231,12 +3405,26 @@ Regras:
         if intent == "compare":
             return self._v21_execute_compare(case_id, plan)
         if plan.get("group_by") in {"semantic_functionality", "operational_pain"}:
-            return self._v21_execute_virtual_group(case_id, plan)
+            result = self._v21_execute_virtual_group(case_id, plan)
+            if result:
+                # Enriquecimento v24 sem mexer no texto que já passou nos testes.
+                tech = result.setdefault("technical", {})
+                tech.setdefault("confidence", self._v24_plan_confidence(plan, rows_returned=len((tech.get("items") or []))))
+                tech.setdefault("explainability", self._v24_make_explainability(plan, rows_returned=len((tech.get("items") or [])), metric=plan.get("metric"), resolved_group_by=plan.get("group_by")))
+            return result
         if intent in {"rank", "group"} and plan.get("group_by"):
             group_by = plan["group_by"]
+            # Quando a métrica não é count, usa agregação dinâmica v24.
+            if (plan.get("metric") or "count") not in {"", None, "count"} and group_by not in {"semantic_functionality", "operational_pain"}:
+                metric_group = self._v24_execute_metric_group(case_id, plan, group_by) if hasattr(self, "_v24_execute_metric_group") else None
+                if metric_group:
+                    return metric_group
             if group_by in {"grupo_atribuicao", "ic_impactado", "canal", "causa_origem", "funcionalidade"}:
                 alias_result = self._v23_execute_group_alias(case_id, plan, group_by)
                 if alias_result:
+                    tech = alias_result.setdefault("technical", {})
+                    tech.setdefault("confidence", self._v24_plan_confidence(plan, rows_considered=tech.get("rows_considered"), rows_returned=len(tech.get("items") or []), used_fallback=bool(tech.get("used_fallback"))))
+                    tech.setdefault("explainability", self._v24_make_explainability(plan, rows_considered=tech.get("rows_considered"), rows_returned=len(tech.get("items") or []), resolved_group_by=group_by, notes=["Agrupamento feito com aliases dinâmicos e extração textual quando a coluna direta estava vazia."] if tech.get("used_fallback") else []))
                     return alias_result
             resolved_group_by = self._v23_resolve_column(group_by) if hasattr(self, "_v23_resolve_column") else group_by
             if not resolved_group_by:
@@ -3244,11 +3432,10 @@ Regras:
             where, params = self._v21_where_sql(plan)
             order = "ASC" if plan.get("sort") == "asc" else "DESC"
             limit = int(plan.get("limit") or 20)
+            sql = f"SELECT COALESCE(NULLIF(TRIM(CAST({_sql_ident(resolved_group_by)} AS VARCHAR)), ''), 'Não informado') AS name, COUNT(DISTINCT numero) AS total FROM {self.TABLE} WHERE {where} GROUP BY 1 ORDER BY total {order}, name ASC LIMIT ?"
             with self._connect() as con:
-                rows = con.execute(
-                    f"SELECT COALESCE(NULLIF(TRIM(CAST({_sql_ident(resolved_group_by)} AS VARCHAR)), ''), 'Não informado') AS name, COUNT(DISTINCT numero) AS total FROM {self.TABLE} WHERE {where} GROUP BY 1 ORDER BY total {order}, name ASC LIMIT ?",
-                    [case_id] + params + [limit],
-                ).fetchall()
+                rows = con.execute(sql, [case_id] + params + [limit]).fetchall()
+                rows_considered = con.execute(f"SELECT COUNT(*) FROM {self.TABLE} WHERE {where}", [case_id] + params).fetchone()[0]
             rows = [r for r in rows if str(r[0] or "").strip() and _norm(r[0]) not in {"nao informado", "não informado", "-"}]
             if not rows:
                 return None
@@ -3262,8 +3449,11 @@ Regras:
             mem["last_v21_plan"] = plan
             mem["last_query_type"] = "group"
             self.memory[case_id] = mem
-            return self._response(case_id, answer, "v23_group", {"plan": plan, "resolved_group_by": resolved_group_by}, {"rows": rows, "planner": plan.get("source")})
+            return self._response(case_id, answer, "v23_group", {"plan": plan, "resolved_group_by": resolved_group_by}, {"rows": rows, "planner": plan.get("source"), "confidence": self._v24_plan_confidence(plan, rows_considered=rows_considered, rows_returned=len(rows)), "explainability": self._v24_make_explainability(plan, rows_considered=rows_considered, rows_returned=len(rows), resolved_group_by=resolved_group_by, sql=sql, params=[case_id] + params + [limit])})
         if intent == "count":
+            # Count agora também cobre métricas genéricas: impacto total, MTTR, parada, change_related.
+            if hasattr(self, "_v24_execute_metric_count"):
+                return self._v24_execute_metric_count(case_id, plan)
             where, params = self._v21_where_sql(plan)
             with self._connect() as con:
                 count = con.execute(f"SELECT COUNT(DISTINCT numero) FROM {self.TABLE} WHERE {where} AND numero <> ''", [case_id] + params).fetchone()[0]
@@ -3271,8 +3461,10 @@ Regras:
         if intent == "list":
             where, params = self._v21_where_sql(plan)
             limit = int(plan.get("limit") or 100)
+            sql = f"SELECT DISTINCT numero FROM {self.TABLE} WHERE {where} AND numero <> '' ORDER BY numero LIMIT ?"
             with self._connect() as con:
-                rows = con.execute(f"SELECT DISTINCT numero FROM {self.TABLE} WHERE {where} AND numero <> '' ORDER BY numero LIMIT ?", [case_id] + params + [limit]).fetchall()
+                rows = con.execute(sql, [case_id] + params + [limit]).fetchall()
+                rows_considered = con.execute(f"SELECT COUNT(*) FROM {self.TABLE} WHERE {where}", [case_id] + params).fetchone()[0]
             codes = [r[0] for r in rows if r and r[0]]
             if codes:
                 mem = dict(self.memory.get(case_id) or {})
@@ -3280,7 +3472,7 @@ Regras:
                 mem["last_v21_plan"] = plan
                 mem["last_query_type"] = "list"
                 self.memory[case_id] = mem
-            return self._response(case_id, "\n".join(codes) if codes else "Nenhum registro encontrado.", "v21_list", {"plan": plan}, {"codes": codes, "planner": plan.get("source")})
+            return self._response(case_id, "\n".join(codes) if codes else "Nenhum registro encontrado.", "v21_list", {"plan": plan}, {"codes": codes, "planner": plan.get("source"), "confidence": self._v24_plan_confidence(plan, rows_considered=rows_considered, rows_returned=len(codes)), "explainability": self._v24_make_explainability(plan, rows_considered=rows_considered, rows_returned=len(codes), sql=sql, params=[case_id] + params + [limit])})
         return None
 
     def _answer_structured(self, case_id: str, question: str) -> dict[str, Any]:
@@ -4363,14 +4555,26 @@ Regras:
         self.memory[case_id] = memory
 
     def _response(self, case_id: str, answer: str, query_type: str, criteria: dict[str, Any], technical: dict[str, Any]) -> dict[str, Any]:
+        technical = dict(technical or {})
+        confidence = technical.get("confidence")
+        if confidence is None:
+            plan = (criteria or {}).get("plan") if isinstance(criteria, dict) else None
+            try:
+                confidence = self._v24_plan_confidence(plan) if hasattr(self, "_v24_plan_confidence") else 0.86
+            except Exception:
+                confidence = 0.86
+            technical["confidence"] = confidence
+        if "explainability" not in technical and hasattr(self, "_v24_make_explainability"):
+            plan = (criteria or {}).get("plan") if isinstance(criteria, dict) else None
+            technical["explainability"] = self._v24_make_explainability(plan)
         return {
             "fallback_to_rag": False,
             "route": "knowledge_structured_duckdb",
             "query_type": query_type,
             "answer_text": answer,
             "summary": answer,
-            "technical": {"case_id": case_id, "criteria": criteria, **(technical or {})},
-            "sources": {"deterministic": True, "engine": "duckdb", "table": self.TABLE},
+            "technical": {"case_id": case_id, "criteria": criteria, **technical},
+            "sources": {"deterministic": True, "engine": "duckdb", "table": self.TABLE, "confidence": confidence},
         }
 
     def _normalize_month(self, value: Any) -> str:
