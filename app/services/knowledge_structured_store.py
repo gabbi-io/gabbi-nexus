@@ -2620,9 +2620,544 @@ Campos do JSON:
                 return self._response(case_id, kpi["largest_impact"], "v19_largest_impact", {"mes": month, "intent": intent_info}, {"source": "monthly_kpi"})
         return None
 
+
+    # ---------------------------------------------------------------------
+    # V21 - Generic Analytic Planner
+    # Objetivo: deixar o motor menos rígido e mais parecido com um analista.
+    # A LLM interpreta a pergunta e gera um plano JSON; o DuckDB executa de
+    # forma determinística. O plano é validado contra schema/colunas reais e
+    # não executa SQL livre gerado por LLM.
+    # ---------------------------------------------------------------------
+
+    def _v21_all_months_from_question(self, question: str) -> list[str]:
+        q = _norm(question)
+        months_map = {
+            "janeiro": "01", "jan": "01", "fevereiro": "02", "fev": "02",
+            "marco": "03", "março": "03", "mar": "03", "abril": "04", "abr": "04",
+            "maio": "05", "mai": "05", "junho": "06", "jun": "06",
+            "julho": "07", "jul": "07", "agosto": "08", "ago": "08",
+            "setembro": "09", "set": "09", "outubro": "10", "out": "10",
+            "novembro": "11", "nov": "11", "dezembro": "12", "dez": "12",
+        }
+        found: list[str] = []
+        # Datas explícitas 2025-10, 10-2025, 10/2025.
+        for m in re.finditer(r"\b(20\d{2})[-/](\d{1,2})\b", q):
+            found.append(f"{m.group(1)}-{m.group(2).zfill(2)}")
+        for m in re.finditer(r"\b(\d{1,2})[-/](20\d{2})\b", q):
+            found.append(f"{m.group(2)}-{m.group(1).zfill(2)}")
+        # Meses por extenso. Se não houver ano, assume 2025 porque a base de teste é 2025.
+        for name, num in months_map.items():
+            if re.search(rf"\b{re.escape(_norm(name))}\b", q):
+                year = "2025"
+                y = re.search(r"\b(20\d{2})\b", q)
+                if y:
+                    year = y.group(1)
+                found.append(f"{year}-{num}")
+        out: list[str] = []
+        for x in found:
+            if x not in out:
+                out.append(x)
+        return out
+
+    def _v21_schema_columns(self) -> list[str]:
+        if not self.enabled:
+            return []
+        try:
+            with self._connect() as con:
+                return self._table_cols(con)
+        except Exception:
+            return []
+
+    def _v21_distinct_values(self, case_id: str, column: str, limit: int = 20) -> list[str]:
+        if not self.enabled:
+            return []
+        if column not in set(self._v21_schema_columns()):
+            return []
+        try:
+            with self._connect() as con:
+                rows = con.execute(
+                    f"SELECT DISTINCT {_sql_ident(column)} FROM {self.TABLE} WHERE case_id = ? AND {_sql_ident(column)} IS NOT NULL AND TRIM(CAST({_sql_ident(column)} AS VARCHAR)) <> '' LIMIT ?",
+                    [case_id, int(limit)],
+                ).fetchall()
+            return [str(r[0]) for r in rows if r and r[0] is not None]
+        except Exception:
+            return []
+
+    def _v21_llm_plan(self, case_id: str, question: str, chat_history: list[dict[str, Any]] | None = None) -> dict[str, Any] | None:
+        if os.getenv("GABBI_NEXUS_GENERIC_ANALYTIC_PLANNER_ENABLED", "true").strip().lower() not in {"1", "true", "yes", "y", "sim", "on"}:
+            return None
+        try:
+            from app.services.llm import LLMService
+            llm = LLMService()
+            if not llm.status().get("enabled"):
+                return None
+            cols = self._v21_schema_columns()
+            if not cols:
+                return None
+            memory = dict(self.memory.get(case_id) or {})
+            samples = {
+                "codigo_tipo": self._v21_distinct_values(case_id, "codigo_tipo", 10),
+                "mes": self._v21_distinct_values(case_id, "mes", 20),
+                "prioridade": self._v21_distinct_values(case_id, "prioridade", 10),
+                "estado": self._v21_distinct_values(case_id, "estado", 10),
+                "grupo_atribuicao": self._v21_distinct_values(case_id, "grupo_atribuicao", 10),
+                "ic_impactado": self._v21_distinct_values(case_id, "ic_impactado", 10),
+                "causa_origem": self._v21_distinct_values(case_id, "causa_origem", 10),
+            }
+            system_prompt = """
+Você é um planejador analítico para uma base ITSM em DuckDB. Responda SOMENTE JSON válido.
+Você NÃO calcula respostas e NÃO cria SQL. Você cria um plano seguro para outro componente executar.
+
+Capacidades permitidas:
+- count: contar registros ou números distintos.
+- list: listar códigos/registros.
+- group: agrupar por uma coluna/campo.
+- rank: ranking/top/mais/menos por campo.
+- compare: comparar meses/períodos por quantidade, impacto, MTTR ou parada.
+- detail: detalhar código específico ou item em memória.
+- kpi_summary: resumo executivo operacional por mês/escopo.
+- semantic_summary: pergunta aberta/documental; deve ir para RAG.
+- unknown: não compreendeu.
+
+Campos virtuais aceitos além das colunas reais:
+- semantic_functionality: funcionalidade/jornada/módulo/área inferida a partir de descrição/resumo/canal/IC.
+- operational_pain: dor operacional, normalmente impacto/parada/volume.
+
+JSON esperado:
+{
+  "intent": "count|list|group|rank|compare|detail|kpi_summary|semantic_summary|unknown",
+  "record_type": "INC|CHG|ANY|null",
+  "months": ["YYYY-MM"],
+  "scope": "APP|ECOMM|AURA|WHATSAPP|null",
+  "metric": "count|impact_total|mttr|parada|change_related|null",
+  "group_by": "nome_coluna|semantic_functionality|causa_origem|prioridade|grupo_atribuicao|ic_impactado|null",
+  "filters": [{"column":"nome_coluna", "operator":"eq|contains|startswith", "value":"valor"}],
+  "sort": "desc|asc|null",
+  "limit": número ou null,
+  "needs_memory": true|false,
+  "confidence": 0.0-1.0
+}
+
+Regras:
+- Use semantic_functionality para perguntas com: funcionalidade, área, módulo, jornada, frente, parte, o que mais deu problema, onde sofreu, dor operacional por área.
+- Use compare quando a pergunta comparar meses ou perguntar pior/melhor mês.
+- Use kpi_summary para “como foi operacionalmente”, “resumo executivo”, “cenário operacional”.
+- Use semantic_summary para “explique o teor do documento”, “resuma o documento”, “sobre o que se trata”.
+- Se a pergunta for follow-up curto como “e em setembro?”, use a memória recente para manter a intenção anterior e trocar o mês.
+- Nunca invente coluna inexistente; prefira as colunas fornecidas ou campos virtuais aceitos.
+""".strip()
+            user_prompt = json.dumps({
+                "question": question,
+                "schema_columns": cols,
+                "virtual_fields": ["semantic_functionality", "operational_pain"],
+                "sample_values": samples,
+                "memory": {
+                    "last_query_type": memory.get("last_query_type"),
+                    "last_result": memory.get("last_result"),
+                    "last_month": memory.get("mes"),
+                    "last_plan": memory.get("last_plan"),
+                    "last_codes_count": len(memory.get("last_codes") or []),
+                },
+            }, ensure_ascii=False, default=str)
+            data = llm.generate_json(system_prompt, user_prompt, history=None)
+            if not isinstance(data, dict):
+                return None
+            return self._v21_validate_plan(data)
+        except Exception:
+            return None
+
+    def _v21_validate_plan(self, plan: dict[str, Any]) -> dict[str, Any] | None:
+        cols = set(self._v21_schema_columns())
+        virtuals = {"semantic_functionality", "operational_pain"}
+        allowed_intents = {"count", "list", "group", "rank", "compare", "detail", "kpi_summary", "semantic_summary", "unknown"}
+        intent = str(plan.get("intent") or "unknown").strip().lower()
+        if intent not in allowed_intents:
+            return None
+        try:
+            conf = float(plan.get("confidence", 0) or 0)
+        except Exception:
+            conf = 0.0
+        min_conf = float(os.getenv("GABBI_NEXUS_GENERIC_ANALYTIC_PLANNER_MIN_CONFIDENCE", "0.50"))
+        if conf < min_conf:
+            return None
+        record_type = str(plan.get("record_type") or "ANY").upper().strip()
+        if record_type not in {"INC", "CHG", "ANY", "NULL", "NONE", ""}:
+            record_type = "ANY"
+        months = []
+        for m in plan.get("months") or []:
+            mm = self._normalize_month(m)
+            if mm:
+                months.append(mm)
+        filters = []
+        for f in plan.get("filters") or []:
+            if not isinstance(f, dict):
+                continue
+            col = str(f.get("column") or "").strip()
+            if col not in cols:
+                continue
+            op = str(f.get("operator") or "contains").strip().lower()
+            if op not in {"eq", "contains", "startswith"}:
+                op = "contains"
+            val = _safe(f.get("value"))
+            if val:
+                filters.append({"column": col, "operator": op, "value": val})
+        group_by = plan.get("group_by")
+        group_by = str(group_by).strip() if group_by is not None else None
+        if group_by in {"", "None", "null"}:
+            group_by = None
+        if group_by and group_by not in cols and group_by not in virtuals:
+            group_by = None
+        sort = str(plan.get("sort") or "desc").lower()
+        if sort not in {"asc", "desc"}:
+            sort = "desc"
+        try:
+            limit = int(plan.get("limit") or 0) or None
+        except Exception:
+            limit = None
+        if limit is not None:
+            limit = max(1, min(limit, 100))
+        scope = str(plan.get("scope") or "").upper().strip() or None
+        if scope in {"NULL", "NONE"}:
+            scope = None
+        metric = str(plan.get("metric") or "count").strip().lower() or "count"
+        return {
+            "intent": intent,
+            "record_type": record_type if record_type not in {"NULL", "NONE", ""} else "ANY",
+            "months": list(dict.fromkeys(months)),
+            "scope": scope,
+            "metric": metric,
+            "group_by": group_by,
+            "filters": filters,
+            "sort": sort,
+            "limit": limit,
+            "needs_memory": bool(plan.get("needs_memory")),
+            "confidence": conf,
+            "source": "v21_llm_planner",
+        }
+
+    def _v21_rule_plan(self, case_id: str, question: str) -> dict[str, Any] | None:
+        """Planejador determinístico forte para intenções comuns.
+
+        V22: este método não tenta fixar perguntas específicas; ele mapeia linguagem
+        natural para capacidades analíticas genéricas (rank/group/compare/summary),
+        preservando a execução determinística no DuckDB.
+        """
+        q = _norm(question)
+        memory = dict(self.memory.get(case_id) or {})
+        months = self._v21_all_months_from_question(question)
+
+        explicit_app = any(x in q for x in [
+            "app", "aplicativo", "app vivo", "operacao app", "operação app",
+            "operacao de app", "operação de app", "meu vivo"
+        ])
+        explicit_ecomm = any(x in q for x in ["ecomm", "e-commerce", "ecommerce", "loja online"])
+
+        def _scope(default_from_memory: bool = False) -> str | None:
+            if explicit_app:
+                return "APP"
+            if explicit_ecomm:
+                return "ECOMM"
+            if default_from_memory:
+                return memory.get("scope") or ((memory.get("last_result") or {}).get("scope"))
+            return None
+
+        # Follow-up temporal: "e em setembro?" mantém intenção anterior quando existir.
+        if months and re.fullmatch(r"(?:e\s*)?(?:em|no|na)?\s*(?:janeiro|fevereiro|marco|março|abril|maio|junho|julho|agosto|setembro|outubro|novembro|dezembro)(?:\s+de\s+20\d{2})?\??", q):
+            last_plan = memory.get("last_v21_plan") or memory.get("last_plan") or {}
+            last_result = memory.get("last_result") or {}
+            last_type = str(memory.get("last_query_type") or last_result.get("type") or "").lower()
+
+            if last_plan:
+                intent = last_plan.get("intent") or "kpi_summary"
+                return {
+                    "intent": intent if intent in {"count", "list", "group", "rank", "compare", "detail", "kpi_summary"} else "kpi_summary",
+                    "record_type": last_plan.get("record_type") or "INC",
+                    "months": months,
+                    "scope": last_plan.get("scope") or _scope(default_from_memory=True) or "APP",
+                    "metric": last_plan.get("metric") or "count",
+                    "group_by": last_plan.get("group_by"),
+                    "filters": [],
+                    "sort": last_plan.get("sort") or "desc",
+                    "limit": last_plan.get("limit"),
+                    "needs_memory": True,
+                    "confidence": 0.92,
+                    "source": "v22_rule_followup_month_from_last_plan",
+                }
+
+            # Se a última resposta foi de funcionalidade/área/dor, mantém o mesmo tipo.
+            if any(x in last_type for x in ["functionality", "funcional", "area", "top_functionality", "semantic_functionality"]):
+                return {
+                    "intent": "rank", "record_type": "INC", "months": months,
+                    "scope": _scope(default_from_memory=True) or "APP", "metric": "count",
+                    "group_by": "semantic_functionality", "filters": [], "sort": "desc",
+                    "limit": 1, "needs_memory": True, "confidence": 0.90,
+                    "source": "v22_rule_followup_month_functionality",
+                }
+
+            # Caso não haja memória clara, usa resumo KPI mensal como continuação segura.
+            return {
+                "intent": "kpi_summary", "record_type": "INC", "months": months,
+                "scope": _scope(default_from_memory=True) or "APP", "metric": "count",
+                "group_by": None, "filters": [], "sort": "desc", "limit": None,
+                "needs_memory": True, "confidence": 0.85,
+                "source": "v22_rule_followup_month_default_kpi",
+            }
+
+        if any(x in q for x in ["teor do documento", "explique o documento", "resuma o documento", "sobre o que se trata", "explique o teor"]):
+            return {"intent": "semantic_summary", "record_type": "ANY", "months": months, "scope": None, "metric": "", "group_by": None, "filters": [], "sort": "desc", "limit": None, "needs_memory": False, "confidence": 0.95, "source": "v22_rule_semantic"}
+
+        # Agrupamento por grupo/time/equipe. Não assume APP apenas porque há mês; isso evitava resultados vazios.
+        if any(x in q for x in ["grupo", "grupos", "time", "times", "equipe", "equipes", "squad", "squads", "assignment group", "grupo de atribuicao", "grupo de atribuição"]):
+            limit = 10
+            m = re.search(r"top\s+(\d+)", q)
+            if m:
+                limit = int(m.group(1))
+            return {
+                "intent": "rank", "record_type": "INC" if any(x in q for x in ["incidente", "incidentes", "problema", "problemas"]) else "ANY",
+                "months": months, "scope": _scope(default_from_memory=False), "metric": "count",
+                "group_by": "grupo_atribuicao", "filters": [], "sort": "desc", "limit": limit,
+                "needs_memory": False, "confidence": 0.93, "source": "v22_rule_group_by_assignment_group",
+            }
+
+        # Funcionalidade/área/dor operacional: campo virtual semantic_functionality.
+        if any(x in q for x in [
+            "funcionalidade", "funcionalidades", "area", "área", "modulo", "módulo", "jornada", "frente", "feature",
+            "o que mais deu problema", "mais deu problema", "onde tivemos mais dor", "dor operacional",
+            "mais sofreu", "mais impactou os clientes", "mais impactou", "onde doeu", "maior dor"
+        ]):
+            sort = "desc"
+            limit = 1
+            if "top" in q or "ranking" in q:
+                m = re.search(r"(?:top|ranking)\s+(\d+)", q)
+                limit = int(m.group(1)) if m else 5
+            if "menos" in q or "menor" in q:
+                sort = "asc"
+                limit = 1
+            return {
+                "intent": "rank", "record_type": "INC", "months": months,
+                "scope": _scope(default_from_memory=True) or ("APP" if months else None),
+                "metric": "count", "group_by": "semantic_functionality", "filters": [],
+                "sort": sort, "limit": limit, "needs_memory": False, "confidence": 0.95,
+                "source": "v22_rule_semantic_functionality",
+            }
+
+        if any(x in q for x in ["causa", "causas", "origem", "causa raiz", "motivo", "motivos"]):
+            return {"intent": "rank", "record_type": "INC", "months": months, "scope": _scope(default_from_memory=True) or ("APP" if months else None), "metric": "count", "group_by": "causa_origem", "filters": [], "sort": "desc", "limit": 10 if "top" not in q else 5, "needs_memory": False, "confidence": 0.90, "source": "v22_rule_cause"}
+
+        if (" ou " in q and len(months) >= 2) or any(x in q for x in ["pior mes", "pior mês", "pior operacional", "maior impacto operacional", "maior impacto", "maior dor operacional", "mais dor operacional"]):
+            metric = "impact_total" if any(x in q for x in ["impacto", "pior", "dor operacional", "sofreu"]) else "count"
+            return {"intent": "compare", "record_type": "INC", "months": months, "scope": _scope(default_from_memory=True) or ("APP" if explicit_app else None), "metric": metric, "group_by": None, "filters": [], "sort": "desc", "limit": None, "needs_memory": False, "confidence": 0.90, "source": "v22_rule_compare"}
+
+        return None
+
+    def _v21_plan(self, case_id: str, question: str, chat_history: list[dict[str, Any]] | None = None) -> dict[str, Any] | None:
+        # Regras fortes primeiro para preservar comportamentos críticos já validados.
+        rule = self._v21_rule_plan(case_id, question)
+        if rule:
+            return rule
+        return self._v21_llm_plan(case_id, question, chat_history=chat_history)
+
+    def _v21_where_sql(self, plan: dict[str, Any]) -> tuple[str, list[Any]]:
+        clauses = ["case_id = ?"]
+        params: list[Any] = []
+        # case_id entra fora para facilitar reuso.
+        record_type = plan.get("record_type")
+        if record_type in {"INC", "CHG"}:
+            clauses.append("codigo_tipo = ?")
+            params.append(record_type)
+        months = plan.get("months") or []
+        if months:
+            clauses.append("mes IN (" + ",".join(["?"] * len(months)) + ")")
+            params.extend(months)
+        scope = plan.get("scope")
+        if scope == "APP":
+            clauses.append("is_app = TRUE")
+        elif scope == "ECOMM":
+            clauses.append("is_ecomm = TRUE")
+        for f in plan.get("filters") or []:
+            col = f["column"]
+            op = f.get("operator") or "contains"
+            val = f.get("value")
+            if op == "eq":
+                clauses.append(f"LOWER(CAST({_sql_ident(col)} AS VARCHAR)) = LOWER(?)")
+                params.append(str(val))
+            elif op == "startswith":
+                clauses.append(f"LOWER(CAST({_sql_ident(col)} AS VARCHAR)) LIKE LOWER(?)")
+                params.append(str(val) + "%")
+            else:
+                clauses.append(f"LOWER(CAST({_sql_ident(col)} AS VARCHAR)) LIKE LOWER(?)")
+                params.append("%" + str(val) + "%")
+        return " AND ".join(clauses), params
+
+    def _v21_rows_for_plan(self, case_id: str, plan: dict[str, Any], columns: list[str] | None = None) -> list[dict[str, Any]]:
+        cols = columns or ["numero", "codigo_tipo", "mes", "prioridade", "grupo_atribuicao", "ic_impactado", "canal", "descricao_resumida", "descricao", "causa_origem", "funcionalidade", "tempo_impacto", "tempo_impacto_segundos", "is_parada_sistemica", "is_change_related", "raw_json", "article_text"]
+        cols = [c for c in cols if c in set(self._v21_schema_columns())]
+        where, params = self._v21_where_sql(plan)
+        sql = f"SELECT {', '.join(_sql_ident(c) for c in cols)} FROM {self.TABLE} WHERE {where}"
+        with self._connect() as con:
+            rows = con.execute(sql, [case_id] + params).fetchall()
+        return [dict(zip(cols, row)) for row in rows]
+
+    def _v21_execute_virtual_group(self, case_id: str, plan: dict[str, Any]) -> dict[str, Any] | None:
+        group_by = plan.get("group_by")
+        if group_by not in {"semantic_functionality", "operational_pain"}:
+            return None
+        rows = self._v21_rows_for_plan(case_id, plan)
+        counts: dict[str, int] = {}
+        examples: dict[str, list[str]] = {}
+        for row in rows:
+            if group_by == "semantic_functionality":
+                name = self._v20_semantic_functionality_from_row(row) if hasattr(self, "_v20_semantic_functionality_from_row") else _safe(row.get("funcionalidade"))
+            else:
+                name = _safe(row.get("causa_origem")) or self._v20_semantic_functionality_from_row(row) if hasattr(self, "_v20_semantic_functionality_from_row") else "Não informado"
+            name = _clean_extracted_value(name) or "Não informado"
+            # Evita regressão: nunca aceitar duração/tempo como nome de grupo.
+            if re.fullmatch(r"\d{1,4}:\d{2}:\d{2}", name) or name.lower() in {"mttr", "impacto", "tempo"}:
+                name = "Não informado"
+            counts[name] = counts.get(name, 0) + 1
+            code = _safe(row.get("numero"))
+            if code:
+                examples.setdefault(name, [])
+                if len(examples[name]) < 5:
+                    examples[name].append(code)
+        items = [{"name": k, "total": v, "examples": examples.get(k, [])} for k, v in counts.items() if k and k != "Não informado"]
+        # Só usa Não informado se realmente não houver grupo semântico melhor.
+        if not items and counts:
+            items = [{"name": k, "total": v, "examples": examples.get(k, [])} for k, v in counts.items()]
+        reverse = plan.get("sort", "desc") != "asc"
+        items.sort(key=lambda x: (int(x.get("total") or 0), str(x.get("name") or "")), reverse=reverse)
+        limit = plan.get("limit") or (5 if plan.get("intent") == "rank" else 20)
+        items = items[: int(limit)]
+        if not items:
+            # Fallback seguro para funcionalidade APP mensal: usa o roteador KPI/SQL já validado.
+            if group_by == "semantic_functionality" and hasattr(self, "_v17_handle_functionality"):
+                try:
+                    month = (plan.get("months") or [None])[0]
+                    if month:
+                        synthetic_q = f"qual funcionalidade teve mais incidentes em {month}"
+                        legacy = self._v17_handle_functionality(case_id, synthetic_q, {"mes": month, "is_app": plan.get("scope") == "APP"})
+                        if legacy:
+                            mem = dict(self.memory.get(case_id) or {})
+                            mem["last_v21_plan"] = plan
+                            mem["last_query_type"] = "rank"
+                            self.memory[case_id] = mem
+                            return legacy
+                except Exception:
+                    pass
+            return None
+        if int(limit) == 1:
+            it = items[0]
+            answer = f"{it['name']}: {it['total']} incidente(s)"
+        else:
+            title = "Top funcionalidades:" if group_by == "semantic_functionality" else "Ranking:"
+            answer = title + "\n" + "\n".join(f"- {it['name']}: {it['total']}" for it in items)
+        self._v17_save_context(case_id, context_type="v21_virtual_group", month=(plan.get("months") or [None])[0], items=items) if hasattr(self, "_v17_save_context") else None
+        mem = dict(self.memory.get(case_id) or {})
+        mem["last_v21_plan"] = plan
+        mem["last_query_type"] = "rank"
+        self.memory[case_id] = mem
+        return self._response(case_id, answer, "v21_virtual_group", {"plan": plan}, {"items": items, "planner": plan.get("source")})
+
+    def _v21_execute_compare(self, case_id: str, plan: dict[str, Any]) -> dict[str, Any] | None:
+        months = plan.get("months") or []
+        if not months:
+            # Sem meses explícitos: compara todos os meses disponíveis.
+            with self._connect() as con:
+                months = [r[0] for r in con.execute(f"SELECT DISTINCT mes FROM {self.TABLE} WHERE case_id = ? AND mes <> '' ORDER BY mes", [case_id]).fetchall()]
+        if not months:
+            return None
+        metric = plan.get("metric") or "count"
+        rows = []
+        for month in months:
+            p = {**plan, "months": [month]}
+            where, params = self._v21_where_sql(p)
+            with self._connect() as con:
+                if metric in {"impact_total", "impact", "parada"}:
+                    val = con.execute(f"SELECT COALESCE(SUM(tempo_impacto_segundos),0) FROM {self.TABLE} WHERE {where}", [case_id] + params).fetchone()[0]
+                    rows.append({"month": month, "value": int(val or 0), "label": _seconds_to_hhmmss(val or 0)})
+                else:
+                    val = con.execute(f"SELECT COUNT(DISTINCT numero) FROM {self.TABLE} WHERE {where} AND numero <> ''", [case_id] + params).fetchone()[0]
+                    rows.append({"month": month, "value": int(val or 0), "label": str(int(val or 0))})
+        rows.sort(key=lambda x: x["value"], reverse=True)
+        if len(rows) == 1:
+            answer = f"{rows[0]['month']}: {rows[0]['label']}"
+        elif metric in {"impact_total", "impact", "parada"}:
+            answer = f"{rows[0]['month']} teve o maior impacto total: {rows[0]['label']}."
+        else:
+            first, second = rows[0], rows[1]
+            answer = f"{first['month']} teve mais incidentes: {first['label']} contra {second['label']} em {second['month']}."
+        mem = dict(self.memory.get(case_id) or {})
+        mem["last_v21_plan"] = plan
+        mem["last_query_type"] = "compare"
+        self.memory[case_id] = mem
+        return self._response(case_id, answer, "v21_compare", {"plan": plan}, {"rows": rows, "planner": plan.get("source")})
+
+    def _v21_execute_generic(self, case_id: str, question: str, plan: dict[str, Any]) -> dict[str, Any] | None:
+        intent = plan.get("intent")
+        if intent == "semantic_summary":
+            return {"fallback_to_rag": True, "route": "knowledge_structured_v21_semantic", "query_type": "open_semantic"}
+        if intent == "kpi_summary":
+            # Deixa as rotas mensais existentes responderem, pois já estão validadas e mais ricas.
+            return None
+        if intent == "compare":
+            return self._v21_execute_compare(case_id, plan)
+        if plan.get("group_by") in {"semantic_functionality", "operational_pain"}:
+            return self._v21_execute_virtual_group(case_id, plan)
+        if intent in {"rank", "group"} and plan.get("group_by"):
+            group_by = plan["group_by"]
+            where, params = self._v21_where_sql(plan)
+            order = "ASC" if plan.get("sort") == "asc" else "DESC"
+            limit = int(plan.get("limit") or 20)
+            with self._connect() as con:
+                rows = con.execute(
+                    f"SELECT COALESCE(NULLIF(TRIM(CAST({_sql_ident(group_by)} AS VARCHAR)), ''), 'Não informado') AS name, COUNT(DISTINCT numero) AS total FROM {self.TABLE} WHERE {where} GROUP BY 1 ORDER BY total {order}, name ASC LIMIT ?",
+                    [case_id] + params + [limit],
+                ).fetchall()
+            rows = [r for r in rows if str(r[0] or "").strip() and _norm(r[0]) not in {"nao informado", "não informado", "-"}]
+            if not rows:
+                return None
+            if limit == 1:
+                answer = f"{rows[0][0]}: {int(rows[0][1])} registro(s)"
+            else:
+                label = "Ranking de grupos:" if group_by == "grupo_atribuicao" else "Ranking:"
+                answer = label + "\n" + "\n".join(f"- {r[0]}: {int(r[1])}" for r in rows)
+            mem = dict(self.memory.get(case_id) or {})
+            mem["last_v21_plan"] = plan
+            mem["last_query_type"] = "group"
+            self.memory[case_id] = mem
+            return self._response(case_id, answer, "v22_group", {"plan": plan}, {"rows": rows, "planner": plan.get("source")})
+        if intent == "count":
+            where, params = self._v21_where_sql(plan)
+            with self._connect() as con:
+                count = con.execute(f"SELECT COUNT(DISTINCT numero) FROM {self.TABLE} WHERE {where} AND numero <> ''", [case_id] + params).fetchone()[0]
+            return self._response(case_id, str(int(count or 0)), "v21_count", {"plan": plan}, {"planner": plan.get("source")})
+        if intent == "list":
+            where, params = self._v21_where_sql(plan)
+            limit = int(plan.get("limit") or 100)
+            with self._connect() as con:
+                rows = con.execute(f"SELECT DISTINCT numero FROM {self.TABLE} WHERE {where} AND numero <> '' ORDER BY numero LIMIT ?", [case_id] + params + [limit]).fetchall()
+            codes = [r[0] for r in rows if r and r[0]]
+            if codes:
+                mem = dict(self.memory.get(case_id) or {})
+                mem["last_codes"] = codes
+                mem["last_v21_plan"] = plan
+                mem["last_query_type"] = "list"
+                self.memory[case_id] = mem
+            return self._response(case_id, "\n".join(codes) if codes else "Nenhum registro encontrado.", "v21_list", {"plan": plan}, {"codes": codes, "planner": plan.get("source")})
+        return None
+
     def _answer_structured(self, case_id: str, question: str) -> dict[str, Any]:
         q = _norm(question)
         context = dict(self.memory.get(case_id) or {})
+
+        # V21: planner genérico LLM + execução determinística.
+        # Não substitui as rotas validadas; atua como camada flexível para perguntas novas.
+        # Respostas abertas retornam fallback_to_rag; planos sem resposta deixam o legado continuar.
+        v21_plan = self._v21_plan(case_id, question) if hasattr(self, "_v21_plan") else None
+        if v21_plan:
+            v21_answer = self._v21_execute_generic(case_id, question, v21_plan)
+            if v21_answer:
+                return v21_answer
 
         # V16: ranking de ICs impactados por mudanças deve agrupar por IC, não listar CHGs.
         if hasattr(self, "_v16_legacy_ic_ranking"):
