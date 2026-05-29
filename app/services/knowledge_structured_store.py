@@ -7910,3 +7910,446 @@ class KnowledgeStructuredStore(_BaseKnowledgeStructuredStoreV33):
             except Exception:
                 pass
         return super()._answer_structured(case_id, question)
+
+
+# -----------------------------------------------------------------------------
+# V34 - Generic Agent Query Pipeline
+# Fluxo recomendado:
+# Pergunta -> Context Resolver -> Query Planner -> Plano validado -> SQL controlado
+# -> DuckDB/raw_json -> Resultado bruto -> LLM apenas para narrativa.
+#
+# Esta subclasse é propositalmente aditiva: preserva todas as rotas V33/V32/V21
+# existentes para incidentes/changes e só assume quando consegue montar/validar um
+# plano genérico seguro. Ela também expõe campos de raw_json/document como campos
+# consultáveis sem alterar a tabela física.
+# -----------------------------------------------------------------------------
+
+_BaseKnowledgeStructuredStoreV34 = KnowledgeStructuredStore
+
+
+class KnowledgeStructuredStore(_BaseKnowledgeStructuredStoreV34):
+    GENERIC_JSON_FIELD_LIMIT = int(os.getenv("GABBI_NEXUS_GENERIC_JSON_FIELD_LIMIT", "80"))
+
+    def _v34_enabled(self) -> bool:
+        return os.getenv("GABBI_NEXUS_V34_GENERIC_PIPELINE_ENABLED", "true").strip().lower() in {"1", "true", "yes", "sim", "on"}
+
+    def _v34_get_llm(self):
+        try:
+            from app.services.llm import LLMService
+        except Exception:
+            try:
+                from llm import LLMService
+            except Exception:
+                return None
+        try:
+            llm = LLMService()
+            return llm if llm.status().get("enabled") else None
+        except Exception:
+            return None
+
+    def _v34_json_candidates(self, case_id: str, limit_rows: int = 200) -> dict[str, dict[str, Any]]:
+        """Descobre campos recorrentes no raw_json/document sem alterar schema.
+
+        Retorna um catálogo: nome_campo -> {path, samples, count}. Só são expostos
+        campos escalares simples; objetos/listas permanecem no RAG.
+        """
+        if not self.enabled:
+            return {}
+        rows: list[tuple[Any]] = []
+        try:
+            with self._connect() as con:
+                rows = con.execute(
+                    f"SELECT raw_json FROM {self.TABLE} WHERE case_id = ? AND raw_json IS NOT NULL LIMIT ?",
+                    [case_id, int(limit_rows)],
+                ).fetchall()
+        except Exception:
+            return {}
+
+        catalog: dict[str, dict[str, Any]] = {}
+
+        def add_field(key: str, path: str, value: Any) -> None:
+            if value is None or isinstance(value, (dict, list, tuple, set)):
+                return
+            name = _safe(key)
+            if not name or len(name) > 80:
+                return
+            # Evita expor campos enormes e campos técnicos repetitivos sem valor analítico.
+            sval = _safe(value)
+            if not sval or len(sval) > 500:
+                return
+            entry = catalog.setdefault(name, {"path": path, "samples": [], "count": 0})
+            entry["count"] += 1
+            if sval not in entry["samples"] and len(entry["samples"]) < 8:
+                entry["samples"].append(sval)
+
+        for (raw,) in rows:
+            obj = _json_loads_maybe(raw)
+            if not obj:
+                continue
+            for k, v in obj.items():
+                if k == "document":
+                    doc = _json_loads_maybe(v)
+                    for dk, dv in doc.items():
+                        add_field(dk, f"$.document.{dk}", dv)
+                    continue
+                add_field(k, f"$.{k}", v)
+
+        # Ordena por recorrência e reduz volume enviado ao planner.
+        ordered = sorted(catalog.items(), key=lambda kv: (kv[1].get("count", 0), kv[0]), reverse=True)
+        return dict(ordered[: self.GENERIC_JSON_FIELD_LIMIT])
+
+    def _v34_schema_context(self, case_id: str) -> dict[str, Any]:
+        cols = self._v21_schema_columns() if hasattr(self, "_v21_schema_columns") else []
+        json_fields = self._v34_json_candidates(case_id)
+        semantic_columns = {
+            "article_text": "texto integral do artigo/base de conhecimento",
+            "raw_json": "payload original do artigo/base",
+            "agent_name": "nome do agente",
+            "topic_name": "nome do tópico",
+            "project_name": "nome do projeto",
+        }
+        return {
+            "table": self.TABLE,
+            "physical_columns": cols,
+            "json_fields": json_fields,
+            "semantic_columns": semantic_columns,
+            "allowed_operations": ["count", "list", "detail", "group", "rank", "summary"],
+            "rules": [
+                "Não gerar SQL livre.",
+                "Usar apenas campos físicos ou campos JSON catalogados.",
+                "Perguntas abertas/documentais devem ser answerable=false.",
+                "Números finais são calculados pelo DuckDB, nunca pelo LLM.",
+            ],
+        }
+
+    def _v34_conversation_state(self, case_id: str) -> dict[str, Any]:
+        mem = dict(self.memory.get(case_id) or {})
+        return {
+            "last_plan": mem.get("last_v34_plan") or mem.get("last_v21_plan") or mem.get("last_plan"),
+            "last_result": mem.get("last_v34_result") or mem.get("last_result"),
+            "last_codes": (mem.get("last_codes") or [])[:50],
+            "last_query_type": mem.get("last_query_type"),
+            "last_month": mem.get("mes"),
+            "scope": mem.get("scope"),
+        }
+
+    def _v34_resolve_question(self, case_id: str, question: str, chat_history: list[dict[str, Any]] | None = None) -> str:
+        llm = self._v34_get_llm()
+        if not llm:
+            return question
+        state = self._v34_conversation_state(case_id)
+        try:
+            resolved = llm.resolve_semantic_context(question=question, conversation_state=state, history=chat_history or [])
+            if isinstance(resolved, dict) and float(resolved.get("confidence") or 0) >= 0.55:
+                rq = _safe(resolved.get("resolved_question"))
+                return rq or question
+        except Exception:
+            return question
+        return question
+
+    def _v34_llm_plan(self, case_id: str, question: str, chat_history: list[dict[str, Any]] | None = None) -> dict[str, Any] | None:
+        llm = self._v34_get_llm()
+        if not llm:
+            return None
+        resolved_question = self._v34_resolve_question(case_id, question, chat_history)
+        try:
+            raw_plan = llm.generate_analytic_plan(
+                question=resolved_question,
+                schema_context=self._v34_schema_context(case_id),
+                conversation_state=self._v34_conversation_state(case_id),
+                examples=[
+                    {"question": "quantos registros existem por status?", "intent": "group", "metric": "count", "group_by": ["status"]},
+                    {"question": "liste os artigos do tópico X", "intent": "list", "metric": "count", "filters": [{"field": "topic_name", "operator": "contains", "value": "X"}]},
+                    {"question": "resuma o documento", "answerable": False, "intent": "unknown"},
+                ],
+            )
+        except Exception:
+            return None
+        if not isinstance(raw_plan, dict):
+            return None
+        raw_plan["resolved_question"] = resolved_question
+        return self._v34_validate_plan(case_id, raw_plan)
+
+    def _v34_field_catalog(self, case_id: str) -> dict[str, dict[str, Any]]:
+        catalog: dict[str, dict[str, Any]] = {}
+        for col in (self._v21_schema_columns() if hasattr(self, "_v21_schema_columns") else []):
+            catalog[col] = {"kind": "column", "name": col}
+        for name, meta in self._v34_json_candidates(case_id).items():
+            catalog[name] = {"kind": "json", "name": name, "path": meta.get("path")}
+        return catalog
+
+    def _v34_resolve_field(self, case_id: str, field: Any) -> str | None:
+        raw = _safe(field)
+        if not raw:
+            return None
+        catalog = self._v34_field_catalog(case_id)
+        if raw in catalog:
+            return raw
+        raw_c = re.sub(r"[^a-z0-9]+", "", _norm(raw))
+        best: tuple[str, float] | None = None
+        for name in catalog.keys():
+            name_c = re.sub(r"[^a-z0-9]+", "", _norm(name))
+            if not name_c:
+                continue
+            score = 0.0
+            if raw_c == name_c:
+                score = 1.0
+            elif raw_c in name_c or name_c in raw_c:
+                score = 0.82
+            else:
+                # Similaridade simples sem depender de difflib neste trecho.
+                common = len(set(raw_c) & set(name_c)) / max(1, len(set(raw_c) | set(name_c)))
+                score = common * 0.65
+            if best is None or score > best[1]:
+                best = (name, score)
+        return best[0] if best and best[1] >= 0.72 else None
+
+    def _v34_validate_plan(self, case_id: str, raw_plan: dict[str, Any]) -> dict[str, Any] | None:
+        try:
+            conf = float(raw_plan.get("confidence") or 0)
+        except Exception:
+            conf = 0.0
+        if conf < float(os.getenv("GABBI_NEXUS_V34_MIN_CONFIDENCE", "0.50")):
+            return None
+        if raw_plan.get("answerable") is False:
+            return {"intent": "semantic_summary", "source": "v34_llm", "confidence": conf, "raw_plan": raw_plan}
+
+        intent = _safe(raw_plan.get("intent") or "unknown").lower()
+        intent_map = {
+            "count": "count", "distinct_count": "count", "list": "list", "detail": "detail",
+            "rank": "group", "group": "group", "summary": "summary",
+        }
+        intent = intent_map.get(intent, "unknown")
+        if intent == "unknown":
+            return None
+
+        metric = _safe(raw_plan.get("metric") or "count").lower() or "count"
+        if metric == "distinct_count":
+            metric = "count"
+
+        filters: list[dict[str, Any]] = []
+        for f in raw_plan.get("filters") or []:
+            if not isinstance(f, dict):
+                continue
+            field = self._v34_resolve_field(case_id, f.get("field"))
+            op = _safe(f.get("operator") or "contains").lower()
+            if op not in {"eq", "contains", "in", "gte", "lte", "between", "is_true", "is_false"}:
+                continue
+            if not field:
+                continue
+            filters.append({"field": field, "operator": op, "value": f.get("value")})
+
+        group_by: list[str] = []
+        for g in raw_plan.get("group_by") or []:
+            field = self._v34_resolve_field(case_id, g)
+            if field and field not in group_by:
+                group_by.append(field)
+
+        sort_obj = raw_plan.get("sort") or {}
+        sort_dir = _safe(sort_obj.get("direction") if isinstance(sort_obj, dict) else raw_plan.get("sort")).lower()
+        if sort_dir not in {"asc", "desc"}:
+            sort_dir = "desc"
+
+        try:
+            limit = int(raw_plan.get("limit") or 20)
+        except Exception:
+            limit = 20
+        limit = max(1, min(limit, 200))
+
+        return {
+            "intent": intent,
+            "metric": metric,
+            "filters": filters,
+            "group_by": group_by,
+            "sort": sort_dir,
+            "limit": limit,
+            "source": "v34_llm",
+            "confidence": conf,
+            "resolved_question": raw_plan.get("resolved_question") or raw_plan.get("question"),
+            "raw_plan": raw_plan,
+        }
+
+    def _v34_expr(self, case_id: str, field: str) -> str | None:
+        catalog = self._v34_field_catalog(case_id)
+        meta = catalog.get(field)
+        if not meta:
+            return None
+        if meta["kind"] == "column":
+            return _sql_ident(field)
+        # Campo JSON catalogado. Usa json_extract_string em paths controlados.
+        path = _safe(meta.get("path"))
+        if not re.fullmatch(r"\$\.(?:document\.)?[A-Za-z0-9_ À-ÿ\-]+", path):
+            return None
+        escaped = path.replace("'", "''")
+        return f"json_extract_string(raw_json, '{escaped}')"
+
+    def _v34_where_sql(self, case_id: str, plan: dict[str, Any]) -> tuple[str, list[Any]]:
+        clauses = ["case_id = ?"]
+        params: list[Any] = [case_id]
+        for f in plan.get("filters") or []:
+            expr = self._v34_expr(case_id, f.get("field"))
+            if not expr:
+                continue
+            op = f.get("operator")
+            value = f.get("value")
+            if op == "eq":
+                clauses.append(f"LOWER(CAST({expr} AS VARCHAR)) = LOWER(?)")
+                params.append(_safe(value))
+            elif op == "contains":
+                clauses.append(f"CAST({expr} AS VARCHAR) ILIKE ?")
+                params.append(f"%{_safe(value)}%")
+            elif op == "in" and isinstance(value, list):
+                vals = [_safe(v) for v in value if _safe(v)]
+                if vals:
+                    placeholders = ",".join(["?"] * len(vals))
+                    clauses.append(f"LOWER(CAST({expr} AS VARCHAR)) IN ({placeholders})")
+                    params.extend([v.lower() for v in vals])
+            elif op == "gte":
+                clauses.append(f"CAST({expr} AS VARCHAR) >= ?")
+                params.append(_safe(value))
+            elif op == "lte":
+                clauses.append(f"CAST({expr} AS VARCHAR) <= ?")
+                params.append(_safe(value))
+            elif op == "is_true":
+                clauses.append(f"LOWER(CAST({expr} AS VARCHAR)) IN ('true','1','sim','yes')")
+            elif op == "is_false":
+                clauses.append(f"LOWER(CAST({expr} AS VARCHAR)) IN ('false','0','nao','não','no')")
+        return " AND ".join(clauses), params
+
+    def _v34_identity_expr(self, case_id: str) -> str:
+        for preferred in ["numero", "codigo_principal", "article_ref_id", "article_id", "source_id", "topic_name"]:
+            if self._v34_expr(case_id, preferred):
+                return f"COALESCE(NULLIF(TRIM(CAST({self._v34_expr(case_id, preferred)} AS VARCHAR)), ''), 'registro')"
+        return "'registro'"
+
+    def _v34_execute_plan(self, case_id: str, question: str, plan: dict[str, Any]) -> dict[str, Any] | None:
+        if plan.get("intent") == "semantic_summary":
+            return {"fallback_to_rag": True, "route": "knowledge_structured_v34_semantic", "query_type": "open_semantic"}
+        if not self.enabled:
+            return None
+
+        where, params = self._v34_where_sql(case_id, plan)
+        intent = plan.get("intent")
+        limit = int(plan.get("limit") or 20)
+        identity = self._v34_identity_expr(case_id)
+
+        with self._connect() as con:
+            if intent == "count":
+                sql = f"SELECT COUNT(*) FROM {self.TABLE} WHERE {where}"
+                total = int(con.execute(sql, params).fetchone()[0] or 0)
+                result = {"total": total}
+                self._v34_save_context(case_id, plan, result)
+                return self._v34_response_with_optional_narrative(case_id, question, str(total), "v34_count", plan, {"sql": sql, "params": params, "result": result})
+
+            if intent == "list":
+                sql = f"SELECT DISTINCT {identity} AS item FROM {self.TABLE} WHERE {where} ORDER BY item LIMIT ?"
+                rows = [r[0] for r in con.execute(sql, params + [limit]).fetchall() if r and _safe(r[0])]
+                result = {"items": rows, "count": len(rows)}
+                self._v34_save_context(case_id, plan, result)
+                text = "\n".join(map(str, rows)) if rows else "Nenhum registro encontrado."
+                return self._v34_response_with_optional_narrative(case_id, question, text, "v34_list", plan, {"sql": sql, "params": params + [limit], "result": result})
+
+            if intent in {"group", "summary"}:
+                group_field = (plan.get("group_by") or [None])[0]
+                if not group_field:
+                    # summary genérico: total + principais tópicos/fontes quando houver.
+                    sql = f"SELECT COUNT(*) FROM {self.TABLE} WHERE {where}"
+                    total = int(con.execute(sql, params).fetchone()[0] or 0)
+                    result = {"total": total}
+                    self._v34_save_context(case_id, plan, result)
+                    return self._v34_response_with_optional_narrative(case_id, question, f"Total de registros considerados: {total}", "v34_summary", plan, {"sql": sql, "params": params, "result": result})
+                expr = self._v34_expr(case_id, group_field)
+                if not expr:
+                    return None
+                order = "ASC" if plan.get("sort") == "asc" else "DESC"
+                sql = (
+                    f"SELECT COALESCE(NULLIF(TRIM(CAST({expr} AS VARCHAR)), ''), 'Não informado') AS name, "
+                    f"COUNT(*) AS total FROM {self.TABLE} WHERE {where} GROUP BY 1 ORDER BY total {order}, name ASC LIMIT ?"
+                )
+                rows = [(str(r[0]), int(r[1] or 0)) for r in con.execute(sql, params + [limit]).fetchall()]
+                rows = [r for r in rows if _norm(r[0]) not in {"nao informado", "não informado", "-", "none", "null"}]
+                result = {"items": [{"name": n, "total": t} for n, t in rows], "count": len(rows), "group_by": group_field}
+                self._v34_save_context(case_id, plan, result)
+                if not rows:
+                    text = "Nenhum agrupamento encontrado."
+                else:
+                    text = "Ranking:\n" + "\n".join(f"- {n}: {t}" for n, t in rows)
+                return self._v34_response_with_optional_narrative(case_id, question, text, "v34_group", plan, {"sql": sql, "params": params + [limit], "result": result})
+
+            if intent == "detail":
+                select_cols = [c for c in ["numero", "titulo", "topic_name", "article_text", "raw_json"] if self._v34_expr(case_id, c)]
+                if not select_cols:
+                    select_cols = ["article_text", "raw_json"]
+                cols_sql = ", ".join(_sql_ident(c) for c in select_cols if c in set(self._v21_schema_columns()))
+                sql = f"SELECT {cols_sql} FROM {self.TABLE} WHERE {where} LIMIT ?"
+                row = con.execute(sql, params + [1]).fetchone()
+                if not row:
+                    return self._v34_response_with_optional_narrative(case_id, question, "Nenhum detalhe encontrado.", "v34_detail_empty", plan, {"sql": sql, "params": params + [1]})
+                data = {select_cols[i]: row[i] for i in range(min(len(select_cols), len(row)))}
+                text = data.get("article_text") or json.dumps(data, ensure_ascii=False, default=str)
+                result = {"detail": data}
+                self._v34_save_context(case_id, plan, result)
+                return self._v34_response_with_optional_narrative(case_id, question, _safe(text)[:4000], "v34_detail", plan, {"sql": sql, "params": params + [1], "result": result})
+        return None
+
+    def _v34_save_context(self, case_id: str, plan: dict[str, Any], result: dict[str, Any]) -> None:
+        mem = dict(self.memory.get(case_id) or {})
+        mem["last_v34_plan"] = plan
+        mem["last_v34_result"] = result
+        mem["last_query_type"] = plan.get("intent")
+        self.memory[case_id] = mem
+
+    def _v34_response_with_optional_narrative(self, case_id: str, question: str, answer: str, query_type: str, plan: dict[str, Any], technical: dict[str, Any]) -> dict[str, Any]:
+        technical = dict(technical or {})
+        technical.setdefault("confidence", plan.get("confidence", 0.80))
+        technical.setdefault("planner", plan.get("source", "v34"))
+        # Por padrão mantém a resposta determinística. Quando habilitado, o LLM só narra
+        # em cima do resultado já calculado, sem alterar números/listas.
+        if os.getenv("GABBI_NEXUS_V34_LLM_NARRATIVE_ENABLED", "false").strip().lower() in {"1", "true", "yes", "sim", "on"}:
+            llm = self._v34_get_llm()
+            if llm:
+                try:
+                    narrative = llm.generate_narrative(
+                        question=question,
+                        structured_result={"answer": answer, "query_type": query_type, "plan": plan, "technical": technical},
+                        conversation_state=self._v34_conversation_state(case_id),
+                        mode="executive",
+                    )
+                    if narrative:
+                        answer = narrative
+                except Exception:
+                    pass
+        return self._response(case_id, answer, query_type, {"plan": plan}, technical)
+
+    def _answer_structured(self, case_id: str, question: str) -> dict[str, Any]:
+        # 1) Correções cirúrgicas e rotas comprovadas do domínio ITSM continuam primeiro.
+        for handler_name in [
+            "_v32_detail_pronoun_focus",
+            "_v32_top_impact_by_month",
+            "_v32_esim_count",
+            "_v32_change_states_ranking",
+        ]:
+            handler = getattr(self, handler_name, None)
+            if not handler:
+                continue
+            try:
+                ans = handler(case_id, question)
+                if ans:
+                    return ans
+            except Exception:
+                pass
+
+        # 2) Pipeline genérico: planner JSON -> validação -> SQL controlado -> resultado.
+        if self._v34_enabled():
+            try:
+                plan = self._v34_llm_plan(case_id, question)
+                if plan:
+                    ans = self._v34_execute_plan(case_id, question, plan)
+                    if ans:
+                        return ans
+            except Exception as exc:
+                if os.getenv("GABBI_NEXUS_V34_SHOW_ERRORS", "false").strip().lower() in {"1", "true", "yes", "sim", "on"}:
+                    return self._response(case_id, f"Erro no pipeline genérico V34: {type(exc).__name__}: {exc}", "v34_error", {}, {"error": str(exc), "confidence": 0.20})
+
+        # 3) Fallback: toda a cadeia antiga permanece disponível.
+        return super()._answer_structured(case_id, question)
