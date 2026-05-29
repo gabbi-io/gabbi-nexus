@@ -7705,3 +7705,208 @@ class KnowledgeStructuredStore(_BaseKnowledgeStructuredStoreV32):
             except Exception:
                 pass
         return super()._answer_structured(case_id, question)
+
+
+# -----------------------------------------------------------------------------
+# V33 - Bugfix release
+# Foco: corrigir apenas os bugs observados na V32 sem alterar o núcleo estável.
+#   BUG-001: memória de entidade "ele/detalhe ele" após maior impacto.
+#   BUG-002: contagem eSIM com filtro semântico rígido demais.
+#   BUG-003: ranking de estados/status das changes retornando vazio.
+#   BUG-004: maior impacto mensal divergente do KPI executivo oficial.
+# -----------------------------------------------------------------------------
+_BaseKnowledgeStructuredStoreV33 = KnowledgeStructuredStore
+
+
+class KnowledgeStructuredStore(_BaseKnowledgeStructuredStoreV33):
+    def _response(self, case_id: str, answer: str, query_type: str, criteria: dict[str, Any], technical: dict[str, Any]) -> dict[str, Any]:
+        """Atualiza foco conversacional quando a resposta aponta para um único código.
+
+        Isso corrige o caso:
+          qual deles teve maior impacto? -> INCxxxx
+          detalhe ele -> deve detalhar o mesmo INCxxxx.
+        """
+        result = super()._response(case_id, answer, query_type, criteria, technical)
+        try:
+            text = str(answer or "")
+            codes = re.findall(r"\b(?:INC|CHG)\d{5,}\b", text, flags=re.I)
+            codes = [c.upper() for c in codes]
+            unique = list(dict.fromkeys(codes))
+            single_focus_routes = {
+                "major_impact",
+                "v27_largest_impact_from_memory",
+                "v32_largest_impact_last_codes_kpi",
+                "v32_top_impact_monthly_kpi",
+                "v33_top_impact_monthly_kpi",
+                "explicit_code_detail",
+                "v31_explicit_code",
+            }
+            # Se a resposta contém exatamente um código ou é uma rota de foco, salve como foco ativo.
+            if unique and (len(unique) == 1 or query_type in single_focus_routes):
+                focus = unique[0]
+                mem = dict(self.memory.get(case_id) or {})
+                mem["last_focus_code"] = focus
+                mem["last_detail_code"] = focus
+                mem["last_focus_query_type"] = query_type
+                # Não sobrescreve last_codes em listagens grandes; apenas o foco.
+                if isinstance(criteria, dict):
+                    month = criteria.get("mes") or criteria.get("month")
+                    if month:
+                        mem["mes"] = month
+                        mem["last_period"] = month
+                self.memory[case_id] = mem
+        except Exception:
+            pass
+        return result
+
+    def _v33_kpi_top_impact_line(self, case_id: str, month: str) -> str:
+        """Extrai o maior impacto da fonte mensal oficial com regex mais tolerante.
+
+        A V32 às vezes caía no SQL amplo e devolvia outro incidente. Aqui a regra é:
+        para pergunta mensal APP, o KPI mensal é a fonte oficial.
+        """
+        txt = self._v32_kpi().monthly_text(case_id, month) if hasattr(self, "_v32_kpi") else ""
+        if not txt:
+            return ""
+
+        # Formato: Maior impacto: INC3636372 (P3) — ... — impacto 08:35:59
+        patterns = [
+            r"Maior\s+impacto\s*:\s*(INC\d{5,}[^\n\r]*)",
+            r"Maior\s+incidente\s*:\s*(INC\d{5,}[^\n\r]*)",
+            r"Top\s+incidentes[^\n]*[\s\S]*?[-•]\s*(INC\d{5,}[^\n\r]*)",
+        ]
+        for pat in patterns:
+            m = re.search(pat, txt, flags=re.I)
+            if m:
+                line = m.group(1).strip()
+                # Normaliza excesso de prefixo/sufixo, mas preserva descrição.
+                return re.sub(r"\s+", " ", line)
+
+        # Fallback para extractor legado, se houver.
+        try:
+            return self._v32_kpi().top_impact_line(case_id, month) or ""
+        except Exception:
+            return ""
+
+    def _v32_top_impact_by_month(self, case_id: str, question: str) -> dict[str, Any] | None:
+        q = self._v32_norm(question)
+        if not ("incidente" in q and ("maior impacto" in q or "mais impacto" in q or "mais critico" in q or "mais crítico" in q or "demorou mais" in q)):
+            return None
+        if any(x in q for x in ["deles", "entre eles", "dessa lista"]):
+            return None
+        month = self._v32_month(case_id, question)
+        if not month:
+            return None
+        line = self._v33_kpi_top_impact_line(case_id, month)
+        if not line:
+            return None
+        code_match = re.search(r"\bINC\d{5,}\b", line, flags=re.I)
+        code = code_match.group(0).upper() if code_match else ""
+        self._v32_remember_focus(case_id, code=code or None, month=month, codes=[code] if code else None, intent="top_impact")
+        return self._response(case_id, line, "v33_top_impact_monthly_kpi", {"mes": month}, {"engine": "UnifiedKPIEngineV33", "source": "monthly_kpi", "confidence": 0.97})
+
+    def _v32_esim_count(self, case_id: str, question: str) -> dict[str, Any] | None:
+        q = self._v32_norm(question)
+        if not ("esim" in q and ("incidente" in q or "incidentes" in q) and any(x in q for x in ["quantos", "quantas", "total", "qtd", "qtde"])):
+            return None
+        month = self._v32_month(case_id, question)
+        if not month:
+            return None
+
+        code_expr = "COALESCE(NULLIF(numero,''), NULLIF(codigo_principal,''))"
+        # Não usar LIKE '%sim%'. Procurar eSIM/e-SIM/chip virtual nos campos textuais ricos.
+        # Inclui article_text/raw_json porque em algumas cargas a funcionalidade canônica fica vazia.
+        sql = f"""
+            SELECT COUNT(DISTINCT {code_expr})
+            FROM {self.TABLE}
+            WHERE case_id = ?
+              AND codigo_tipo = 'INC'
+              AND mes = ?
+              AND {code_expr} IS NOT NULL
+              AND (
+                    regexp_matches(UPPER(COALESCE(funcionalidade,'')), '(^|[^A-Z0-9])E[- ]?SIM([^A-Z0-9]|$)')
+                 OR regexp_matches(UPPER(COALESCE(descricao_resumida,'')), '(^|[^A-Z0-9])E[- ]?SIM([^A-Z0-9]|$)')
+                 OR regexp_matches(UPPER(COALESCE(descricao,'')), '(^|[^A-Z0-9])E[- ]?SIM([^A-Z0-9]|$)')
+                 OR regexp_matches(UPPER(COALESCE(article_text,'')), '(^|[^A-Z0-9])E[- ]?SIM([^A-Z0-9]|$)')
+                 OR UPPER(COALESCE(descricao_resumida,'')) LIKE '%CHIP VIRTUAL%'
+                 OR UPPER(COALESCE(descricao,'')) LIKE '%CHIP VIRTUAL%'
+                 OR UPPER(COALESCE(article_text,'')) LIKE '%CHIP VIRTUAL%'
+                 OR UPPER(COALESCE(raw_json,'')) LIKE '%ESIM%'
+                 OR UPPER(COALESCE(raw_json,'')) LIKE '%E-SIM%'
+                 OR UPPER(COALESCE(raw_json,'')) LIKE '%CHIP VIRTUAL%'
+              )
+        """
+        with self._connect() as con:
+            total = int(con.execute(sql, [case_id, month]).fetchone()[0] or 0)
+        return self._response(case_id, f"eSIM: {total} incidente(s)", "v33_esim_semantic_count", {"mes": month, "funcionalidade": "eSIM"}, {"sql": sql, "params": [case_id, month], "confidence": 0.93})
+
+    def _v32_change_states_ranking(self, case_id: str, question: str) -> dict[str, Any] | None:
+        q = self._v32_norm(question)
+        if not ("change" in q or "changes" in q or "mudanca" in q or "mudança" in q):
+            return None
+        if not ("estado" in q or "status" in q or "frequente" in q or "frequentes" in q):
+            return None
+
+        # Importante: não herdar mês automaticamente nessa pergunta genérica.
+        # Só aplica mês se ele estiver explícito na pergunta.
+        month = ""
+        try:
+            month = self._stable_month_from_question(question) or ""
+        except Exception:
+            month = ""
+
+        clauses = ["case_id = ?", "codigo_tipo = 'CHG'"]
+        params: list[Any] = [case_id]
+        if month:
+            clauses.append("mes = ?")
+            params.append(month)
+        where = " AND ".join(clauses)
+        # Fallback de estado/status/tipo, limpando labels contaminados.
+        bucket = """
+            regexp_replace(
+                COALESCE(
+                    NULLIF(TRIM(estado), ''),
+                    NULLIF(TRIM(status), ''),
+                    NULLIF(TRIM(tipo), ''),
+                    NULLIF(TRIM(regexp_extract(COALESCE(article_text,''), '(?i)(?:Estado|Status)\\s*[:=-]\\s*([^\\n\\r;|]+)', 1)), ''),
+                    'Não informado'
+                ),
+                '\\s+(Data|Grupo|IC|Canal|Prioridade|Tipo)\\s*[:=-].*$',
+                ''
+            )
+        """
+        sql = f"""
+            SELECT {bucket} AS estado_final,
+                   COUNT(DISTINCT COALESCE(NULLIF(numero,''), NULLIF(codigo_principal,''))) AS total
+            FROM {self.TABLE}
+            WHERE {where}
+              AND COALESCE(NULLIF(numero,''), NULLIF(codigo_principal,'')) IS NOT NULL
+            GROUP BY 1
+            HAVING estado_final IS NOT NULL AND TRIM(estado_final) <> '' AND estado_final <> 'Não informado'
+            ORDER BY total DESC, estado_final ASC
+            LIMIT 10
+        """
+        with self._connect() as con:
+            rows = con.execute(sql, params).fetchall()
+        if not rows:
+            return self._response(case_id, "Nenhum estado/status de change encontrado na base estruturada.", "v33_change_states_empty", {"mes": month}, {"sql": sql, "params": params, "confidence": 0.75})
+        lines = ["Estados mais frequentes das changes:"]
+        for name, total in rows:
+            lines.append(f"- {str(name).strip()}: {int(total)}")
+        return self._response(case_id, "\n".join(lines), "v33_change_states_ranking", {"mes": month}, {"sql": sql, "params": params, "confidence": 0.91})
+
+    def _answer_structured(self, case_id: str, question: str) -> dict[str, Any]:
+        # V33: mantém escopo cirúrgico. Só intercepta as rotas com bugs comprovados.
+        for handler in [
+            self._v32_detail_pronoun_focus,
+            self._v32_top_impact_by_month,
+            self._v32_esim_count,
+            self._v32_change_states_ranking,
+        ]:
+            try:
+                ans = handler(case_id, question)
+                if ans:
+                    return ans
+            except Exception:
+                pass
+        return super()._answer_structured(case_id, question)
