@@ -7309,3 +7309,399 @@ class KnowledgeStructuredStore(_BaseKnowledgeStructuredStoreV31):
                 # Não quebra o motor base por falha no guardrail.
                 pass
         return super()._answer_structured(case_id, question)
+
+
+# -----------------------------------------------------------------------------
+# V32 - QueryPlan + Validator + SQLBuilder + Unified KPI Engine
+# -----------------------------------------------------------------------------
+# Camada conservadora sobre a V31. Não remove o motor estável; adiciona um
+# gateway de plano validado e um KPIEngine único para eliminar duplicidade de
+# cálculo em perguntas enterprise: maior impacto, resumo executivo, eSIM,
+# estados de changes e follow-up por foco.
+# -----------------------------------------------------------------------------
+
+try:
+    from dataclasses import dataclass, field
+except Exception:  # pragma: no cover
+    dataclass = None
+    field = None
+
+
+if dataclass:
+    @dataclass
+    class QueryPlanV32:
+        intent: str
+        code_type: str | None = None
+        month: str | None = None
+        scope: str | None = None
+        metric: str | None = None
+        group_by: str | None = None
+        filters: dict[str, Any] = field(default_factory=dict)
+        order: str = "desc"
+        limit: int = 10
+        raw_question: str = ""
+else:
+    class QueryPlanV32:  # fallback simples
+        def __init__(self, intent: str, **kwargs: Any):
+            self.intent = intent
+            self.code_type = kwargs.get("code_type")
+            self.month = kwargs.get("month")
+            self.scope = kwargs.get("scope")
+            self.metric = kwargs.get("metric")
+            self.group_by = kwargs.get("group_by")
+            self.filters = kwargs.get("filters") or {}
+            self.order = kwargs.get("order") or "desc"
+            self.limit = int(kwargs.get("limit") or 10)
+            self.raw_question = kwargs.get("raw_question") or ""
+
+
+class QueryPlanValidatorV32:
+    """Valida planos contra um catálogo fechado de capacidades analíticas.
+
+    A LLM pode ajudar a interpretar intenção em camadas anteriores, mas este
+    validador impede que ela decida SQL livremente.
+    """
+
+    ALLOWED_INTENTS = {
+        "count", "list", "detail", "ranking", "operational_summary",
+        "top_impact", "mttr", "systemic_time", "systemic_list",
+        "change_related_count", "change_states_ranking", "percentage_success",
+    }
+    ALLOWED_CODE_TYPES = {None, "INC", "CHG"}
+    ALLOWED_GROUP_BY = {None, "funcionalidade", "causa_origem", "grupo_atribuicao", "ic_impactado", "estado"}
+
+    def validate(self, plan: QueryPlanV32) -> QueryPlanV32:
+        if plan.intent not in self.ALLOWED_INTENTS:
+            raise ValueError(f"Intent não suportada: {plan.intent}")
+        if plan.code_type not in self.ALLOWED_CODE_TYPES:
+            raise ValueError(f"Tipo de código não suportado: {plan.code_type}")
+        if plan.group_by not in self.ALLOWED_GROUP_BY:
+            raise ValueError(f"Agrupamento não suportado: {plan.group_by}")
+        if plan.month and not re.match(r"^20\d{2}-\d{2}$", str(plan.month)):
+            raise ValueError(f"Mês inválido: {plan.month}")
+        try:
+            plan.limit = max(1, min(int(plan.limit or 10), 500))
+        except Exception:
+            plan.limit = 10
+        return plan
+
+
+class SQLBuilderV32:
+    """SQL controlado: gera apenas consultas parametrizadas e whitelisted."""
+
+    GROUP_COLUMN_MAP = {
+        "funcionalidade": "funcionalidade",
+        "causa_origem": "causa_origem",
+        "grupo_atribuicao": "grupo_atribuicao",
+        "ic_impactado": "ic_impactado",
+        "estado": "estado",
+    }
+
+    def __init__(self, table: str):
+        self.table = table
+
+    def base_where(self, case_id: str, plan: QueryPlanV32) -> tuple[list[str], list[Any]]:
+        clauses = ["case_id = ?"]
+        params: list[Any] = [case_id]
+        if plan.code_type == "INC":
+            clauses.append("codigo_tipo = 'INC'")
+        elif plan.code_type == "CHG":
+            clauses.append("codigo_tipo = 'CHG'")
+        if plan.month:
+            clauses.append("mes = ?")
+            params.append(plan.month)
+        for key, value in (plan.filters or {}).items():
+            if value in (None, ""):
+                continue
+            if key in self.GROUP_COLUMN_MAP:
+                clauses.append(f"{self.GROUP_COLUMN_MAP[key]} ILIKE ?")
+                params.append(f"%{value}%")
+        return clauses, params
+
+    def ranking_sql(self, case_id: str, plan: QueryPlanV32) -> tuple[str, list[Any]]:
+        col = self.GROUP_COLUMN_MAP.get(plan.group_by or "")
+        if not col:
+            raise ValueError("group_by obrigatório para ranking")
+        clauses, params = self.base_where(case_id, plan)
+        code_expr = "COALESCE(NULLIF(numero,''), NULLIF(codigo_principal,''))"
+        sql = f"""
+            SELECT NULLIF(TRIM({col}), '') AS chave, COUNT(DISTINCT {code_expr}) AS total
+            FROM {self.table}
+            WHERE {' AND '.join(clauses)}
+              AND {code_expr} IS NOT NULL
+              AND NULLIF(TRIM({col}), '') IS NOT NULL
+            GROUP BY 1
+            ORDER BY total DESC, chave ASC
+            LIMIT ?
+        """
+        return sql, params + [plan.limit]
+
+
+class UnifiedKPIEngineV32:
+    """Fonte única para KPIs mensais do APP.
+
+    Usa primeiro o documento mensal KPI/FAQ, pois foi a fonte mais estável nos
+    testes. Quando o KPI não existe, cai em consultas estruturadas controladas.
+    """
+
+    def __init__(self, store: Any):
+        self.store = store
+
+    def monthly_text(self, case_id: str, month: str) -> str:
+        if not month:
+            return ""
+        for fn in ["_v14_kpi_text", "_v9_fetch_monthly_kpi_text"]:
+            try:
+                if hasattr(self.store, fn):
+                    if fn == "_v14_kpi_text":
+                        txt = getattr(self.store, fn)(case_id, month)
+                    else:
+                        txt = getattr(self.store, fn)(case_id, month, "APP")
+                    if txt:
+                        return txt
+            except Exception:
+                pass
+        return ""
+
+    def value(self, case_id: str, month: str, key: str) -> str:
+        txt = self.monthly_text(case_id, month)
+        if not txt:
+            return ""
+        try:
+            return self.store._v9_extract_kpi_value(txt, key) or ""
+        except Exception:
+            return ""
+
+    def top_impact_line(self, case_id: str, month: str) -> str:
+        txt = self.monthly_text(case_id, month)
+        if not txt:
+            return ""
+        try:
+            line = self.store._v9_extract_largest_impact(txt)
+            return line or ""
+        except Exception:
+            return ""
+
+    def top_impact_code(self, case_id: str, month: str) -> str:
+        line = self.top_impact_line(case_id, month)
+        m = re.search(r"\bINC\d{5,}\b", line or "", flags=re.I)
+        return m.group(0).upper() if m else ""
+
+    def operational_summary(self, case_id: str, month: str) -> str:
+        txt = self.monthly_text(case_id, month)
+        if not txt:
+            return ""
+        total = self.value(case_id, month, "total_incidentes") or "-"
+        p1 = self.value(case_id, month, "p1") or "0"
+        p2 = self.value(case_id, month, "p2") or "0"
+        p3 = self.value(case_id, month, "p3") or "0"
+        impacto = self.value(case_id, month, "impacto_total") or "-"
+        parada = self.value(case_id, month, "parada_sistemica") or "-"
+        mttr = self.value(case_id, month, "mttr") or "-"
+        maior = self.top_impact_line(case_id, month) or "-"
+        chg = self.value(case_id, month, "change_related") or "0"
+        return (
+            f"APP | {month}: {total} incidentes críticos (P1={p1}, P2={p2}, P3={p3}).\n"
+            f"- Impacto total somado: {impacto}.\n"
+            f"- Parada sistêmica: {parada}.\n"
+            f"- MTTR: {mttr}.\n"
+            f"- Maior impacto: {maior}.\n"
+            f"- Mudança/CHG: {chg} incidente(s) com indício de mudança."
+        )
+
+
+_BaseKnowledgeStructuredStoreV32 = KnowledgeStructuredStore
+
+
+class KnowledgeStructuredStore(_BaseKnowledgeStructuredStoreV32):
+    """V32: camada enterprise de plano validado e KPI único.
+
+    Mantém a V31 como fallback. O objetivo é eliminar os erros restantes de
+    consistência sem reintroduzir regressões.
+    """
+
+    def _v32_norm(self, value: Any) -> str:
+        try:
+            return _norm(value)
+        except Exception:
+            return str(value or "").lower().strip()
+
+    def _v32_month(self, case_id: str, question: str) -> str:
+        try:
+            m = self._v31_month_from_question_or_memory(case_id, question)
+            if m:
+                return m
+        except Exception:
+            pass
+        try:
+            return self._stable_month_from_question(question) or ""
+        except Exception:
+            return ""
+
+    def _v32_remember_focus(self, case_id: str, code: str | None = None, month: str | None = None, codes: list[str] | None = None, intent: str | None = None) -> None:
+        mem = dict(self.memory.get(case_id) or {})
+        if month:
+            mem["mes"] = month
+            mem["last_period"] = month
+        if code:
+            mem["last_focus_code"] = str(code).upper()
+            mem["last_detail_code"] = str(code).upper()
+        if codes is not None:
+            clean = []
+            for c in codes:
+                c = str(c).upper()
+                if re.match(r"^(INC|CHG)\d{5,}$", c) and c not in clean:
+                    clean.append(c)
+            mem["last_codes"] = clean[:500]
+            mem["last_result"] = {"codes": clean[:500], "month": month or mem.get("mes"), "query_type": intent}
+        if intent:
+            mem["last_intent"] = intent
+        self.memory[case_id] = mem
+
+    def _v32_kpi(self) -> UnifiedKPIEngineV32:
+        return UnifiedKPIEngineV32(self)
+
+    def _v32_explicit_executive_summary(self, case_id: str, question: str) -> dict[str, Any] | None:
+        q = self._v32_norm(question)
+        if not ("resumo executivo" in q and ("incidente" in q or "app" in q or "mes" in q or "mês" in q)):
+            return None
+        month = self._v32_month(case_id, question)
+        if not month:
+            return None
+        answer = self._v32_kpi().operational_summary(case_id, month)
+        if not answer:
+            return None
+        code = self._v32_kpi().top_impact_code(case_id, month)
+        self._v32_remember_focus(case_id, code=code or None, month=month, intent="operational_summary")
+        return self._response(case_id, answer, "v32_operational_summary", {"mes": month}, {"engine": "UnifiedKPIEngineV32"})
+
+    def _v32_top_impact_by_month(self, case_id: str, question: str) -> dict[str, Any] | None:
+        q = self._v32_norm(question)
+        if not ("incidente" in q and ("maior impacto" in q or "mais impacto" in q or "mais critico" in q or "mais crítico" in q)):
+            return None
+        # Se for follow-up explícito de lista, deixa V31 resolver antes ou depois.
+        if any(x in q for x in ["deles", "entre eles", "dessa lista"]):
+            return None
+        month = self._v32_month(case_id, question)
+        if not month:
+            return None
+        line = self._v32_kpi().top_impact_line(case_id, month)
+        if not line:
+            return None
+        code = self._v32_kpi().top_impact_code(case_id, month)
+        self._v32_remember_focus(case_id, code=code or None, month=month, codes=[code] if code else None, intent="top_impact")
+        return self._response(case_id, line, "v32_top_impact_monthly_kpi", {"mes": month}, {"engine": "UnifiedKPIEngineV32"})
+
+    def _v32_detail_pronoun_focus(self, case_id: str, question: str) -> dict[str, Any] | None:
+        q = self._v32_norm(question)
+        if not any(x in q for x in ["detalhe ele", "detalhar ele", "me detalhe ele", "descreva ele", "explique ele"]):
+            return None
+        mem = dict(self.memory.get(case_id) or {})
+        code = (mem.get("last_focus_code") or mem.get("last_detail_code") or "").upper()
+        if not re.match(r"^(INC|CHG)\d{5,}$", code):
+            return None
+        try:
+            return self._v31_explicit_code(case_id, code)
+        except Exception:
+            return None
+
+    def _v32_esim_count(self, case_id: str, question: str) -> dict[str, Any] | None:
+        q = self._v32_norm(question)
+        if not ("esim" in q and ("incidente" in q or "incidentes" in q) and any(x in q for x in ["quantos", "quantas", "total", "qtd", "qtde"])):
+            return None
+        month = self._v32_month(case_id, question)
+        if not month:
+            return None
+        plan = QueryPlanV32(intent="count", code_type="INC", month=month, filters={"funcionalidade": "eSIM"}, raw_question=question)
+        QueryPlanValidatorV32().validate(plan)
+        builder = SQLBuilderV32(self.TABLE)
+        clauses, params = builder.base_where(case_id, plan)
+        code_expr = "COALESCE(NULLIF(numero,''), NULLIF(codigo_principal,''))"
+        # Match endurecido: não usa LIKE '%sim%'. Usa funcionalidade/campos canônicos e fallback por descrição com palavra eSIM.
+        sql = f"""
+            SELECT COUNT(DISTINCT {code_expr})
+            FROM {self.TABLE}
+            WHERE {' AND '.join(clauses)}
+              AND {code_expr} IS NOT NULL
+              AND (
+                    UPPER(COALESCE(funcionalidade,'')) = 'ESIM'
+                 OR UPPER(COALESCE(descricao_resumida,'')) LIKE '%ESIM%'
+                 OR UPPER(COALESCE(descricao,'')) LIKE '%ESIM%'
+              )
+        """
+        with self._connect() as con:
+            total = int(con.execute(sql, params).fetchone()[0] or 0)
+        return self._response(case_id, f"eSIM: {total} incidente(s)", "v32_esim_exact_count", {"mes": month, "funcionalidade": "eSIM"}, {"sql": sql, "params": params})
+
+    def _v32_change_states_ranking(self, case_id: str, question: str) -> dict[str, Any] | None:
+        q = self._v32_norm(question)
+        if not ("change" in q or "changes" in q or "mudanca" in q or "mudança" in q):
+            return None
+        if not ("estado" in q or "status" in q or "frequente" in q or "frequentes" in q):
+            return None
+        plan = QueryPlanV32(intent="ranking", code_type="CHG", group_by="estado", raw_question=question, limit=10)
+        month = self._v32_month(case_id, question)
+        if month:
+            plan.month = month
+        QueryPlanValidatorV32().validate(plan)
+        builder = SQLBuilderV32(self.TABLE)
+        sql, params = builder.ranking_sql(case_id, plan)
+        with self._connect() as con:
+            rows = con.execute(sql, params).fetchall()
+        if not rows:
+            return self._response(case_id, "Nenhum registro encontrado.", "v32_change_states_ranking", {"mes": month}, {"sql": sql, "params": params})
+        lines = ["Estados mais frequentes das changes:"]
+        for name, total in rows:
+            lines.append(f"- {name}: {int(total)}")
+        return self._response(case_id, "\n".join(lines), "v32_change_states_ranking", {"mes": month}, {"sql": sql, "params": params})
+
+    def _v32_largest_impact_from_last_codes_using_kpi(self, case_id: str, question: str) -> dict[str, Any] | None:
+        q = self._v32_norm(question)
+        if not any(x in q for x in ["qual deles", "deles", "entre eles", "dessa lista"]):
+            return None
+        if not any(x in q for x in ["maior impacto", "mais impacto", "mais crítico", "mais critico", "demorou mais"]):
+            return None
+        mem = dict(self.memory.get(case_id) or {})
+        codes = [str(c).upper() for c in (mem.get("last_codes") or (mem.get("last_result") or {}).get("codes") or []) if str(c).upper().startswith("INC")]
+        month = self._v32_month(case_id, question) or mem.get("mes") or mem.get("last_period") or ""
+        if not codes:
+            return None
+        # Preferir a ordem/impacto do KPI mensal quando houver, pois ela é fonte oficial para APP.
+        txt = self._v32_kpi().monthly_text(case_id, month)
+        best_line = ""
+        best_sec = -1
+        if txt:
+            for line in txt.splitlines():
+                m = re.search(r"\b(INC\d{5,})\b.*?\b(P\d)\b.*?([0-9]{1,4}:[0-9]{2}:[0-9]{2}).*?\|?\s*(.*)$", line, flags=re.I)
+                if not m:
+                    continue
+                code = m.group(1).upper()
+                if code not in codes:
+                    continue
+                sec = _duration_to_seconds(m.group(3))
+                if sec > best_sec:
+                    best_sec = sec
+                    best_line = line.strip().lstrip("- ").strip()
+        if best_line:
+            code = re.search(r"\bINC\d{5,}\b", best_line, flags=re.I).group(0).upper()
+            self._v32_remember_focus(case_id, code=code, month=month, codes=[code], intent="largest_impact")
+            return self._response(case_id, best_line, "v32_largest_impact_last_codes_kpi", {"mes": month, "codes": codes}, {"source": "monthly_kpi"})
+        return None
+
+    def _answer_structured(self, case_id: str, question: str) -> dict[str, Any]:
+        # V32: rotas de alta precisão antes da V31/V29.
+        for handler in [
+            self._v32_detail_pronoun_focus,
+            self._v32_explicit_executive_summary,
+            self._v32_largest_impact_from_last_codes_using_kpi,
+            self._v32_top_impact_by_month,
+            self._v32_esim_count,
+            self._v32_change_states_ranking,
+        ]:
+            try:
+                ans = handler(case_id, question)
+                if ans:
+                    return ans
+            except Exception:
+                pass
+        return super()._answer_structured(case_id, question)
