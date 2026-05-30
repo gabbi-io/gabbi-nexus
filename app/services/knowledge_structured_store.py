@@ -8,11 +8,6 @@ from pathlib import Path
 from typing import Any
 
 try:
-    from gabbi_core.generic_agent_engine import GenericAgentAnswerEngine
-except Exception:  # fallback seguro se o módulo ainda não estiver instalado
-    GenericAgentAnswerEngine = None
-
-try:
     import duckdb
     HAS_DUCKDB = True
 except Exception:
@@ -278,7 +273,6 @@ class KnowledgeStructuredStore:
         self.db_path = Path(db_path or default_path)
         self.enabled = HAS_DUCKDB
         self.memory: dict[str, dict[str, Any]] = {}
-        self.generic_engine = GenericAgentAnswerEngine(self) if GenericAgentAnswerEngine else None
         if self.enabled:
             self.db_path.parent.mkdir(parents=True, exist_ok=True)
             self._ensure_schema()
@@ -548,14 +542,6 @@ class KnowledgeStructuredStore:
 
     def answer_question(self, case_id: str, question: str, chat_history: list[dict[str, Any]] | None = None) -> dict[str, Any] | None:
         q = _norm(question)
-
-        # V35: motor genérico por agente/base.
-        # Ele responde perguntas analíticas/semânticas de qualquer agente.
-        # Quando detectar Vivo/ITSM, retorna None e preserva as regras legadas abaixo.
-        if self.generic_engine is not None:
-            generic_result = self.generic_engine.answer_question(case_id, question, chat_history)
-            if generic_result is not None:
-                return generic_result
 
         # Perguntas abertas/semânticas devem ir para o RAG.
         # Ex.: "explique o teor do documento", "resuma o material", "sobre o que se trata".
@@ -7924,3 +7910,162 @@ class KnowledgeStructuredStore(_BaseKnowledgeStructuredStoreV33):
             except Exception:
                 pass
         return super()._answer_structured(case_id, question)
+
+
+
+# -----------------------------------------------------------------------------
+# V36 - Hotfix: incidente mais crítico/maior impacto por mês explícito
+# -----------------------------------------------------------------------------
+# Motivo:
+# Perguntas como "qual o incidente mais crítico em 12-2025?" estavam caindo
+# na comparação de meses ("2025-08 teve o maior impacto total") quando a rota
+# mensal/KPI não retornava linha de top incidente. Esta camada intercepta a
+# intenção de incidente específico + mês explícito antes das rotas comparativas.
+
+def _v36_norm_text(value):
+    try:
+        return _norm(value)
+    except Exception:
+        import unicodedata
+        text = "" if value is None else str(value)
+        text = unicodedata.normalize("NFKD", text)
+        text = "".join(ch for ch in text if not unicodedata.combining(ch))
+        text = text.lower().strip()
+        return " ".join(text.split())
+
+
+def _v36_explicit_month(self, question):
+    try:
+        m = self._stable_month_from_question(question)
+        if m:
+            return m
+    except Exception:
+        pass
+    try:
+        q = _v36_norm_text(question)
+        m = re.search(r"\b(20\d{2})[-/](\d{1,2})\b", q)
+        if m:
+            return f"{m.group(1)}-{m.group(2).zfill(2)}"
+        m = re.search(r"\b(\d{1,2})[-/](20\d{2})\b", q)
+        if m:
+            return f"{m.group(2)}-{m.group(1).zfill(2)}"
+        names = {
+            "janeiro": "01", "fevereiro": "02", "marco": "03", "março": "03",
+            "abril": "04", "maio": "05", "junho": "06", "julho": "07",
+            "agosto": "08", "setembro": "09", "outubro": "10",
+            "novembro": "11", "dezembro": "12",
+        }
+        for name, mm in names.items():
+            if re.search(rf"\b{name}\b", q):
+                y = re.search(r"\b(20\d{2})\b", q)
+                return f"{(y.group(1) if y else '2025')}-{mm}"
+    except Exception:
+        return ""
+    return ""
+
+
+def _v36_is_top_critical_incident_question(question):
+    q = _v36_norm_text(question)
+    has_incident = any(x in q for x in ["incidente", "incidentes", "inc "])
+    has_metric = any(x in q for x in [
+        "mais critico", "mais crítico", "maior impacto", "maior tempo",
+        "mais impactante", "maior dor", "mais grave", "pior incidente",
+    ])
+    # Não confundir com pergunta sobre "qual mês".
+    asks_month = any(x in q for x in ["qual mes", "qual mês", "mes teve", "mês teve"])
+    return has_incident and has_metric and not asks_month
+
+
+def _v36_top_critical_incident_by_month(self, case_id, question):
+    if not _v36_is_top_critical_incident_question(question):
+        return None
+
+    month = _v36_explicit_month(self, question)
+    if not month:
+        try:
+            month = self._v32_month(case_id, question)
+        except Exception:
+            month = ""
+    if not month:
+        return None
+
+    # 1) Tenta rota KPI mensal já existente, pois ela costuma trazer a frase pronta.
+    try:
+        if hasattr(self, "_v32_kpi"):
+            line = self._v32_kpi().top_impact_line(case_id, month)
+            code = self._v32_kpi().top_impact_code(case_id, month)
+            if line:
+                try:
+                    self._v32_remember_focus(case_id, code=code or None, month=month, codes=[code] if code else None, intent="top_critical_incident")
+                except Exception:
+                    pass
+                return self._response(case_id, line, "v36_top_critical_incident_month_kpi", {"mes": month}, {"confidence": 0.95})
+    except Exception:
+        pass
+
+    # 2) Fallback SQL determinístico sobre a tabela estruturada.
+    try:
+        code_expr = "COALESCE(NULLIF(numero,''), NULLIF(codigo_principal,''))"
+        impact_expr = """
+            COALESCE(
+                NULLIF(tempo_impacto_segundos, 0),
+                TRY_CAST(NULLIF(TRIM(tempo_impacto), '') AS BIGINT),
+                0
+            )
+        """
+        sql = f"""
+            SELECT
+                {code_expr} AS codigo,
+                COALESCE(NULLIF(prioridade,''), '-') AS prioridade,
+                COALESCE(NULLIF(descricao_resumida,''), NULLIF(funcionalidade,''), '-') AS descricao,
+                COALESCE(NULLIF(tempo_impacto,''), _seconds_to_hhmmss_dummy) AS tempo_txt,
+                {impact_expr} AS impacto_seg
+            FROM (
+                SELECT *,
+                       '' AS _seconds_to_hhmmss_dummy
+                FROM {self.TABLE}
+                WHERE case_id = ?
+                  AND codigo_tipo = 'INC'
+                  AND mes = ?
+                  AND {code_expr} IS NOT NULL
+            )
+            ORDER BY impacto_seg DESC, codigo ASC
+            LIMIT 1
+        """
+        with self._connect() as con:
+            row = con.execute(sql, [case_id, month]).fetchone()
+        if row:
+            codigo, prioridade, descricao, tempo_txt, impacto_seg = row
+            tempo_txt = str(tempo_txt or "").strip()
+            if (not tempo_txt or tempo_txt.isdigit()) and int(impacto_seg or 0) > 0:
+                try:
+                    tempo_txt = _seconds_to_hhmmss(int(impacto_seg or 0))
+                except Exception:
+                    tempo_txt = str(impacto_seg or "")
+            answer = f"{codigo} ({prioridade}) — {descricao} — impacto {tempo_txt or '-'}"
+            try:
+                self._v32_remember_focus(case_id, code=codigo, month=month, codes=[codigo], intent="top_critical_incident")
+            except Exception:
+                pass
+            return self._response(case_id, answer, "v36_top_critical_incident_month_sql", {"mes": month}, {"confidence": 0.92, "sql": sql, "params": [case_id, month]})
+    except Exception as exc:
+        try:
+            return self._response(case_id, f"Erro ao calcular o incidente mais crítico de {month}: {type(exc).__name__}: {exc}", "v36_top_critical_incident_error", {"mes": month}, {"confidence": 0.4})
+        except Exception:
+            return None
+
+    return None
+
+
+try:
+    _v36_previous_answer_structured = KnowledgeStructuredStore._answer_structured
+
+    def _v36_answer_structured(self, case_id: str, question: str) -> dict[str, Any]:
+        ans = _v36_top_critical_incident_by_month(self, case_id, question)
+        if ans:
+            return ans
+        return _v36_previous_answer_structured(self, case_id, question)
+
+    KnowledgeStructuredStore._answer_structured = _v36_answer_structured
+except Exception:
+    pass
