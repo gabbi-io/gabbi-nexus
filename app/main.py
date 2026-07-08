@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime
 from pathlib import Path
 from uuid import uuid4
 
@@ -17,20 +16,29 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from app.repositories.json_case_repository import JsonCaseRepository
-from app.repositories.gabbi_postgres_repository import GabbiPostgresRepository
+
+# Integração opcional com a base de conhecimento do Gabbi.
+# Mantida em import tolerante para não quebrar o fluxo local de upload documental
+# quando o projeto for executado sem os módulos de integração instalados.
+try:
+    from app.repositories.gabbi_postgres_repository import GabbiPostgresRepository
+    from app.services.gabbi_postgres_ingestion import GabbiPostgresIngestionService
+    from app.services.knowledge_structured_store import KnowledgeStructuredStore
+    from app.services.knowledge_record_parser import parse_article_to_structured_row
+except Exception:  # pragma: no cover - fallback para ambientes sem integração Gabbi
+    GabbiPostgresRepository = None
+    GabbiPostgresIngestionService = None
+    KnowledgeStructuredStore = None
+    parse_article_to_structured_row = None
 from app.services.analysis import AnalysisService
 from app.services.automation import AutomationService
 from app.services.graph import AnalysisGraphService
-from app.services.gabbi_postgres_ingestion import GabbiPostgresIngestionService
 from app.services.parsers import ParserService
 from app.services.retrieval import RetrievalService
-from app.services.knowledge_structured_store import KnowledgeStructuredStore
-from app.services.knowledge_record_parser import parse_article_to_structured_row
 
 BASE_DIR = Path(__file__).resolve().parent
 STATIC_DIR = BASE_DIR / "static"
 DATA_DIR = BASE_DIR / "data"
-
 
 OPENAPI_DESCRIPTION = """
 # Gabbi Nexus — BFF Inteligente para IA Corporativa, RAG, ML e Automação
@@ -245,21 +253,29 @@ if STATIC_DIR.exists():
 repo = JsonCaseRepository(base_path=DATA_DIR)
 parser_service = ParserService()
 retrieval_service = RetrievalService()
-knowledge_structured_store = KnowledgeStructuredStore()
 analysis_service = AnalysisService()
 graph_service = AnalysisGraphService(retrieval_service=retrieval_service, analysis_service=analysis_service)
 automation_service = AutomationService()
-gabbi_postgres_repository = GabbiPostgresRepository()
-gabbi_postgres_ingestion_service = GabbiPostgresIngestionService(repository=gabbi_postgres_repository)
+
+knowledge_structured_store = KnowledgeStructuredStore() if KnowledgeStructuredStore else None
+gabbi_postgres_repository = GabbiPostgresRepository() if GabbiPostgresRepository else None
+gabbi_postgres_ingestion_service = (
+    GabbiPostgresIngestionService(repository=gabbi_postgres_repository)
+    if GabbiPostgresIngestionService and gabbi_postgres_repository
+    else None
+)
 
 
 def _build_structured_rows_from_documents(documents: list[dict], *, knowledge_version: str | None = None) -> list[dict]:
-    """Extrai linhas canônicas CHG/INC a partir dos documentos do case.
+    """Extrai linhas estruturadas quando o documento veio da base Gabbi.
 
-    Usado como hotfix para impedir que perguntas quantitativas dependam do RAG.
-    Prioriza `document["structured_row"]` criado na ingestão PostgreSQL e, se não existir,
-    tenta parsear o texto/documento complementar.
+    O fluxo documental normal continua usando parser + vetorial.
+    Este helper só enriquece bases do tipo artigo de conhecimento, evitando que
+    perguntas quantitativas fiquem dependentes apenas do RAG.
     """
+    if not parse_article_to_structured_row:
+        return []
+
     rows: list[dict] = []
     for doc in documents or []:
         existing = doc.get("structured_row")
@@ -268,10 +284,12 @@ def _build_structured_rows_from_documents(documents: list[dict], *, knowledge_ve
             row.setdefault("knowledge_version", knowledge_version)
             rows.append(row)
             continue
+
         parsed = doc.get("parsed") or {}
         metadata = doc.get("metadata") or {}
         text = parsed.get("text") or ""
         document_payload = metadata.get("document") or doc.get("document")
+
         row = parse_article_to_structured_row(
             article_text=text,
             article_document=document_payload,
@@ -292,10 +310,60 @@ def _build_structured_rows_from_documents(documents: list[dict], *, knowledge_ve
 
 
 def _refresh_structured_store(case_id: str, documents: list[dict], *, knowledge_version: str | None = None) -> dict:
+    if not knowledge_structured_store:
+        return {"success": False, "rows_saved": 0, "warning": "KnowledgeStructuredStore indisponível."}
+
     rows = _build_structured_rows_from_documents(documents, knowledge_version=knowledge_version)
     if not rows:
-        return {"success": False, "rows_saved": 0, "warning": "Nenhuma linha CHG/INC estruturada detectada."}
-    return knowledge_structured_store.replace_case_rows(case_id=case_id, rows=rows, knowledge_version=knowledge_version)
+        return {"success": False, "rows_saved": 0, "warning": "Nenhuma linha estruturada detectada."}
+    return knowledge_structured_store.replace_case_rows(
+        case_id=case_id,
+        rows=rows,
+        knowledge_version=knowledge_version,
+    )
+
+
+def _ask_case_payload(case_id: str, question: str, mode: str = "executive") -> dict:
+    """Executa a pergunta no mesmo pipeline que já funciona no Nexus.
+
+    Este helper é usado tanto pelo endpoint documental quanto pelo endpoint integrado
+    do Gabbi. Assim, o botão único da interface sempre conversa com o mesmo grafo
+    (`graph_service.ask`) e evita o problema anterior, onde `/integrations/gabbi/chat/ask`
+    apenas criava/ingeria caso sem perguntar de fato.
+    """
+    case = repo.get_case(case_id)
+    if not case:
+        raise HTTPException(status_code=404, detail="Case not found")
+
+    documents = case.get("documents", [])
+    if not documents:
+        raise HTTPException(status_code=400, detail="No documents or knowledge articles available for this case")
+
+    if case.get("analysis") is None:
+        analysis = analysis_service.generate_initial_analysis(documents)
+        repo.update_case(case_id, {"analysis": analysis})
+        case = repo.get_case(case_id)
+
+    result = graph_service.ask(
+        case_id=case_id,
+        question=question,
+        analysis=case.get("analysis", {}),
+        documents=documents,
+        chat_history=case.get("chat_history", []),
+        mode=mode or "executive",
+    )
+
+    chat_item = {
+        "id": uuid4().hex[:12],
+        "question": question,
+        "mode": mode or "executive",
+        "route": result.get("route"),
+        "query_type": result.get("query_type"),
+        "answer_text": result.get("answer_text") or result.get("summary", ""),
+        "evidence_files": result.get("evidence_files", []),
+    }
+    repo.append_chat_history(case_id, chat_item)
+    return {"case_id": case_id, **result}
 
 
 class CreateCaseRequest(BaseModel):
@@ -356,92 +424,159 @@ class AskRequest(BaseModel):
     }
 
 
+
+class GabbiChatAskRequest(BaseModel):
+    """Payload do botão único de conversa do Gabbi.
+
+    Cenários suportados:
+    1. Documento enviado no Nexus/Gabbi: informe `case_id` e `question`.
+    2. Artigo/base de conhecimento já treinada no Gabbi: informe `conversation_id`, opcionalmente `topic_id`, e `question`.
+    3. Híbrido: informe `case_id` + `conversation_id` com `context_scope=hybrid` para somar documentos do caso e artigos.
+    """
+
+    question: str = Field(..., min_length=3, description="Pergunta do usuário.")
+    mode: str = Field(default="executive", description="executive, analytical ou technical.")
+    case_id: str | None = Field(default=None, description="Caso Nexus já existente, normalmente criado no upload documental.")
+    conversation_id: str | None = Field(default=None, description="Chat.conversationId do Gabbi para buscar artigos de conhecimento.")
+    topic_id: str | None = Field(default=None, description="Article.topicId opcional para restringir a base de conhecimento.")
+    limit: int = Field(default=100, ge=1, le=10000, description="Quantidade máxima de artigos a ingerir quando usar base Gabbi.")
+    context_scope: str = Field(
+        default="auto",
+        description="auto, document, knowledge ou hybrid. Auto usa o case se tiver documentos; senão ingere conhecimento Gabbi.",
+    )
+    case_name: str = Field(default="Conversa Gabbi", min_length=3, max_length=120)
+    description: str | None = Field(default="Caso criado automaticamente pelo botão único de conversa do Gabbi.", max_length=2000)
+
+
 class GabbiPostgresIngestRequest(BaseModel):
-    """Payload para ingestão de artigos do PostgreSQL do Gabbi em um caso existente."""
-
-    conversation_id: str = Field(
-        ...,
-        min_length=1,
-        description="Valor de Chat.conversationId no banco PostgreSQL do Gabbi. É a chave externa da conversa em andamento.",
-        examples=["conversation_123"],
-    )
-    topic_id: str | None = Field(
-        default=None,
-        description="Opcional. Valor de Article.topicId para restringir a ingestão a um tópico/base de conhecimento específica.",
-        examples=["topic_abc123"],
-    )
-    limit: int = Field(
-        default=100,
-        ge=1,
-        le=10000,
-        description="Quantidade máxima de artigos a ingerir do PostgreSQL do Gabbi.",
-        examples=[100],
-    )
-    updated_after: datetime | None = Field(
-        default=None,
-        description="Opcional. Sincroniza apenas artigos com Article.updatedOn maior ou igual a esta data.",
-        examples=["2026-04-25T00:00:00"],
-    )
-
-    model_config = {
-        "json_schema_extra": {
-            "example": {
-                "conversation_id": "conversation_123",
-                "topic_id": "topic_abc123",
-                "limit": 100,
-            }
-        }
-    }
+    conversation_id: str = Field(..., min_length=1, description="Chat.conversationId do Gabbi.")
+    topic_id: str | None = Field(default=None, description="Article.topicId opcional.")
+    limit: int = Field(default=100, ge=1, le=10000)
 
 
 class GabbiPostgresAutoIngestRequest(BaseModel):
-    """Payload para criar caso automaticamente e ingerir artigos do PostgreSQL do Gabbi."""
+    conversation_id: str = Field(..., min_length=1, description="Chat.conversationId do Gabbi.")
+    topic_id: str | None = Field(default=None, description="Article.topicId opcional.")
+    case_name: str = Field(default="Base de Conhecimento Gabbi - PostgreSQL", min_length=3, max_length=120)
+    description: str | None = Field(default="Caso criado automaticamente a partir da base Article do Gabbi via PostgreSQL.", max_length=2000)
+    limit: int = Field(default=100, ge=1, le=10000)
 
-    conversation_id: str = Field(
-        ...,
-        min_length=1,
-        description="Valor de Chat.conversationId no banco PostgreSQL do Gabbi.",
-        examples=["conversation_123"],
-    )
-    topic_id: str | None = Field(
-        default=None,
-        description="Opcional. Valor de Article.topicId para filtrar artigos.",
-        examples=["topic_abc123"],
-    )
-    case_name: str = Field(
-        default="Base de Conhecimento Gabbi - PostgreSQL",
-        min_length=3,
-        max_length=120,
-        description="Nome do caso criado automaticamente no Nexus.",
-    )
-    description: str | None = Field(
-        default="Caso criado automaticamente a partir da base Article do Gabbi via PostgreSQL.",
-        max_length=2000,
-        description="Descrição opcional do caso criado automaticamente.",
-    )
-    limit: int = Field(
-        default=100,
-        ge=1,
-        le=10000,
-        description="Quantidade máxima de artigos a ingerir.",
-    )
-    updated_after: datetime | None = Field(
-        default=None,
-        description="Opcional. Sincroniza apenas artigos atualizados após esta data.",
+
+class KnowledgeStructuredUpsertRequest(BaseModel):
+    rows: list[dict] = Field(default_factory=list, description="Linhas estruturadas extraídas dos artigos Gabbi.")
+    knowledge_version: str | None = Field(default=None, description="Versão lógica da base sincronizada.")
+    mode: str = Field(default="replace_case", description="Modo de persistência. Por enquanto use replace_case.")
+
+
+def _ensure_gabbi_integration_available() -> None:
+    if not gabbi_postgres_ingestion_service or not gabbi_postgres_repository:
+        raise HTTPException(
+            status_code=501,
+            detail="Integração PostgreSQL Gabbi indisponível neste ambiente. Verifique módulos e variáveis de conexão.",
+        )
+
+
+def _ingest_gabbi_knowledge_into_case(
+    *,
+    case_id: str,
+    conversation_id: str,
+    topic_id: str | None = None,
+    limit: int = 100,
+) -> dict:
+    """Ingere artigos do Gabbi em um caso Nexus existente e reconstrói análise/vetorial."""
+    _ensure_gabbi_integration_available()
+
+    documents_from_db = gabbi_postgres_ingestion_service.build_documents_from_articles(
+        conversation_id=conversation_id,
+        topic_id=topic_id,
+        limit=limit,
     )
 
-    model_config = {
-        "json_schema_extra": {
-            "example": {
-                "conversation_id": "conversation_123",
-                "topic_id": "topic_abc123",
-                "case_name": "Base de Conhecimento Gabbi - Atendimento",
-                "description": "Ingestão PostgreSQL da base Article do Gabbi para conversa ativa.",
-                "limit": 100,
-            }
-        }
+    if not documents_from_db:
+        raise HTTPException(status_code=404, detail="Nenhum artigo encontrado para ingestão.")
+
+    saved_count = 0
+    uploaded = []
+
+    for document in documents_from_db:
+        text_content = document.get("parsed", {}).get("text", "")
+        if not text_content or not text_content.strip():
+            continue
+
+        filename = document.get("filename") or f"gabbi_article_{document.get('external_id')}.txt"
+        saved_path = repo.save_uploaded_file(case_id, filename, text_content.encode("utf-8"))
+
+        document["filename"] = filename
+        document["path"] = saved_path
+        document["content_type"] = "text/database-record"
+        document.setdefault("source", "gabbi_postgres_article")
+
+        repo.add_document(case_id, document)
+        saved_count += 1
+        uploaded.append({
+            "filename": filename,
+            "path": saved_path,
+            "content_type": "text/database-record",
+            "source": "gabbi_postgres_article",
+            "external_id": document.get("external_id"),
+            "text_length": len(text_content),
+        })
+
+    if saved_count == 0:
+        raise HTTPException(status_code=404, detail="Nenhum artigo válido encontrado para salvar.")
+
+    case = repo.get_case(case_id)
+    documents = case.get("documents", [])
+    publication = retrieval_service.build_case_index(case_id, documents)
+    analysis = analysis_service.generate_initial_analysis(documents)
+    tabular_catalog = graph_service.build_tabular_catalog(case_id, documents)
+    knowledge_structured = _refresh_structured_store(case_id, documents, knowledge_version="gabbi_postgres")
+
+    update_payload = {
+        "analysis": analysis,
+        "vector_publication": publication,
+        "tabular_catalog": tabular_catalog,
+        "knowledge_structured": knowledge_structured,
+        "source": "gabbi_postgres_article",
+        "external_conversation_id": conversation_id,
+        "external_topic_id": topic_id,
+    }
+    repo.update_case(case_id, update_payload)
+
+    return {
+        "case_id": case_id,
+        "source": "gabbi_postgres_article",
+        "conversation_id": conversation_id,
+        "topic_id": topic_id,
+        "ingested_count": saved_count,
+        "uploaded": uploaded,
+        **update_payload,
     }
 
+
+def _create_case_for_gabbi_knowledge(payload: GabbiChatAskRequest | GabbiPostgresAutoIngestRequest) -> str:
+    case_id = uuid4().hex[:10]
+    repo.create_case(
+        case_id,
+        {
+            "id": case_id,
+            "name": getattr(payload, "case_name", None) or "Base de Conhecimento Gabbi",
+            "description": getattr(payload, "description", None),
+            "documents": [],
+            "analysis": None,
+            "diagnostic": None,
+            "chat_history": [],
+            "vector_publication": None,
+            "blueprint": None,
+            "workflow_export": None,
+            "agent_config": None,
+            "tabular_catalog": None,
+            "source": "gabbi_postgres_article",
+            "external_conversation_id": getattr(payload, "conversation_id", None),
+            "external_topic_id": getattr(payload, "topic_id", None),
+        },
+    )
+    return case_id
 
 def custom_swagger_html() -> str:
     """Página profissional de documentação com Swagger UI + Mermaid."""
@@ -1222,42 +1357,6 @@ async def vector_status():
     return retrieval_service.status()
 
 
-@app.get(
-    "/knowledge/structured/status",
-    tags=["01. Observabilidade"],
-    summary="Consultar status da base estruturada DuckDB",
-)
-async def knowledge_structured_status():
-    return knowledge_structured_store.status()
-
-
-class KnowledgeStructuredUpsertRequest(BaseModel):
-    rows: list[dict] = Field(default_factory=list, description="Linhas estruturadas extraídas dos artigos Gabbi.")
-    knowledge_version: str | None = Field(default=None, description="Versão lógica da base sincronizada.")
-    mode: str = Field(default="replace_case", description="Modo de persistência. Por enquanto use replace_case.")
-
-
-@app.post(
-    "/cases/{case_id}/knowledge/structured/upsert",
-    tags=["03. Documentos"],
-    summary="Persistir base estruturada de conhecimento no DuckDB",
-)
-async def upsert_knowledge_structured(case_id: str, payload: KnowledgeStructuredUpsertRequest):
-    case = repo.get_case(case_id)
-    if not case:
-        raise HTTPException(status_code=404, detail="Case not found")
-    try:
-        result = knowledge_structured_store.replace_case_rows(
-            case_id=case_id,
-            rows=payload.rows,
-            knowledge_version=payload.knowledge_version,
-        )
-        repo.update_case(case_id, {"knowledge_structured": result})
-        return result
-    except Exception as exc:
-        raise HTTPException(status_code=500, detail=f"Erro ao persistir base estruturada DuckDB: {exc}")
-
-
 @app.post(
     "/cases",
     tags=["02. Casos"],
@@ -1437,298 +1536,6 @@ async def upload_files(case_id: str, files: list[UploadFile] = File(..., descrip
 
 
 @app.get(
-    "/integrations/gabbi/postgres/status",
-    tags=["03. Documentos"],
-    summary="Testar conexão com PostgreSQL do Gabbi",
-    description="""
-Testa a conexão com o PostgreSQL do Gabbi usando as variáveis configuradas no backend.
-
-Quando usar:
-- Validar se o Nexus consegue acessar o banco Gabbi.
-- Diagnosticar credenciais, rede, DNS, porta e permissões.
-- Conferir contagem básica das tabelas `Article` e `Chat`.
-""",
-)
-async def gabbi_postgres_status():
-    try:
-        return gabbi_postgres_repository.test_connection()
-    except Exception as exc:
-        raise HTTPException(
-            status_code=500,
-            detail=f"Erro ao conectar no PostgreSQL do Gabbi: {str(exc)}",
-        )
-
-
-@app.post(
-    "/cases/{case_id}/ingest/gabbi-postgres",
-    tags=["03. Documentos"],
-    summary="Ingerir artigos do PostgreSQL do Gabbi em um caso existente",
-    description="""
-Consulta a tabela `Article` do PostgreSQL do Gabbi, opcionalmente filtrando por `topic_id`,
-e transforma cada artigo em um documento lógico do Nexus.
-
-Importante:
-- `conversation_id` deve receber o valor de `Chat.conversationId` do Gabbi.
-- `topic_id` é opcional e representa `Article.topicId`.
-- Cada artigo é salvo internamente como `.txt` no diretório do caso, evitando erro de `path=None` no pipeline existente.
-- O fluxo atual de upload continua funcionando normalmente.
-
-Fluxo executado:
-1. Valida o caso existente.
-2. Consulta o chat por `conversation_id`.
-3. Consulta artigos publicados, não deletados e com texto.
-4. Salva cada artigo como `.txt` interno no caso.
-5. Registra os documentos no repositório do caso.
-6. Recria o índice vetorial.
-7. Gera análise inicial.
-8. Atualiza catálogo tabular.
-""",
-    responses={
-        404: {"description": "Caso não encontrado ou nenhum artigo localizado."},
-        500: {"description": "Erro interno ao consultar banco ou processar ingestão."},
-    },
-)
-async def ingest_gabbi_postgres(case_id: str, payload: GabbiPostgresIngestRequest):
-    try:
-        case = repo.get_case(case_id)
-
-        if not case:
-            raise HTTPException(status_code=404, detail="Case not found")
-
-        documents_from_db = gabbi_postgres_ingestion_service.build_documents_from_articles(
-            conversation_id=payload.conversation_id,
-            topic_id=payload.topic_id,
-            limit=payload.limit,
-            updated_after=payload.updated_after,
-        )
-
-        if not documents_from_db:
-            raise HTTPException(
-                status_code=404,
-                detail="Nenhum artigo encontrado para ingestão.",
-            )
-
-        saved_count = 0
-        uploaded = []
-
-        for document in documents_from_db:
-            text_content = document.get("parsed", {}).get("text", "")
-
-            if not text_content or not text_content.strip():
-                continue
-
-            filename = document.get("filename") or f"gabbi_article_{document.get('external_id')}.txt"
-
-            saved_path = repo.save_uploaded_file(
-                case_id,
-                filename,
-                text_content.encode("utf-8"),
-            )
-
-            document["filename"] = filename
-            document["path"] = saved_path
-            document["content_type"] = "text/database-record"
-
-            repo.add_document(case_id, document)
-            saved_count += 1
-
-            uploaded.append(
-                {
-                    "filename": filename,
-                    "path": saved_path,
-                    "content_type": "text/database-record",
-                    "source": "gabbi_postgres_article",
-                    "external_id": document.get("external_id"),
-                    "text_length": len(text_content),
-                }
-            )
-
-        if saved_count == 0:
-            raise HTTPException(
-                status_code=404,
-                detail="Nenhum artigo válido encontrado para salvar.",
-            )
-
-        case = repo.get_case(case_id)
-        documents = case.get("documents", [])
-
-        publication = retrieval_service.build_case_index(case_id, documents)
-        analysis = analysis_service.generate_initial_analysis(documents)
-        tabular_catalog = graph_service.build_tabular_catalog(case_id, documents)
-        knowledge_structured = _refresh_structured_store(case_id, documents, knowledge_version="gabbi_postgres")
-
-        repo.update_case(
-            case_id,
-            {
-                "analysis": analysis,
-                "vector_publication": publication,
-                "tabular_catalog": tabular_catalog,
-                "knowledge_structured": knowledge_structured,
-                "source": "gabbi_postgres_article",
-                "external_conversation_id": payload.conversation_id,
-                "external_topic_id": payload.topic_id,
-            },
-        )
-
-        return {
-            "case_id": case_id,
-            "source": "gabbi_postgres_article",
-            "conversation_id": payload.conversation_id,
-            "topic_id": payload.topic_id,
-            "ingested_count": saved_count,
-            "uploaded": uploaded,
-            "analysis": analysis,
-            "vector_publication": publication,
-            "tabular_catalog": tabular_catalog,
-            "knowledge_structured": knowledge_structured,
-        }
-
-    except HTTPException:
-        raise
-    except Exception as exc:
-        raise HTTPException(
-            status_code=500,
-            detail=f"Erro ao ingerir artigos do Gabbi: {str(exc)}",
-        )
-
-
-@app.post(
-    "/integrations/gabbi/postgres/ingest",
-    tags=["03. Documentos"],
-    summary="Criar caso e ingerir artigos do PostgreSQL do Gabbi",
-    description="""
-Cria automaticamente um caso no Nexus e ingere artigos do PostgreSQL do Gabbi.
-
-Use este endpoint quando uma aplicação externa quiser consumir o Nexus sem primeiro chamar `POST /cases`.
-O fluxo por upload de arquivos permanece inalterado.
-""",
-    responses={
-        404: {"description": "Nenhum artigo localizado."},
-        500: {"description": "Erro interno ao consultar banco ou processar ingestão."},
-    },
-)
-async def create_case_and_ingest_gabbi_postgres(payload: GabbiPostgresAutoIngestRequest):
-    case_id = uuid4().hex[:10]
-
-    case_data = {
-        "id": case_id,
-        "name": payload.case_name,
-        "description": payload.description,
-        "documents": [],
-        "analysis": None,
-        "diagnostic": None,
-        "chat_history": [],
-        "vector_publication": None,
-        "blueprint": None,
-        "workflow_export": None,
-        "agent_config": None,
-        "tabular_catalog": None,
-        "source": "gabbi_postgres_article",
-        "external_conversation_id": payload.conversation_id,
-        "external_topic_id": payload.topic_id,
-    }
-
-    repo.create_case(case_id, case_data)
-
-    try:
-        documents_from_db = gabbi_postgres_ingestion_service.build_documents_from_articles(
-            conversation_id=payload.conversation_id,
-            topic_id=payload.topic_id,
-            limit=payload.limit,
-            updated_after=payload.updated_after,
-        )
-
-        if not documents_from_db:
-            raise HTTPException(
-                status_code=404,
-                detail="Nenhum artigo encontrado para ingestão.",
-            )
-
-        saved_count = 0
-        uploaded = []
-
-        for document in documents_from_db:
-            text_content = document.get("parsed", {}).get("text", "")
-
-            if not text_content or not text_content.strip():
-                continue
-
-            filename = document.get("filename") or f"gabbi_article_{document.get('external_id')}.txt"
-
-            saved_path = repo.save_uploaded_file(
-                case_id,
-                filename,
-                text_content.encode("utf-8"),
-            )
-
-            document["filename"] = filename
-            document["path"] = saved_path
-            document["content_type"] = "text/database-record"
-
-            repo.add_document(case_id, document)
-            saved_count += 1
-
-            uploaded.append(
-                {
-                    "filename": filename,
-                    "path": saved_path,
-                    "content_type": "text/database-record",
-                    "source": "gabbi_postgres_article",
-                    "external_id": document.get("external_id"),
-                    "text_length": len(text_content),
-                }
-            )
-
-        if saved_count == 0:
-            raise HTTPException(
-                status_code=404,
-                detail="Nenhum artigo válido encontrado para salvar.",
-            )
-
-        case = repo.get_case(case_id)
-        documents = case.get("documents", [])
-
-        publication = retrieval_service.build_case_index(case_id, documents)
-        analysis = analysis_service.generate_initial_analysis(documents)
-        tabular_catalog = graph_service.build_tabular_catalog(case_id, documents)
-        knowledge_structured = _refresh_structured_store(case_id, documents, knowledge_version="gabbi_postgres")
-
-        repo.update_case(
-            case_id,
-            {
-                "analysis": analysis,
-                "vector_publication": publication,
-                "tabular_catalog": tabular_catalog,
-                "knowledge_structured": knowledge_structured,
-                "source": "gabbi_postgres_article",
-                "external_conversation_id": payload.conversation_id,
-                "external_topic_id": payload.topic_id,
-            },
-        )
-
-        return {
-            "case_id": case_id,
-            "message": "Caso criado e artigos do Gabbi ingeridos com sucesso.",
-            "source": "gabbi_postgres_article",
-            "conversation_id": payload.conversation_id,
-            "topic_id": payload.topic_id,
-            "ingested_count": saved_count,
-            "uploaded": uploaded,
-            "analysis": analysis,
-            "vector_publication": publication,
-            "tabular_catalog": tabular_catalog,
-        }
-
-    except HTTPException:
-        raise
-    except Exception as exc:
-        raise HTTPException(
-            status_code=500,
-            detail=f"Erro ao ingerir artigos do Gabbi: {str(exc)}",
-        )
-
-
-@app.get(
     "/cases/{case_id}/analysis",
     tags=["04. Análise e Catálogo"],
     summary="Consultar análise inicial do caso",
@@ -1839,36 +1646,176 @@ Exemplos:
     },
 )
 async def ask_case(case_id: str, payload: AskRequest):
+    return _ask_case_payload(
+        case_id=case_id,
+        question=payload.question,
+        mode=payload.mode,
+    )
+
+
+
+@app.get(
+    "/knowledge/structured/status",
+    tags=["01. Observabilidade"],
+    summary="Consultar status da base estruturada DuckDB",
+)
+async def knowledge_structured_status():
+    if not knowledge_structured_store:
+        return {"enabled": False, "status": "unavailable"}
+    return knowledge_structured_store.status()
+
+
+@app.post(
+    "/cases/{case_id}/knowledge/structured/upsert",
+    tags=["03. Documentos"],
+    summary="Persistir base estruturada de conhecimento no DuckDB",
+)
+async def upsert_knowledge_structured(case_id: str, payload: KnowledgeStructuredUpsertRequest):
     case = repo.get_case(case_id)
     if not case:
         raise HTTPException(status_code=404, detail="Case not found")
-    documents = case.get("documents", [])
-    if not documents:
-        raise HTTPException(status_code=400, detail="No documents uploaded")
-    if case.get("analysis") is None:
-        analysis = analysis_service.generate_initial_analysis(documents)
-        repo.update_case(case_id, {"analysis": analysis})
-        case = repo.get_case(case_id)
-    result = graph_service.ask(
-        case_id=case_id,
-        question=payload.question,
-        analysis=case.get("analysis", {}),
-        documents=documents,
-        chat_history=case.get("chat_history", []),
-        mode=payload.mode,
-    )
-    chat_item = {
-        "id": uuid4().hex[:12],
-        "question": payload.question,
-        "mode": payload.mode,
-        "route": result.get("route"),
-        "query_type": result.get("query_type"),
-        "answer_text": result.get("answer_text") or result.get("summary", ""),
-        "evidence_files": result.get("evidence_files", []),
-    }
-    repo.append_chat_history(case_id, chat_item)
-    return {"case_id": case_id, **result}
+    if not knowledge_structured_store:
+        raise HTTPException(status_code=501, detail="KnowledgeStructuredStore indisponível.")
+    try:
+        result = knowledge_structured_store.replace_case_rows(
+            case_id=case_id,
+            rows=payload.rows,
+            knowledge_version=payload.knowledge_version,
+        )
+        repo.update_case(case_id, {"knowledge_structured": result})
+        return result
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Erro ao persistir base estruturada DuckDB: {exc}")
 
+
+@app.get(
+    "/integrations/gabbi/postgres/status",
+    tags=["09. Integrações Gabbi"],
+    summary="Testar conexão com PostgreSQL do Gabbi",
+)
+async def gabbi_postgres_status():
+    _ensure_gabbi_integration_available()
+    try:
+        return gabbi_postgres_repository.test_connection()
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Erro ao conectar no PostgreSQL do Gabbi: {str(exc)}")
+
+
+@app.post(
+    "/cases/{case_id}/ingest/gabbi-postgres",
+    tags=["09. Integrações Gabbi"],
+    summary="Ingerir artigos do PostgreSQL do Gabbi em um caso existente",
+)
+async def ingest_gabbi_postgres(case_id: str, payload: GabbiPostgresIngestRequest):
+    case = repo.get_case(case_id)
+    if not case:
+        raise HTTPException(status_code=404, detail="Case not found")
+    return _ingest_gabbi_knowledge_into_case(
+        case_id=case_id,
+        conversation_id=payload.conversation_id,
+        topic_id=payload.topic_id,
+        limit=payload.limit,
+    )
+
+
+@app.post(
+    "/integrations/gabbi/postgres/ingest",
+    tags=["09. Integrações Gabbi"],
+    summary="Criar caso e ingerir artigos do PostgreSQL do Gabbi",
+)
+async def create_case_and_ingest_gabbi_postgres(payload: GabbiPostgresAutoIngestRequest):
+    case_id = _create_case_for_gabbi_knowledge(payload)
+    ingest_result = _ingest_gabbi_knowledge_into_case(
+        case_id=case_id,
+        conversation_id=payload.conversation_id,
+        topic_id=payload.topic_id,
+        limit=payload.limit,
+    )
+    return {
+        "case_id": case_id,
+        "message": "Caso criado e artigos do Gabbi ingeridos com sucesso.",
+        **ingest_result,
+    }
+
+
+@app.post(
+    "/integrations/gabbi/chat/ask",
+    tags=["09. Integrações Gabbi"],
+    summary="Botão único de conversa do Gabbi: documento, conhecimento ou híbrido",
+)
+async def gabbi_chat_ask(payload: GabbiChatAskRequest):
+    """Endpoint correto para o botão único de chat.
+
+    - `context_scope=document`: conversa apenas com documentos já carregados no `case_id`.
+    - `context_scope=knowledge`: cria/usa caso com artigos do Gabbi PostgreSQL.
+    - `context_scope=hybrid`: soma documentos do caso + artigos de conhecimento e pergunta.
+    - `context_scope=auto`: se o `case_id` tiver documentos, usa o caso; se não tiver, ingere conhecimento.
+    """
+    scope = (payload.context_scope or "auto").lower().strip()
+    if scope not in {"auto", "document", "knowledge", "hybrid"}:
+        raise HTTPException(status_code=400, detail="context_scope deve ser auto, document, knowledge ou hybrid")
+
+    case_id = payload.case_id
+
+    if scope == "document":
+        if not case_id:
+            raise HTTPException(status_code=400, detail="case_id é obrigatório para context_scope=document")
+        return _ask_case_payload(case_id=case_id, question=payload.question, mode=payload.mode)
+
+    if scope == "knowledge":
+        if not payload.conversation_id:
+            raise HTTPException(status_code=400, detail="conversation_id é obrigatório para context_scope=knowledge")
+        if not case_id:
+            case_id = _create_case_for_gabbi_knowledge(payload)
+        case = repo.get_case(case_id)
+        if not case:
+            raise HTTPException(status_code=404, detail="Case not found")
+        if not case.get("documents"):
+            _ingest_gabbi_knowledge_into_case(
+                case_id=case_id,
+                conversation_id=payload.conversation_id,
+                topic_id=payload.topic_id,
+                limit=payload.limit,
+            )
+        return _ask_case_payload(case_id=case_id, question=payload.question, mode=payload.mode)
+
+    if scope == "hybrid":
+        if not case_id:
+            raise HTTPException(status_code=400, detail="case_id é obrigatório para context_scope=hybrid")
+        if not payload.conversation_id:
+            raise HTTPException(status_code=400, detail="conversation_id é obrigatório para context_scope=hybrid")
+        _ingest_gabbi_knowledge_into_case(
+            case_id=case_id,
+            conversation_id=payload.conversation_id,
+            topic_id=payload.topic_id,
+            limit=payload.limit,
+        )
+        return _ask_case_payload(case_id=case_id, question=payload.question, mode=payload.mode)
+
+    # auto
+    if case_id:
+        case = repo.get_case(case_id)
+        if not case:
+            raise HTTPException(status_code=404, detail="Case not found")
+        if case.get("documents"):
+            return _ask_case_payload(case_id=case_id, question=payload.question, mode=payload.mode)
+
+    if not payload.conversation_id:
+        raise HTTPException(
+            status_code=400,
+            detail="Para context_scope=auto, informe case_id com documentos ou conversation_id para base de conhecimento Gabbi.",
+        )
+
+    if not case_id:
+        case_id = _create_case_for_gabbi_knowledge(payload)
+
+    _ingest_gabbi_knowledge_into_case(
+        case_id=case_id,
+        conversation_id=payload.conversation_id,
+        topic_id=payload.topic_id,
+        limit=payload.limit,
+    )
+    return _ask_case_payload(case_id=case_id, question=payload.question, mode=payload.mode)
 
 @app.post(
     "/cases/{case_id}/diagnostic",
@@ -2104,11 +2051,3 @@ async def download_blueprint(case_id: str):
         filename=f"gabbi_{case_id}_blueprint.json",
         media_type="application/json",
     )
-
-@app.post(
-    "/integrations/gabbi/chat/ask",
-    tags=["09. Integrações Gabbi"],
-    summary="Alias para ingestão PostgreSQL via conversa Gabbi",
-)
-async def gabbi_chat_ask_alias(payload: GabbiPostgresAutoIngestRequest):
-    return await create_case_and_ingest_gabbi_postgres(payload)
