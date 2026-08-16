@@ -85,9 +85,21 @@ class QueryIntelligenceService:
         inherited: list[QueryFilter] = []
         if followup and previous_plan and not reset_context:
             inherited = self._compatible_previous_filters(previous_plan, current_filters)
+
+        # Proteção contra contaminação de contexto em analytics:
+        # quando a pergunta atual traz uma nova entidade principal ou um novo mês,
+        # remove filtros herdados concorrentes. Isso evita casos como:
+        # "changes do IC X" -> "e quantos incidentes em agosto?" herdar o IC X indevidamente.
         current_entity_cols = {f.column for f in current_filters if f.column in {"codigo_tipo", "numero", "codigo_principal"}}
+        current_month_cols = {f.column for f in current_filters if f.column == "mes"}
         if current_entity_cols:
             inherited = [f for f in inherited if f.column not in current_entity_cols]
+        if current_month_cols:
+            inherited = [f for f in inherited if f.column not in current_month_cols]
+        if intent in {"count", "group"} and (current_entity_cols or current_month_cols):
+            # Mantém apenas filtros herdados explicitamente complementares, nunca entidade/mês antigo.
+            inherited = [f for f in inherited if f.column not in {"codigo_tipo", "numero", "codigo_principal", "mes"}]
+
         filters = self._dedupe_filters(inherited + current_filters)
         use_tabular = bool(filters) or intent in {"count", "list", "group"} or self._has_known_tabular_terms(q_norm, columns)
         if intent == "describe" and not filters and not followup:
@@ -100,7 +112,7 @@ class QueryIntelligenceService:
         tokens = set(q_norm.split())
         if tokens & self.QUANT_MARKERS:
             return "count"
-        if any(m in q_norm for m in ["agrupe", "agrupar", "distribuicao", "distribuição", " por "]):
+        if any(m in q_norm for m in ["agrupe por", "agrupar por", "distribuicao por", "distribuição por", "group by", "ranking por", "top por", "por quantidade", "por total"]):
             return "group"
         if tokens & self.LIST_MARKERS:
             return "list"
@@ -255,9 +267,20 @@ class QueryIntelligenceService:
         return filters
 
     def _extract_group_by(self, q_norm: str, columns: list[str]) -> str | None:
-        if " por " not in q_norm: return None
-        tail = re.split(r"[\?\.,;]", q_norm.split(" por ", 1)[1])[0].strip()
-        return self._resolve_column(tail, columns)
+        patterns = [
+            r"(?:agrupe|agrupar|distribuicao|distribuição|ranking|top)\s+por\s+(.+)$",
+            r"por\s+(?:quantidade|total)\s+de\s+(.+)$",
+            r"por\s+(.+)$",
+        ]
+        for pattern in patterns:
+            m = re.search(pattern, q_norm)
+            if not m:
+                continue
+            tail = re.split(r"[\?\.,;]", m.group(1))[0].strip()
+            resolved = self._resolve_column(tail, columns)
+            if resolved:
+                return resolved
+        return None
 
     def _compatible_previous_filters(self, previous_plan: dict[str, Any], current_filters: list[QueryFilter]) -> list[QueryFilter]:
         """Herda somente filtros seguros da consulta imediatamente anterior.
