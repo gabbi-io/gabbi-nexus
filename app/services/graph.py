@@ -94,6 +94,14 @@ class AnalysisGraphService:
         self.force_rag_first = self._env_bool("GABBI_FORCE_RAG_FIRST", False)
         self.always_synthesize_hybrid = self._env_bool("GABBI_ALWAYS_SYNTHESIZE_HYBRID", False)
 
+        # Orçamento de contexto documental. O corte deixa de ser um slice global
+        # que eliminava silenciosamente os últimos documentos.
+        self.document_context_max_chars = int(os.getenv("GABBI_DOCUMENT_CONTEXT_MAX_CHARS", "60000"))
+        self.document_excerpt_max_chars = int(os.getenv("GABBI_DOCUMENT_EXCERPT_MAX_CHARS", "3500"))
+        self.document_excerpt_min_chars = int(os.getenv("GABBI_DOCUMENT_EXCERPT_MIN_CHARS", "600"))
+        self.case_wide_extra_chunks = int(os.getenv("GABBI_CASE_WIDE_EXTRA_CHUNKS", "8"))
+        self.max_merged_evidences = int(os.getenv("GABBI_MAX_MERGED_EVIDENCES", "200"))
+
     @staticmethod
     def _env_bool(name: str, default: bool = False) -> bool:
         raw = os.getenv(name)
@@ -119,6 +127,10 @@ class AnalysisGraphService:
         history = self._build_history(chat_history)
         has_documents = bool(documents)
         is_document_intent = self._is_document_intent(question, documents)
+        is_case_wide = bool(
+            is_document_intent
+            and self._is_case_wide_document_question(question)
+        )
         focus = "case_upload_first" if is_document_intent else self._detect_focus(question, documents)
         is_analytics = self._is_analytics_question(question)
 
@@ -187,8 +199,19 @@ class AnalysisGraphService:
                     self.retrieval_service.ensure_case_index(case_id, documents)
                 except Exception:
                     pass
-            top_k = 8 if is_document_intent else 6
-            case_evidences = self.retrieval_service.search(case_id, question, top_k=top_k)
+            if is_case_wide and hasattr(self.retrieval_service, "search_with_document_coverage"):
+                # Pergunta global: garante representação mínima de todos os documentos
+                # antes de complementar com chunks de maior relevância.
+                case_evidences = self.retrieval_service.search_with_document_coverage(
+                    case_id=case_id,
+                    query=question,
+                    top_k=max(len(documents) + self.case_wide_extra_chunks, 16),
+                    per_document=1,
+                )
+            else:
+                top_k = 8 if is_document_intent else 6
+                case_evidences = self.retrieval_service.search(case_id, question, top_k=top_k)
+
             case_evidences = self._tag_evidences(case_evidences, default_source="case_upload")
 
         # 2. Tabular como apoio em perguntas semânticas; para intenção documental só complementa, não retorna direto.
@@ -206,6 +229,11 @@ class AnalysisGraphService:
             case_evidences=case_evidences,
             tabular_evidences=tabular_evidences,
             focus=focus,
+            max_items=(
+                min(self.max_merged_evidences, max(len(documents) + self.case_wide_extra_chunks, 16))
+                if is_case_wide
+                else 16
+            ),
         )
 
         # 4. Retorno tabular direto somente quando não for intenção documental.
@@ -230,6 +258,7 @@ class AnalysisGraphService:
                 tabular_attempt=None if is_document_intent else tabular_result,
                 focus=focus,
                 document_intent=is_document_intent,
+                case_wide=is_case_wide,
             )
             if answer:
                 formatted["summary"] = answer
@@ -239,7 +268,10 @@ class AnalysisGraphService:
                 formatted["sources"] = {
                     "focus": focus,
                     "document_intent": is_document_intent,
+                    "case_wide": is_case_wide,
                     "case_uploads": bool(case_evidences),
+                    "evidence_files": sorted({str(e.get("filename")) for e in case_evidences if e.get("filename")}),
+                    "evidence_count": len(case_evidences),
                     "tabular": bool(tabular_result and not tabular_result.get("fallback_to_rag") and not is_document_intent),
                     "tabular_source_type": self._tabular_source_type(tabular_result),
                     "conversation_memory": bool(history),
@@ -355,11 +387,37 @@ class AnalysisGraphService:
 
         return False
 
+    def _is_case_wide_document_question(self, question: str) -> bool:
+        """Detecta pedidos que exigem cobertura do case completo, não só TOP-K semântico."""
+        q = self._norm(question)
+
+        strong_markers = [
+            "todos os documentos", "todos os arquivos", "todos os anexos",
+            "documentacao completa", "documentação completa",
+            "analise os documentos", "analise todos os documentos", "analise todos os arquivos",
+            "analise completa", "análise completa",
+            "triagem completa", "faca a triagem", "faça a triagem",
+            "consolide os documentos", "consolidar os documentos",
+            "considere todos", "considerando todos", "considerar todos",
+            "dossie completo", "dossiê completo", "todo o dossie", "todo o dossiê",
+            "conjunto completo", "pacote completo",
+            "cruze os documentos", "cruzar os documentos", "conferencia cruzada", "conferência cruzada",
+        ]
+        if any(marker in q for marker in self._norm_set(set(strong_markers))):
+            return True
+
+        # Combina verbos globais com referências plurais a documentos.
+        global_actions = {"analise", "avalie", "consolide", "compare", "cruze", "triagem", "verifique"}
+        plural_refs = {"documentos", "arquivos", "anexos", "materiais", "comprovantes", "laudos"}
+        tokens = set(q.split())
+        return bool(tokens & global_actions and tokens & plural_refs)
+
     def _merge_evidences(
         self,
         case_evidences: list[dict[str, Any]],
         tabular_evidences: list[dict[str, Any]],
         focus: str,
+        max_items: int | None = None,
     ) -> list[dict[str, Any]]:
         case = self._tag_evidences(case_evidences, "case_upload")
         tabular = tabular_evidences or []
@@ -372,7 +430,8 @@ class AnalysisGraphService:
                 continue
             seen.add(key)
             out.append(e)
-        return out[:16]
+        limit = max(1, int(max_items or 16))
+        return out[:limit]
 
     def _tag_evidences(self, evidences: list[dict[str, Any]], default_source: str) -> list[dict[str, Any]]:
         out = []
@@ -449,6 +508,78 @@ class AnalysisGraphService:
         table = execution.get("table") or {}
         return table.get("source_type")
 
+    def _build_evidence_blob(
+        self,
+        evidences: list[dict[str, Any]],
+        *,
+        case_wide: bool = False,
+    ) -> str:
+        """Monta o contexto sem truncar silenciosamente os últimos documentos.
+
+        Para perguntas case-wide, o orçamento é distribuído entre os arquivos
+        representados nas evidências. Assim, quando o case possui muitos documentos,
+        cada arquivo mantém ao menos um trecho no prompt antes de usar espaço extra.
+        """
+        if not evidences:
+            return ""
+
+        max_context = max(4000, self.document_context_max_chars)
+        max_excerpt = max(400, self.document_excerpt_max_chars)
+        min_excerpt = max(250, min(self.document_excerpt_min_chars, max_excerpt))
+
+        unique_files = []
+        seen_files = set()
+        for evidence in evidences:
+            filename = str(evidence.get("filename") or "fonte")
+            if filename not in seen_files:
+                unique_files.append(filename)
+                seen_files.add(filename)
+
+        if case_wide and unique_files:
+            # Reserva orçamento proporcional por arquivo; mantém um piso mínimo.
+            # O overhead aproximado evita que headers consumam todo o budget.
+            overhead = 180 * len(unique_files)
+            available = max(min_excerpt * len(unique_files), max_context - overhead)
+            per_file_budget = max(min_excerpt, min(max_excerpt, available // len(unique_files)))
+        else:
+            per_file_budget = min(max_excerpt, 2200)
+
+        blocks: list[str] = []
+        used_chars = 0
+        per_file_used: dict[str, int] = {}
+
+        for evidence in evidences:
+            filename = str(evidence.get("filename") or "fonte")
+            metadata = evidence.get("metadata") or {}
+            source = metadata.get("source") or metadata.get("source_type")
+            excerpt = str(evidence.get("excerpt") or "").strip()
+            if not excerpt:
+                continue
+
+            already = per_file_used.get(filename, 0)
+            remaining_for_file = max(0, per_file_budget - already) if case_wide else per_file_budget
+            if remaining_for_file <= 0:
+                continue
+
+            excerpt = excerpt[:remaining_for_file]
+            header = (
+                f"[{filename} | tipo={evidence.get('type')} | score={evidence.get('score')} "
+                f"| fonte={source}]\n"
+            )
+            block = header + excerpt
+
+            if used_chars + len(block) > max_context:
+                # Nunca faz slice global: simplesmente para ao atingir o orçamento.
+                # Como o retrieval case-wide ordena primeiro 1 chunk por documento,
+                # os arquivos do case já tiveram prioridade de cobertura.
+                break
+
+            blocks.append(block)
+            used_chars += len(block) + 2
+            per_file_used[filename] = already + len(excerpt)
+
+        return "\n\n".join(blocks)
+
     def _ask_openai(
         self,
         question: str,
@@ -459,11 +590,9 @@ class AnalysisGraphService:
         tabular_attempt: dict[str, Any] | None = None,
         focus: str = "hybrid_case_first",
         document_intent: bool = False,
+        case_wide: bool = False,
     ) -> str | None:
-        evidence_blob = "\n\n".join([
-            f"[{e.get('filename')} | tipo={e.get('type')} | score={e.get('score')} | fonte={(e.get('metadata') or {}).get('source') or (e.get('metadata') or {}).get('source_type')} ]\n{e.get('excerpt')}"
-            for e in evidences
-        ])[:18000]
+        evidence_blob = self._build_evidence_blob(evidences, case_wide=case_wide)
 
         tabular_blob = ""
         if tabular_attempt:
@@ -495,6 +624,8 @@ MODO DOCUMENTAL OBRIGATÓRIO:
 - Não responda com recomendação genérica de automação, RAG, classificação documental ou extração de campos, salvo se o usuário pedir isso explicitamente.
 - Para "explique o teor", "resuma", "do que se trata" ou perguntas similares, explique: natureza do documento, partes envolvidas, objeto/escopo, valores/prazos, obrigações, penalidades/riscos e conclusão executiva, somente quando essas informações aparecerem nas evidências.
 - Se as evidências forem trechos parciais, deixe claro que o resumo está baseado nos trechos recuperados.
+- Em análise de case completo, não declare um arquivo como ausente/ilegível apenas porque um campo não apareceu em outro documento. Use o nome da fonte e o trecho efetivamente recebido.
+- Quando houver múltiplos documentos, faça conferências cruzadas somente com dados presentes nas evidências; não invente ausência.
 """.rstrip()
 
         if mode == "executive":
@@ -507,6 +638,7 @@ MODO DOCUMENTAL OBRIGATÓRIO:
         user_prompt = f"""
 Foco de roteamento detectado: {focus}
 Intenção documental detectada: {document_intent}
+Análise de case completo detectada: {case_wide}
 
 Pergunta do usuário:
 {question}
