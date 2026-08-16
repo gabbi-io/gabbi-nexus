@@ -130,6 +130,84 @@ class RetrievalService:
 
         return []
 
+    def search_with_document_coverage(
+        self,
+        case_id: str,
+        query: str,
+        *,
+        top_k: int = 16,
+        per_document: int = 1,
+    ) -> list[dict[str, Any]]:
+        """Busca semântica com cobertura mínima por documento.
+
+        Indicada para perguntas case-wide, como "analise todos os documentos",
+        "faça a triagem completa" ou "considere todos os anexos".
+
+        Estratégia:
+        1. calcula relevância de todos os chunks do case;
+        2. seleciona os melhores ``per_document`` chunks de cada documento;
+        3. completa o resultado com os melhores chunks globais ainda não usados;
+        4. preserva o isolamento por ``case_id``.
+
+        Isso evita que um único arquivo com muitos chunks ocupe todo o TOP-K e
+        faça outros documentos desaparecerem do contexto enviado ao LLM.
+        """
+        chunks = self.case_chunks.get(case_id, [])
+        matrix = self.case_matrices.get(case_id)
+        vectorizer = self.case_vectorizers.get(case_id)
+
+        if not chunks or matrix is None or vectorizer is None:
+            return []
+
+        scores = self._score_local_chunks(case_id, query)
+        if scores is None:
+            return []
+
+        # Agrupa pelo document_id; filename é fallback para índices antigos.
+        by_document: dict[str, list[tuple[int, float]]] = {}
+        for idx, chunk in enumerate(chunks):
+            metadata = chunk.metadata or {}
+            document_key = str(
+                metadata.get("document_id")
+                or chunk.filename
+                or f"document_{idx}"
+            )
+            by_document.setdefault(document_key, []).append((idx, float(scores[idx])))
+
+        selected: list[int] = []
+        selected_set: set[int] = set()
+        per_document = max(1, int(per_document or 1))
+
+        # Primeiro garante cobertura: pelo menos um chunk de cada documento.
+        document_heads: list[tuple[float, str, list[tuple[int, float]]]] = []
+        for document_key, document_chunks in by_document.items():
+            ranked = sorted(document_chunks, key=lambda item: item[1], reverse=True)
+            best_score = ranked[0][1] if ranked else 0.0
+            document_heads.append((best_score, document_key, ranked))
+
+        # Mantém documentos ordenados por relevância, sem perder cobertura.
+        document_heads.sort(key=lambda item: item[0], reverse=True)
+        for _, _, ranked in document_heads:
+            for idx, _score in ranked[:per_document]:
+                if idx not in selected_set:
+                    selected.append(idx)
+                    selected_set.add(idx)
+
+        # Em case-wide, top_k nunca pode ser menor que o número de documentos.
+        desired_total = max(int(top_k or 0), len(by_document) * per_document)
+
+        # Depois complementa com os melhores chunks do ranking global.
+        for idx in np.argsort(-scores):
+            idx = int(idx)
+            if idx in selected_set:
+                continue
+            selected.append(idx)
+            selected_set.add(idx)
+            if len(selected) >= desired_total:
+                break
+
+        return [self._chunk_to_result(chunks[idx], float(scores[idx])) for idx in selected]
+
     def get_case_chunks(self, case_id: str) -> list[ChunkItem]:
         return self.case_chunks.get(case_id, [])
 
@@ -139,45 +217,62 @@ class RetrievalService:
         self.case_vectorizers.pop(case_id, None)
         self.case_document_fingerprints.pop(case_id, None)
 
-    def _search_local(self, case_id: str, query: str, top_k: int) -> list[dict[str, Any]]:
+    def _score_local_chunks(self, case_id: str, query: str) -> np.ndarray | None:
         chunks = self.case_chunks.get(case_id, [])
         matrix = self.case_matrices.get(case_id)
         vectorizer = self.case_vectorizers.get(case_id)
 
         if not chunks or matrix is None or vectorizer is None:
-            return []
+            return None
 
         try:
             query_vec = vectorizer.transform([query])
             if matrix.shape[1] != query_vec.shape[1]:
-                return []
+                return None
             raw_scores = (matrix @ query_vec.T).toarray().ravel()
-            scores = np.array([float(score) + self._source_boost(chunks[int(idx)]) for idx, score in enumerate(raw_scores)])
+            scores = np.array([
+                float(score) + self._source_boost(chunks[int(idx)])
+                for idx, score in enumerate(raw_scores)
+            ])
         except Exception:
-            return []
+            return None
 
         q = str(query or "").lower()
-        wants_file = any(t in q for t in ["arquivo", "anexo", "documento", "planilha", "upload", "pdf", "txt", "csv", "xlsx", "xls"])
+        wants_file = any(
+            term in q
+            for term in [
+                "arquivo", "arquivos", "anexo", "anexos", "documento", "documentos",
+                "planilha", "upload", "pdf", "txt", "csv", "xlsx", "xls",
+            ]
+        )
         if wants_file:
             for idx, chunk in enumerate(chunks):
                 if self._source_type(chunk) == "case_upload":
                     scores[idx] += 1.0
+        return scores
+
+    @staticmethod
+    def _chunk_to_result(chunk: ChunkItem, score: float) -> dict[str, Any]:
+        return {
+            "filename": chunk.filename,
+            "chunk_id": chunk.chunk_id,
+            "type": "text",
+            "score": round(float(score), 4),
+            "excerpt": chunk.text[:2200],
+            "metadata": chunk.metadata or {},
+        }
+
+    def _search_local(self, case_id: str, query: str, top_k: int) -> list[dict[str, Any]]:
+        chunks = self.case_chunks.get(case_id, [])
+        scores = self._score_local_chunks(case_id, query)
+        if not chunks or scores is None:
+            return []
 
         order = np.argsort(-scores)[:top_k]
-        out = []
-        for idx in order:
-            chunk = chunks[int(idx)]
-            out.append(
-                {
-                    "filename": chunk.filename,
-                    "chunk_id": chunk.chunk_id,
-                    "type": "text",
-                    "score": round(float(scores[idx]), 4),
-                    "excerpt": chunk.text[:2200],
-                    "metadata": chunk.metadata or {},
-                }
-            )
-        return out
+        return [
+            self._chunk_to_result(chunks[int(idx)], float(scores[int(idx)]))
+            for idx in order
+        ]
 
     def _build_chunks(self, documents: list[dict[str, Any]]) -> list[ChunkItem]:
         chunks: list[ChunkItem] = []
