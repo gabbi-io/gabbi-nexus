@@ -101,6 +101,7 @@ class AnalysisGraphService:
         self.document_excerpt_min_chars = int(os.getenv("GABBI_DOCUMENT_EXCERPT_MIN_CHARS", "600"))
         self.case_wide_extra_chunks = int(os.getenv("GABBI_CASE_WIDE_EXTRA_CHUNKS", "8"))
         self.max_merged_evidences = int(os.getenv("GABBI_MAX_MERGED_EVIDENCES", "200"))
+        self.document_adaptive_top_k = int(os.getenv("GABBI_DOCUMENT_ADAPTIVE_TOP_K", "20"))
 
     @staticmethod
     def _env_bool(name: str, default: bool = False) -> bool:
@@ -126,11 +127,11 @@ class AnalysisGraphService:
     ) -> dict[str, Any]:
         history = self._build_history(chat_history)
         has_documents = bool(documents)
-        is_document_intent = self._is_document_intent(question, documents)
-        is_case_wide = bool(
-            is_document_intent
-            and self._is_case_wide_document_question(question)
-        )
+        # Architecture V5:
+        # o Nexus é um analista documental. Se o case possui documentos, a busca
+        # documental é válida independentemente do domínio/agente.
+        is_document_intent = bool(documents)
+        is_case_wide = False
         focus = "case_upload_first" if is_document_intent else self._detect_focus(question, documents)
         is_analytics = self._is_analytics_question(question)
 
@@ -199,14 +200,21 @@ class AnalysisGraphService:
                     self.retrieval_service.ensure_case_index(case_id, documents)
                 except Exception:
                     pass
-            if is_case_wide and hasattr(self.retrieval_service, "search_with_document_coverage"):
-                # Pergunta global: garante representação mínima de todos os documentos
-                # antes de complementar com chunks de maior relevância.
-                case_evidences = self.retrieval_service.search_with_document_coverage(
+            if is_document_intent and hasattr(self.retrieval_service, "search_adaptive"):
+                # Busca adaptativa e agnóstica:
+                # - preserva semântica em perguntas focadas;
+                # - preserva arquivos e regiões em documentos longos/cases amplos.
+                profile = self.retrieval_service.coverage_profile(case_id, question)
+                is_case_wide = bool(profile.get("recommended"))
+                requested_top_k = max(
+                    self.document_adaptive_top_k,
+                    len(documents) + self.case_wide_extra_chunks,
+                )
+                case_evidences = self.retrieval_service.search_adaptive(
                     case_id=case_id,
                     query=question,
-                    top_k=max(len(documents) + self.case_wide_extra_chunks, 16),
-                    per_document=1,
+                    top_k=requested_top_k,
+                    prefer_coverage=None,
                 )
             else:
                 top_k = 8 if is_document_intent else 6
@@ -230,8 +238,11 @@ class AnalysisGraphService:
             tabular_evidences=tabular_evidences,
             focus=focus,
             max_items=(
-                min(self.max_merged_evidences, max(len(documents) + self.case_wide_extra_chunks, 16))
-                if is_case_wide
+                min(
+                    self.max_merged_evidences,
+                    max(self.document_adaptive_top_k, len(case_evidences), len(documents) + self.case_wide_extra_chunks),
+                )
+                if is_document_intent
                 else 16
             ),
         )
@@ -271,7 +282,21 @@ class AnalysisGraphService:
                     "case_wide": is_case_wide,
                     "case_uploads": bool(case_evidences),
                     "evidence_files": sorted({str(e.get("filename")) for e in case_evidences if e.get("filename")}),
+                    "case_documents": [
+                        str(doc.get("filename") or "arquivo")
+                        for doc in documents
+                    ],
+                    "case_document_count": len(documents),
                     "evidence_count": len(case_evidences),
+                    "coverage_roles": sorted({
+                        str((e.get("metadata") or {}).get("coverage_role") or "semantic")
+                        for e in case_evidences
+                    }),
+                    "coverage_buckets": sorted({
+                        str((e.get("metadata") or {}).get("coverage_bucket"))
+                        for e in case_evidences
+                        if (e.get("metadata") or {}).get("coverage_bucket")
+                    }),
                     "tabular": bool(tabular_result and not tabular_result.get("fallback_to_rag") and not is_document_intent),
                     "tabular_source_type": self._tabular_source_type(tabular_result),
                     "conversation_memory": bool(history),
@@ -483,23 +508,22 @@ class AnalysisGraphService:
         return False
 
     def _is_analytics_question(self, question: str) -> bool:
+        """Detecta intenção analítica sem vocabulário de domínio.
+
+        Só considera analytics quando houver operador quantitativo/estrutural forte.
+        Termos genéricos como "quais" ou "liste" sozinhos NÃO bloqueiam RAG.
+        """
         q = self._norm(question)
-        analytics_terms = [
-            "quantos", "quantas", "quantidade", "qtd", "qtde", "total", "totais",
-            "quais", "liste", "listar", "lista", "codigos", "códigos",
-            "agrupe", "agrupar", "distribuicao", "distribuição", "ranking", "top",
-            "compare", "comparar", "comparativo", "por quantidade", "por total",
-            "grupo de atribuicao", "grupo de atribuição", "ic impactado", "mes", "mês", "dia",
-            "p1", "p2", "p3", "p1/p2/p3", "prioridade", "volume", "volume critico",
-            "mttr", "tempo medio", "tempo médio", "impacto total", "parada sistemica", "parada sistêmica",
-            "funcionalidade", "funcionalidades",
+        strong_patterns = [
+            "quantos", "quantas", "quantidade", "contagem", "conte",
+            "total de", "soma de", "somatorio", "somatório",
+            "media de", "média de", "mediana", "percentual", "porcentagem",
+            "agrupe por", "agrupar por", "distribuicao por", "distribuição por",
+            "ranking", "top ", "maior quantidade", "menor quantidade",
+            "distintos", "distintas", "distinct",
+            "por mes", "por mês", "por dia", "por ano", "por status",
         ]
-        domain_terms = [
-            "chg", "change", "changes", "mudanca", "mudança",
-            "inc", "incidente", "incidentes", "chamado", "chamados",
-            "app", "app vivo", "ecomm", "aura", "whatsapp", "vivo",
-        ]
-        return bool(any(t in q for t in analytics_terms) and any(t in q for t in domain_terms))
+        return any(pattern in q for pattern in strong_patterns)
 
     def _tabular_source_type(self, tabular_result: dict[str, Any] | None) -> str | None:
         if not tabular_result:
@@ -514,11 +538,11 @@ class AnalysisGraphService:
         *,
         case_wide: bool = False,
     ) -> str:
-        """Monta o contexto sem truncar silenciosamente os últimos documentos.
+        """Monta contexto por unidades de cobertura, não por nome de arquivo.
 
-        Para perguntas case-wide, o orçamento é distribuído entre os arquivos
-        representados nas evidências. Assim, quando o case possui muitos documentos,
-        cada arquivo mantém ao menos um trecho no prompt antes de usar espaço extra.
+        V4 distribuía orçamento por arquivo. Isso falhava quando um único PDF
+        continha muitas seções/documentos lógicos. V5 distribui por evidência/
+        região estrutural selecionada, preservando início/meio/fim e relevância.
         """
         if not evidences:
             return ""
@@ -527,56 +551,65 @@ class AnalysisGraphService:
         max_excerpt = max(400, self.document_excerpt_max_chars)
         min_excerpt = max(250, min(self.document_excerpt_min_chars, max_excerpt))
 
-        unique_files = []
-        seen_files = set()
+        # Unidades são (arquivo + coverage_bucket/role/chunk), portanto um único
+        # PDF grande pode ocupar várias regiões de contexto sem ser truncado a
+        # um único budget de arquivo.
+        units = []
+        seen = set()
         for evidence in evidences:
+            metadata = evidence.get("metadata") or {}
             filename = str(evidence.get("filename") or "fonte")
-            if filename not in seen_files:
-                unique_files.append(filename)
-                seen_files.add(filename)
+            bucket = str(metadata.get("coverage_bucket") or "")
+            role = str(metadata.get("coverage_role") or "semantic")
+            chunk_id = str(evidence.get("chunk_id") or "")
+            unit_key = (filename, bucket or role, chunk_id)
+            if unit_key in seen:
+                continue
+            seen.add(unit_key)
+            units.append(evidence)
 
-        if case_wide and unique_files:
-            # Reserva orçamento proporcional por arquivo; mantém um piso mínimo.
-            # O overhead aproximado evita que headers consumam todo o budget.
-            overhead = 180 * len(unique_files)
-            available = max(min_excerpt * len(unique_files), max_context - overhead)
-            per_file_budget = max(min_excerpt, min(max_excerpt, available // len(unique_files)))
-        else:
-            per_file_budget = min(max_excerpt, 2200)
+        if not units:
+            return ""
+
+        overhead = 190 * len(units)
+        available = max(min_excerpt * len(units), max_context - overhead)
+        per_unit_budget = max(
+            min_excerpt,
+            min(max_excerpt, available // max(1, len(units))),
+        )
 
         blocks: list[str] = []
         used_chars = 0
-        per_file_used: dict[str, int] = {}
 
-        for evidence in evidences:
-            filename = str(evidence.get("filename") or "fonte")
+        for evidence in units:
             metadata = evidence.get("metadata") or {}
+            filename = str(evidence.get("filename") or "fonte")
             source = metadata.get("source") or metadata.get("source_type")
+            role = metadata.get("coverage_role") or "semantic"
+            bucket = metadata.get("coverage_bucket")
             excerpt = str(evidence.get("excerpt") or "").strip()
             if not excerpt:
                 continue
 
-            already = per_file_used.get(filename, 0)
-            remaining_for_file = max(0, per_file_budget - already) if case_wide else per_file_budget
-            if remaining_for_file <= 0:
-                continue
-
-            excerpt = excerpt[:remaining_for_file]
+            excerpt = excerpt[:per_unit_budget]
             header = (
-                f"[{filename} | tipo={evidence.get('type')} | score={evidence.get('score')} "
-                f"| fonte={source}]\n"
+                f"[{filename} | chunk={evidence.get('chunk_id')} | "
+                f"regiao={bucket or '-'} | papel={role} | "
+                f"score={evidence.get('score')} | fonte={source}]\n"
             )
             block = header + excerpt
 
             if used_chars + len(block) > max_context:
-                # Nunca faz slice global: simplesmente para ao atingir o orçamento.
-                # Como o retrieval case-wide ordena primeiro 1 chunk por documento,
-                # os arquivos do case já tiveram prioridade de cobertura.
-                break
+                remaining = max_context - used_chars
+                if remaining <= len(header) + min_excerpt:
+                    break
+                block = header + excerpt[:max(0, remaining - len(header))]
 
             blocks.append(block)
             used_chars += len(block) + 2
-            per_file_used[filename] = already + len(excerpt)
+
+            if used_chars >= max_context:
+                break
 
         return "\n\n".join(blocks)
 
@@ -617,6 +650,13 @@ REGRAS OBRIGATÓRIAS:
 
         if document_intent:
             system_prompt += """
+REGRAS UNIVERSAIS DE EVIDÊNCIA DOCUMENTAL:
+- O inventário de arquivos recebidos e o conteúdo efetivamente recuperado são conceitos diferentes.
+- Nunca conclua que um documento/artefato está ausente apenas porque um trecho não apareceu nas evidências selecionadas.
+- Quando o arquivo foi recebido, mas uma informação esperada não foi recuperada, descreva como limitação de leitura/recuperação técnica.
+- Ausência só pode ser afirmada quando houver evidência positiva de que o item não foi fornecido ou não existe no material analisado.
+- Não complete lacunas de um documento por analogia com outro documento.
+- Preserve datas, números, códigos, nomes e valores exatamente como aparecem nas evidências.
 
 MODO DOCUMENTAL OBRIGATÓRIO:
 - A pergunta foi classificada como pergunta sobre o documento/anexo atual.
